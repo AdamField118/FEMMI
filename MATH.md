@@ -63,7 +63,7 @@ Note the −2 on the right-hand side: the weak form introduces a sign flip
 
 The complex shear γ = γ₁ + iγ₂ is related to ψ by:
 
-$$\gamma_1 = \frac{1}{2}\!\left(\frac{\partial^2\psi}{\partial x^2} - \frac{\partial^2\psi}{\partial y^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial x\,\partial y}$$
+$$\gamma_1 = \frac{1}{2}\left(\frac{\partial^2\psi}{\partial x^2} - \frac{\partial^2\psi}{\partial y^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial x \partial y}$$
 
 This is the **fundamental reason P3 elements are necessary**: computing γ requires
 second derivatives of ψ. P1 (linear) elements have identically zero second
@@ -85,7 +85,7 @@ Documented in `operators.py#L7–L8`:
 
 Multiplying ∇²ψ = 2κ by a test function v ∈ H¹₀(Ω) and integrating by parts:
 
-$$\int_\Omega \nabla\psi \cdot \nabla v\,dA = -2\int_\Omega \kappa\,v\,dA \qquad \forall v \in H_0^1(\Omega)$$
+$$\int_\Omega \nabla\psi \cdot \nabla vdA = -2\int_\Omega \kappavdA \qquad \forall v \in H_0^1(\Omega)$$
 
 The boundary term ∮_{∂Ω} v(∇ψ·n) ds vanishes because v = 0 on ∂Ω (Dirichlet BC).
 
@@ -102,7 +102,7 @@ $$K\boldsymbol{\psi} = -2M\boldsymbol{\kappa}$$
 
 where:
 
-$$K_{ij} = \int_\Omega \nabla N_i \cdot \nabla N_j\,dA, \qquad M_{ij} = \int_\Omega N_i N_j\,dA$$
+$$K_{ij} = \int_\Omega \nabla N_i \cdot \nabla N_jdA, \qquad M_{ij} = \int_\Omega N_i N_jdA$$
 
 Assembled in `operators.py#L193–L277` (`_assemble_operators_from_mesh`).
 
@@ -255,7 +255,7 @@ area = abs(np.linalg.det(Jac)) / 2.0
 
 The element stiffness matrix is:
 
-$$K^e_{ij} = \int_T \nabla N_i \cdot \nabla N_j\,dA = |T|\sum_q w_q\,(\nabla_{\mathbf{x}}N_i)_q \cdot (\nabla_{\mathbf{x}}N_j)_q$$
+$$K^e_{ij} = \int_T \nabla N_i \cdot \nabla N_jdA = |T|\sum_q w_q(\nabla_{\mathbf{x}}N_i)_q \cdot (\nabla_{\mathbf{x}}N_j)_q$$
 
 **Gradient transformation.** The physical gradient of Nᵢ is related to the
 reference gradient by the chain rule:
@@ -295,7 +295,7 @@ K_raw = sp.coo_matrix((K_d[:entry], (I_k[:entry], J_k[:entry])), ...).tocsr()
 
 The element mass matrix:
 
-$$M^e_{ij} = \int_T N_i N_j\,dA = |T|\sum_q w_q\,N_i(\xi_q)\,N_j(\xi_q)$$
+$$M^e_{ij} = \int_T N_i N_jdA = |T|\sum_q w_qN_i(\xi_q)N_j(\xi_q)$$
 
 Assembled in `_assemble_mass_p3` (`operators.py#L85–L105`):
 
@@ -309,7 +309,7 @@ for q, (xi, eta) in enumerate(quad_points):
 
 The load vector for the Poisson equation uses the same quadrature:
 
-$$F^e_i = -2\int_T N_i\,\kappa\,dA = -2|T|\sum_q w_q\,N_i(\xi_q)\,\underbrace{\sum_j \kappa_j N_j(\xi_q)}_{\kappa^h(\xi_q)}$$
+$$F^e_i = -2\int_T N_i\kappadA = -2|T|\sum_q w_qN_i(\xi_q)\underbrace{\sum_j \kappa_j N_j(\xi_q)}_{\kappa^h(\xi_q)}$$
 
 This makes the integrand degree 6 (product of two cubics), requiring at
 minimum a degree-6-exact quadrature rule — hence the degree-7 Dunavant rule
@@ -399,7 +399,7 @@ jax.config.update("jax_enable_x64", True)
 Rather than deriving analytic second-derivative formulas by hand, FEMMI
 precomputes the reference Hessians using JAX forward-over-reverse autodiff:
 
-$$H^{\rm ref}_{p,j,k,\ell} = \left.\frac{\partial^2 N_j}{\partial\xi_k\,\partial\xi_\ell}\right|_{\boldsymbol{\xi}=\boldsymbol{\xi}^{\rm ref}_p}$$
+$$H^{\rm ref}_{p,j,k,\ell} = \left.\frac{\partial^2 N_j}{\partial\xi_k\partial\xi_\ell}\right|_{\boldsymbol{\xi}=\boldsymbol{\xi}^{\rm ref}_p}$$
 
 Array shape: (10 evaluation points, 10 shape functions, 2, 2).
 
@@ -429,13 +429,13 @@ For an **affine map** (J constant over the element), the second derivatives
 of a function u transform from reference to physical coordinates via the
 chain rule without any correction terms from the map's second derivatives:
 
-$$\frac{\partial^2 N_j}{\partial x_a\,\partial x_b} = \sum_{k,\ell} \underbrace{\frac{\partial\xi_k}{\partial x_a}}_{A_{ka}} \underbrace{\frac{\partial\xi_\ell}{\partial x_b}}_{A_{\ell b}} \frac{\partial^2 N_j}{\partial\xi_k\,\partial\xi_\ell}$$
+$$\frac{\partial^2 N_j}{\partial x_a\partial x_b} = \sum_{k,\ell} \underbrace{\frac{\partial\xi_k}{\partial x_a}}_{A_{ka}} \underbrace{\frac{\partial\xi_\ell}{\partial x_b}}_{A_{\ell b}} \frac{\partial^2 N_j}{\partial\xi_k\partial\xi_\ell}$$
 
 where A = J⁻ᵀ and A[k,a] = ∂ξ_k/∂x_a.
 
 Rearranging indices for the full array H_phys of shape (10_shapes, 2, 2):
 
-$$H^{\rm phys}_{j,a,b} = \sum_{k,\ell} A_{ka}\,A_{\ell b}\,H^{\rm ref}_{j,k\ell}$$
+$$H^{\rm phys}_{j,a,b} = \sum_{k,\ell} A_{ka}A_{\ell b}H^{\rm ref}_{j,k\ell}$$
 
 In einsum notation (using Einstein index convention j=shape fn, k=ref coord 1,
 l=ref coord 2, a=phys coord 1, b=phys coord 2):
@@ -494,7 +494,7 @@ This uses **A[a,j]** — the transpose of A in both slots.
 
 For **lower triangles** in a structured rectangular mesh, the Jacobian is:
 
-$$J_{\rm lower} = \begin{pmatrix}\Delta x & 0\\\Delta y & \Delta y\end{pmatrix} \quad \Rightarrow \quad J^{-1} = \frac{1}{\Delta x\,\Delta y}\begin{pmatrix}\Delta y & 0\\-\Delta y & \Delta x\end{pmatrix}$$
+$$J_{\rm lower} = \begin{pmatrix}\Delta x & 0\\\Delta y & \Delta y\end{pmatrix} \quad \Rightarrow \quad J^{-1} = \frac{1}{\Delta x\Delta y}\begin{pmatrix}\Delta y & 0\\-\Delta y & \Delta x\end{pmatrix}$$
 
 This J⁻¹ is **not** symmetric, but J⁻ᵀ happens to be diagonal in the
 direction where the Hessian entries differ — the bug was partially hidden.
@@ -596,7 +596,7 @@ def forward(self, kappa):
 
 The MAP estimator minimizes:
 
-$$\mathcal{L}(\boldsymbol{\kappa}) = \underbrace{\|\boldsymbol{\gamma}_{\rm pred}(\boldsymbol{\kappa}) - \boldsymbol{\gamma}_{\rm obs}\|^2}_{\text{data fidelity}} + \underbrace{\lambda\,\boldsymbol{\kappa}^\top R\,\boldsymbol{\kappa}}_{\text{regularization}}$$
+$$\mathcal{L}(\boldsymbol{\kappa}) = \underbrace{\|\boldsymbol{\gamma}_{\rm pred}(\boldsymbol{\kappa}) - \boldsymbol{\gamma}_{\rm obs}\|^2}_{\text{data fidelity}} + \underbrace{\lambda\boldsymbol{\kappa}^\top R\boldsymbol{\kappa}}_{\text{regularization}}$$
 
 where the L2 norm is summed over all mesh nodes and both shear components.
 
@@ -625,7 +625,7 @@ loss = data_loss + reg_loss
 
 **Standard H1 prior** R = K encodes the penalty:
 
-$$\lambda\,\boldsymbol{\kappa}^\top K\,\boldsymbol{\kappa} = \lambda\int_\Omega |\nabla\kappa|^2\,dA$$
+$$\lambda\boldsymbol{\kappa}^\top K\boldsymbol{\kappa} = \lambda\int_\Omega |\nabla\kappa|^2dA$$
 
 This penalizes all spatial frequencies above the mesh scale equally.
 
@@ -635,11 +635,11 @@ $$R = M + \ell^2 K$$
 
 giving the penalty:
 
-$$\lambda\,\boldsymbol{\kappa}^\top(M + \ell^2 K)\boldsymbol{\kappa} = \lambda\int_\Omega\!\left[\kappa^2 + \ell^2|\nabla\kappa|^2\right]dA$$
+$$\lambda\boldsymbol{\kappa}^\top(M + \ell^2 K)\boldsymbol{\kappa} = \lambda\int_\Omega\left[\kappa^2 + \ell^2|\nabla\kappa|^2\right]dA$$
 
 **Spectral interpretation.** The operator (I − ℓ²∇²) has Green's function
 
-$$G(r) = \frac{\ell}{2}K_0\!\left(\frac{r}{\ell}\right) \approx e^{-r/\ell} \quad (r \gg \ell)$$
+$$G(r) = \frac{\ell}{2}K_0\left(\frac{r}{\ell}\right) \approx e^{-r/\ell} \quad (r \gg \ell)$$
 
 where K₀ is the modified Bessel function of the second kind. This is the
 **Matérn-½ covariance** (exponential covariance). Setting ℓ = σ_lens makes
@@ -691,15 +691,15 @@ Since K is symmetric, K⁻ᵀ = K⁻¹. Since M is symmetric, Mᵀ = M.
 
 **Step 3: Apply to 2r.**
 
-$$\frac{\partial}{\partial\boldsymbol{\kappa}}\|\mathbf{g} - \mathbf{g}_{\rm obs}\|^2 = (-2M) K^{-1}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2)\cdot 2 = -4M\,K^{-1}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2)$$
+$$\frac{\partial}{\partial\boldsymbol{\kappa}}\|\mathbf{g} - \mathbf{g}_{\rm obs}\|^2 = (-2M) K^{-1}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2)\cdot 2 = -4MK^{-1}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2)$$
 
 **Step 4: Regularization gradient.**
 
-$$\frac{\partial}{\partial\boldsymbol{\kappa}}[\lambda\,\boldsymbol{\kappa}^\top R\,\boldsymbol{\kappa}] = 2\lambda R\boldsymbol{\kappa}$$
+$$\frac{\partial}{\partial\boldsymbol{\kappa}}[\lambda\boldsymbol{\kappa}^\top R\boldsymbol{\kappa}] = 2\lambda R\boldsymbol{\kappa}$$
 
 **Full gradient:**
 
-$$\boxed{\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4M\,K^{-1}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\boldsymbol{\kappa}}$$
+$$\boxed{\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4MK^{-1}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\boldsymbol{\kappa}}$$
 
 Implemented in `inverse.py#L144–L149`:
 
@@ -739,7 +739,7 @@ graph and calls the user-supplied backward pass.
 Define `fem_solve(b) = K⁻¹b`. The VJP rule follows from differentiating
 the implicit equation K x = b:
 
-$$d(Kx) = db \quad \Rightarrow \quad K\,dx = db \quad \Rightarrow \quad \frac{\partial x}{\partial b} = K^{-1}$$
+$$d(Kx) = db \quad \Rightarrow \quad Kdx = db \quad \Rightarrow \quad \frac{\partial x}{\partial b} = K^{-1}$$
 
 For a scalar loss L with upstream gradient g̃ = ∂L/∂x:
 
@@ -847,11 +847,11 @@ approximation in V^h.
 
 For P_k elements and ψ ∈ H^{k+1}(Ω):
 
-$$\inf_{v^h \in V^h}\|\psi - v^h\|_{H^1} \leq C\,h^k\,|\psi|_{H^{k+1}}$$
+$$\inf_{v^h \in V^h}\|\psi - v^h\|_{H^1} \leq Ch^k|\psi|_{H^{k+1}}$$
 
 Combined with the Aubin-Nitsche duality argument for L² (Brenner & Scott §4.4):
 
-$$\|\psi - \psi^h\|_{L^2} \leq C\,h^{k+1}\,|\psi|_{H^{k+1}}$$
+$$\|\psi - \psi^h\|_{L^2} \leq Ch^{k+1}|\psi|_{H^{k+1}}$$
 
 | Norm | P1 (k=1) | P2 (k=2) | P3 (k=3) |
 |------|----------|----------|----------|
