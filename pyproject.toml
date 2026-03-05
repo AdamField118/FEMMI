@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "femmi"
+version = "0.1.0"
+description = "FEM-based mass inversion for weak gravitational lensing"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Adam Field", email = "adfield@wpi.edu" },
+]
+license = { text = "MIT" }
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Scientific/Engineering :: Astronomy",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+  "jax>=0.4.20",
+  "jaxlib>=0.4.20",
+  "numpy>=1.24.0",
+  "matplotlib>=3.7.0",
+  "scipy>=1.10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0", "jupyter>=1.0.0"]
+mesh = ["triangle>=20200424"]
+
+[project.urls]
+Repository = "https://github.com/AdamField118/FEMMI"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["femmi*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
