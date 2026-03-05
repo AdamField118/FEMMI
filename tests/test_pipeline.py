@@ -141,11 +141,26 @@ def test_4_noiseless_map(ops):
 
 
 def test_5_noisy_map_vs_ks(ops):
+    """
+    Noisy MAP reconstruction vs Kaiser-Squires.
+    Uses run_comparison which builds its own operators and mesh internally.
+    Passes domain bounds and lens parameters using the current inverse.py API.
+    """
     sep()
     print("TEST 5: Noisy MAP vs Kaiser-Squires\n")
-    out = run_comparison(nx=NX, noise_level=0.10, lam_reg=1e-2,
-                         domain=DOMAIN, A=A, sigma=SIGMA, verbose=True)
-    l2_map, l2_ks = out['l2_map'], out['l2_ks']
+
+    kappa_map, kappa_ks, kappa_true, result = run_comparison(
+        nx=NX,
+        noise_level=0.10,
+        lam_reg=1e-2,
+        A_lens=A,
+        sigma_lens=SIGMA,
+        xmin=DOMAIN[0], xmax=DOMAIN[1],
+        ymin=DOMAIN[2], ymax=DOMAIN[3],
+    )
+
+    l2_map = float(np.sqrt(np.mean((kappa_map - kappa_true)**2)))
+    l2_ks  = float(np.sqrt(np.mean((kappa_ks  - kappa_true)**2)))
     ok = l2_map <= 1.5 * l2_ks
     print(f"  FEM-MAP L2 = {l2_map:.4f}  KS L2 = {l2_ks:.4f}")
     print(f"  ratio MAP/KS = {l2_map/l2_ks:.2f}  (threshold 1.5)")

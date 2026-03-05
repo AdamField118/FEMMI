@@ -1,30 +1,28 @@
 #!/bin/bash
-# Run tests/examples from project root
-# This ensures imports work correctly
+# Run scripts from the FEMMI project root.
+# This ensures femmi/ package is importable without installing.
 
-# Get script directory (should be project root)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
-
-# Add project root to PYTHONPATH
 export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
 
-# Run the requested script
 if [ $# -eq 0 ]; then
-    echo "Usage: ./run.sh <script_name>"
+    echo "Usage: ./run.sh <script>"
+    echo ""
+    echo "Tests:"
+    echo "  ./run.sh tests/test_pipeline.py"
+    echo "  ./run.sh tests/test_convergence_p3.py"
     echo ""
     echo "Examples:"
-    echo "  ./run.sh tests/example.py"
-    echo "  ./run.sh tests/validation.py"
+    echo "  ./run.sh examples/demo_p3_pipeline.py"
+    echo "  ./run.sh examples/cluster_example.py"
     echo ""
-    echo "Or you can install the package:"
+    echo "Or install in development mode and run directly:"
     echo "  pip install -e ."
-    echo "  Then run directly: python tests/example.py"
     exit 1
 fi
 
 echo "Running: $1"
 echo "PYTHONPATH: $PYTHONPATH"
 echo ""
-
 python "$1"

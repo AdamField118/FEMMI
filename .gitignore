@@ -1,0 +1,13 @@
+# Generated plots
+*.png
+
+# Python build artifacts
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Editor / OS
+.vscode/
+.DS_Store
