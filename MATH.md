@@ -85,7 +85,7 @@ Documented in `operators.py#L7–L8`:
 
 Multiplying ∇²ψ = 2κ by a test function v ∈ H¹₀(Ω) and integrating by parts:
 
-$$\int_\Omega \nabla\psi \cdot \nabla vdA = -2\int_\Omega \kappavdA \qquad \forall v \in H_0^1(\Omega)$$
+$$\int_\Omega \nabla\psi \cdot \nabla vdA = -2\int_\Omega \kappa vdA \qquad \forall v \in H_0^1(\Omega)$$
 
 The boundary term ∮_{∂Ω} v(∇ψ·n) ds vanishes because v = 0 on ∂Ω (Dirichlet BC).
 
@@ -177,10 +177,10 @@ The vertex functions are cubic Lagrange polynomials in each barycentric coordina
 $$N_i = \tfrac{1}{2}\lambda_i(3\lambda_i - 1)(3\lambda_i - 2), \quad i = 0,1,2$$
 
 **Verification at node 0** (λ₁=1, λ₂=0, λ₃=0):
-N₀ = ½·1·2·1 = 1 ✓;  N₁ = ½·0·(−1)·(−2) = 0 ✓.
+N₀ = ½·1·2·1 = 1 ;  N₁ = ½·0·(−1)·(−2) = 0 .
 
 **Verification of vanishing on opposite edge** (λ₁=0):
-N₀ = ½·0·(−1)·(−2) = 0 ✓.
+N₀ = ½·0·(−1)·(−2) = 0 .
 
 (`p3_shape_functions.py`, vertex function lines in `compute_p3_shape_functions`.)
 
@@ -193,10 +193,10 @@ $$N_3 = \tfrac{9}{2}\lambda_1\lambda_2(3\lambda_1 - 1), \qquad N_4 = \tfrac{9}{2
 **Why these forms?** N₃ must equal 1 at node 3 (λ₁=2/3, λ₂=1/3) and
 vanish at all other nodes including node 4 (λ₁=1/3, λ₂=2/3):
 
-- At node 3: N₃ = 9/2 · (2/3) · (1/3) · (3·2/3 − 1) = 9/2 · (2/9) · 1 = **1** ✓
-- At node 4: N₃ = 9/2 · (1/3) · (2/3) · (3·1/3 − 1) = 9/2 · (2/9) · **0** = 0 ✓
-- At any vertex 2 (λ₁=0 or λ₂=0): product vanishes ✓
-- On edge 1→2 or 2→0 (λ₂=0 or λ₁=0 respectively): product vanishes ✓
+- At node 3: N₃ = 9/2 · (2/3) · (1/3) · (3·2/3 − 1) = 9/2 · (2/9) · 1 = **1** 
+- At node 4: N₃ = 9/2 · (1/3) · (2/3) · (3·1/3 − 1) = 9/2 · (2/9) · **0** = 0 
+- At any vertex 2 (λ₁=0 or λ₂=0): product vanishes 
+- On edge 1→2 or 2→0 (λ₂=0 or λ₁=0 respectively): product vanishes 
 
 The remaining edge pairs (nodes 5–6 for edge 1→2, nodes 7–8 for edge 2→0)
 follow the same pattern by cyclic permutation of λ₁, λ₂, λ₃.
@@ -230,7 +230,7 @@ FEMMI uses a **subparametric** formulation: the geometry is mapped by only the 3
 vertex nodes (affine/linear map), even though the solution uses 10 P3 nodes.
 For an element with vertices (x₀,y₀), (x₁,y₁), (x₂,y₂):
 
-$$\mathbf{x}(\xi,\eta) = \mathbf{x}_0 + J\begin{pmatrix}\xi\\\eta\end{pmatrix}, \qquad J = \begin{pmatrix}x_1-x_0 & y_1-y_0\\x_2-x_0 & y_2-y_0\end{pmatrix}$$
+$$\mathbf{x}(\xi,\eta) = \mathbf{x}_0 + J\begin{pmatrix}\xi\\\eta\end{pmatrix}, \qquad J = \begin{pmatrix}x_1-x_0 & y_1-y_0\\ x_2-x_0 & y_2-y_0\end{pmatrix}$$
 
 The element area is |det J|/2. Because the map is affine, J is **constant
 over each element** — no second-derivative terms of the mapping appear in the
@@ -309,7 +309,7 @@ for q, (xi, eta) in enumerate(quad_points):
 
 The load vector for the Poisson equation uses the same quadrature:
 
-$$F^e_i = -2\int_T N_i\kappadA = -2|T|\sum_q w_qN_i(\xi_q)\underbrace{\sum_j \kappa_j N_j(\xi_q)}_{\kappa^h(\xi_q)}$$
+$$F^e_i = -2\int_T N_i\kappa dA = -2|T|\sum_q w_qN_i(\xi_q)\underbrace{\sum_j \kappa_j N_j(\xi_q)}_{\kappa^h(\xi_q)}$$
 
 This makes the integrand degree 6 (product of two cubics), requiring at
 minimum a degree-6-exact quadrature rule — hence the degree-7 Dunavant rule
@@ -362,7 +362,7 @@ r3 = 0.065130102902216
 # S111 orbit — all three barycentric coordinates genuinely distinct
 r4 = 0.048690315425316
 s4 = 0.312865496004875
-t4 = 1.0 - r4 - s4     # = 0.638444188569809  ≠ r4 ≠ s4  ✓
+t4 = 1.0 - r4 - s4     # = 0.638444188569809  ≠ r4 ≠ s4  
 
 # Weights (sum = 1 over the reference triangle with area 1/2;
 # w₀ negative is mathematically correct for high-order Gauss rules)
@@ -376,7 +376,7 @@ w3 =  0.077113760890257   # S111 orbit
 ∑ wᵢ = w₀ + 3w₁ + 3w₂ + 6w₃
 = −0.14957 + 3(0.17562) + 3(0.05335) + 6(0.07711)
 = −0.14957 + 0.52685 + 0.16004 + 0.46268
-= **1.000** ✓
+= **1.000** 
 
 The negative centroid weight w₀ is mathematically correct — Gauss rules on
 triangles of degree ≥ 6 inevitably have negative weights (Stroud 1971). This
@@ -494,7 +494,7 @@ This uses **A[a,j]** — the transpose of A in both slots.
 
 For **lower triangles** in a structured rectangular mesh, the Jacobian is:
 
-$$J_{\rm lower} = \begin{pmatrix}\Delta x & 0\\\Delta y & \Delta y\end{pmatrix} \quad \Rightarrow \quad J^{-1} = \frac{1}{\Delta x\Delta y}\begin{pmatrix}\Delta y & 0\\-\Delta y & \Delta x\end{pmatrix}$$
+$$J_{\rm lower} = \begin{pmatrix}\Delta x & 0\\\Delta y & \Delta y\end{pmatrix} \quad \Rightarrow \quad J^{-1} = \frac{1}{\Delta x\Delta y}\begin{pmatrix}\Delta y & 0\\ -\Delta y & \Delta x\end{pmatrix}$$
 
 This J⁻¹ is **not** symmetric, but J⁻ᵀ happens to be diagonal in the
 direction where the Hessian entries differ — the bug was partially hidden.
