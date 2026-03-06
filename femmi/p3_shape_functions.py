@@ -219,7 +219,7 @@ def validate_p3_shape_functions():
         sum_N = jnp.sum(N)
         error = abs(float(sum_N) - 1.0)
         max_unity_error = max(max_unity_error, error)
-        status = "✅" if error < 1e-6 else "❌"
+        status = "Y" if error < 1e-6 else "x"
         print(f"  ({xi:.3f}, {eta:.3f}): ΣN = {sum_N:.15f}, error = {error:.2e} {status}")
     
     # Test 2: Kronecker delta property
@@ -238,7 +238,7 @@ def validate_p3_shape_functions():
                 off_diag_error = abs(float(N[j]))
                 max_delta_error = max(max_delta_error, off_diag_error)
         
-        status = "✅" if diag_error < 1e-6 else "❌"
+        status = "Y" if diag_error < 1e-6 else "x"
         print(f"  Node {i}: N[{i}] = {N[i]:.15f}, max(N[j≠{i}]) = {max([abs(float(N[j])) for j in range(10) if j!=i]):.2e} {status}")
     
     # Test 3: Gradient sum = 0 (consistency)
@@ -253,7 +253,7 @@ def validate_p3_shape_functions():
         error_eta = abs(float(sum_deta))
         max_grad_error = max(max_grad_error, error_xi, error_eta)
         
-        status = "✅" if error_xi < 1e-6 and error_eta < 1e-6 else "❌"
+        status = "Y" if error_xi < 1e-6 and error_eta < 1e-6 else "x"
         print(f"  ({xi:.3f}, {eta:.3f}): Σ∂N/∂ξ = {sum_dxi:.2e}, Σ∂N/∂η = {sum_deta:.2e} {status}")
     
     # Summary
@@ -270,9 +270,9 @@ def validate_p3_shape_functions():
                   max_grad_error < 1e-6)
     
     if all_passed:
-        print("\n✅ ALL TESTS PASSED! P3 shape functions are correct!")
+        print("\n ALL TESTS PASSED! P3 shape functions are correct!")
     else:
-        print("\n❌ SOME TESTS FAILED - review implementation")
+        print("\n SOME TESTS FAILED - review implementation")
     
     print("=" * 70)
     
@@ -344,14 +344,14 @@ def visualize_p3_basis_functions():
                  fontsize=16, fontweight='bold')
     plt.tight_layout()
     plt.savefig('p3_basis_functions.png', dpi=150, bbox_inches='tight')
-    print("✅ Saved: p3_basis_functions.png")
+    print("Saved: p3_basis_functions.png")
     plt.close()
 
 
 if __name__ == "__main__":
-    print("\n" + "🎯" * 35)
+    print("\n" + "=" * 35)
     print(" " * 20 + "P3 SHAPE FUNCTIONS - VALIDATION")
-    print("🎯" * 35 + "\n")
+    print("=" * 35 + "\n")
     
     # Run validation
     success = validate_p3_shape_functions()
@@ -361,13 +361,13 @@ if __name__ == "__main__":
     
     if success:
         print("\n" + "=" * 70)
-        print("✅ P3 SHAPE FUNCTIONS READY!")
+        print("P3 SHAPE FUNCTIONS READY!")
         print("=" * 70)
         print("\nNext steps:")
-        print("  1. ✅ Shape functions validated")
-        print("  2. ⏳ Create P3 mesh generator")
-        print("  3. ⏳ Implement P3 assembly")
-        print("  4. ⏳ Add P3 shear computation")
+        print("  1. Shape functions validated")
+        print("  2. Create P3 mesh generator")
+        print("  3. Implement P3 assembly")
+        print("  4. Add P3 shear computation")
         print("=" * 70)
     else:
-        print("\n❌ Validation failed - review implementation")
+        print("\n Validation failed - review implementation")

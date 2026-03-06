@@ -84,7 +84,7 @@ def convergence_study(solution, mesh_sizes, domain=(0, 1, 0, 1)):
     avg_rate = np.mean([np.log(L2_vals[i-1]/L2_vals[i]) / np.log(h_vals[i-1]/h_vals[i])
                         for i in range(1, len(mesh_sizes))])
     print(f"\nAverage L² rate: {avg_rate:.2f}  (expected ~4.0 for P3)")
-    status = "✅" if avg_rate > 3.5 else ("⚠️ " if avg_rate > 2.5 else "❌")
+    status = "Y" if avg_rate > 3.5 else ("!" if avg_rate > 2.5 else "x")
     print(f"{status} {'O(h⁴) confirmed' if avg_rate > 3.5 else 'below expected rate'}")
 
     return {'h': h_vals, 'L2': L2_vals, 'Linf': Linf_vals,
@@ -145,4 +145,4 @@ if __name__ == "__main__":
     ]
 
     plot_convergence(all_results)
-    print("\n✅ P3 convergence validation complete")
+    print("\n P3 convergence validation complete")

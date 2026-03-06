@@ -2,9 +2,9 @@
 Automatic Differentiation Integration for Weak Lensing FEM
 
 Current Status: P1 Elements Only
-- ✅ Differentiable forward model: κ → ψ
-- ⏳ Shear computation: Awaiting P3 implementation
-- ⏳ Inverse problems: Awaiting P3 shear gradients
+- Differentiable forward model: κ → ψ
+- Shear computation: Awaiting P3 implementation
+- Inverse problems: Awaiting P3 shear gradients
 
 Future (P3):
 - Fully differentiable: κ → ψ → γ
@@ -188,7 +188,7 @@ def validate_potential_gradients(kappa: jnp.ndarray, mesh,
     tolerance = 1e-4
     passed = max_rel_err < tolerance
     
-    print(f"\n  Result: {'✅ PASS' if passed else '❌ FAIL'} "
+    print(f"\n  Result: {'PASS' if passed else 'FAIL'} "
           f"(tolerance = {tolerance:.0e})")
     print("=" * 70)
     
@@ -228,7 +228,7 @@ def profile_forward_backward_potential(kappa: jnp.ndarray, mesh,
     print("\nWarmup (JIT compilation)...")
     _ = forward_model_potential(kappa, mesh)
     _ = compute_gradient_at_point(kappa, mesh, 0)
-    print("✅ Warmup complete\n")
+    print("Warmup complete\n")
     
     # Forward pass only
     print(f"1. Forward pass (κ → ψ) [{n_trials} trials]...")
@@ -281,9 +281,9 @@ def demonstrate_autodiff():
     NOTE: Full shear→mass reconstruction requires P3 elements.
     This demo shows potential ψ gradients only.
     """
-    print("\n" + "🚀" * 35)
+    print("\n" + "=" * 35)
     print(" " * 20 + "AUTODIFF DEMONSTRATION (P1)")
-    print("🚀" * 35)
+    print("=" * 35)
     
     # Setup
     print("\nSetup: Creating synthetic problem...")
@@ -318,16 +318,16 @@ def demonstrate_autodiff():
     profile_forward_backward_potential(kappa_true, mesh, n_trials=5)
     
     print("\n" + "=" * 70)
-    print("✅ Autodiff framework ready!")
+    print("Autodiff framework ready!")
     print("=" * 70)
     print("\nCurrent capabilities:")
-    print("  1. ✅ Differentiable forward model: κ → ψ")
-    print("  2. ✅ Potential gradients: ∂ψ/∂κ")
-    print("  3. ✅ Validated against finite differences")
-    print("  4. ✅ Performance profiled")
+    print("  1. Differentiable forward model: κ → ψ")
+    print("  2. Potential gradients: ∂ψ/∂κ")
+    print("  3. Validated against finite differences")
+    print("  4. Performance profiled")
     print("\nLimitations (P1 elements):")
-    print("  ⚠️  Shear γ = ∇²ψ not available (P1 → constant ∇²ψ = 0)")
-    print("  ⚠️  Cannot do shear→mass reconstruction yet")
+    print("   Shear γ = ∇²ψ not available (P1 → constant ∇²ψ = 0)")
+    print("   Cannot do shear→mass reconstruction yet")
     print("\nNext steps:")
     print("  → Implement P3 elements for O(h⁴) potential accuracy")
     print("  → Add P3 shear computation: γ with O(h²) convergence")

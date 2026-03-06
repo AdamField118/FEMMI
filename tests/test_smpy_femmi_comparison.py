@@ -379,7 +379,7 @@ def monte_carlo_benchmark(
         print(f"  KS (DC-fix) : {mean_ks:.4f} ± {std_ks:.4f}  "
               f"(mean DC shift: {mean_bg:+.4f})")
         print(f"  KS (raw)    : {mean_ks_r:.4f} ± {std_ks_r:.4f}")
-        sign = "✅" if improv > 0 else "⚠️"
+        sign = "Y" if improv > 0 else "!"
         print(f"  Improvement : {improv:+.1f}%  {sign}")
     else:
         print("  KS      : (SMPy unavailable)")
