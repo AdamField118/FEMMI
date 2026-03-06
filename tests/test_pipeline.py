@@ -22,8 +22,8 @@ from src.fem     import build_operators
 from src.forward import DifferentiableForward
 from src.inverse import MAPReconstructor, run_comparison
 
-PASS = "✅  PASS"
-FAIL = "❌  FAIL"
+PASS = "PASS"
+FAIL = "FAIL"
 
 NX     = 10
 DOMAIN = (-2.0, 2.0, -2.0, 2.0)
@@ -48,10 +48,10 @@ def test_1_operators(ops):
     for name, mat in [("K",ops.K),("M",ops.M),("S1",ops.S1),("S2",ops.S2)]:
         s_ok = mat.shape == (n, n)
         z_ok = mat.nnz > 0
-        print(f"  {name}: shape={mat.shape}  nnz={mat.nnz}  {'✅' if s_ok and z_ok else '❌'}")
+        print(f"  {name}: shape={mat.shape}  nnz={mat.nnz}  {'Y' if s_ok and z_ok else 'x'}")
         ok = ok and s_ok and z_ok
     bnd_ok = np.allclose(np.array(ops.K.diagonal())[ops.boundary], 1.0, atol=1e-10)
-    print(f"  K BCs (boundary diagonal=1): {'✅' if bnd_ok else '❌'}")
+    print(f"  K BCs (boundary diagonal=1): {'x' if bnd_ok else 'x'}")
     ok = ok and bnd_ok
     print(f"  → {PASS if ok else FAIL}")
     return ok
@@ -67,10 +67,10 @@ def test_2_forward(ops):
 
     ok = True
     fp = np.all(np.isfinite(psi)) and np.abs(psi).max() > 1e-12
-    print(f"  ψ finite: {'✅' if fp else '❌'}   max|ψ|={np.abs(psi).max():.4f}")
+    print(f"  ψ finite: {'Y' if fp else 'x'}   max|ψ|={np.abs(psi).max():.4f}")
     ok = ok and fp
     fg = np.all(np.isfinite(g1)) and np.all(np.isfinite(g2))
-    print(f"  γ finite: {'✅' if fg else '❌'}   max|γ₁|={np.abs(g1).max():.4f}  max|γ₂|={np.abs(g2).max():.4f}")
+    print(f"  γ finite: {'Y' if fg else 'x'}   max|γ₁|={np.abs(g1).max():.4f}  max|γ₂|={np.abs(g2).max():.4f}")
     ok = ok and fg
 
     # analytic reference (infinite domain approximation)
@@ -80,7 +80,7 @@ def test_2_forward(ops):
     interior = ops.interior
     ratio = np.abs(g1[interior]).max() / (np.abs(g1_ref[interior]).max() + 1e-10)
     order_ok = 0.1 < ratio < 10.0
-    print(f"  γ₁ order-of-magnitude vs analytic: ratio={ratio:.2f}  {'✅' if order_ok else '⚠️ '}")
+    print(f"  γ₁ order-of-magnitude vs analytic: ratio={ratio:.2f}  {'Y' if order_ok else '!'}")
     ok = ok and order_ok
     print(f"  → {PASS if ok else FAIL}")
     return ok
@@ -197,7 +197,7 @@ def main():
         print(f"  {name:25s}  {PASS if ok else FAIL}")
         all_pass = all_pass and ok
     sep()
-    print(f"\n  Overall: {'✅  ALL PASS' if all_pass else '❌  SOME FAILED'}\n")
+    print(f"\n  Overall: {'ALL PASS' if all_pass else 'SOME FAILED'}\n")
     return 0 if all_pass else 1
 
 

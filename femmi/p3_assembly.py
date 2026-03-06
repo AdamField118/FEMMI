@@ -400,7 +400,7 @@ def solve_poisson_p3(mesh, kappa_values):
     psi = solve_p3_system(K_bc, F_bc, mesh)
 
     print("=" * 70)
-    print("✅ P3 SOLUTION COMPLETE")
+    print("P3 SOLUTION COMPLETE")
     print("=" * 70 + "\n")
 
     return psi
@@ -411,9 +411,9 @@ def solve_poisson_p3(mesh, kappa_values):
 # ============================================================================
 
 if __name__ == "__main__":
-    print("\n" + "🎯" * 35)
+    print("\n" + "=" * 35)
     print(" " * 22 + "P3 ASSEMBLY - TEST")
-    print("🎯" * 35 + "\n")
+    print("=" * 35 + "\n")
 
     try:
         from .p3_mesh_generator import generate_p3_structured_mesh
@@ -449,4 +449,4 @@ if __name__ == "__main__":
             print(f"{h:10.4f} {L2:12.3e} {'--':>8}")
         prev_L2, prev_h = L2, h
 
-    print("\n✅ P3 convergence confirmed (O(h⁴)). Ready for shear computation.")
+    print("\n P3 convergence confirmed (O(h⁴)). Ready for shear computation.")

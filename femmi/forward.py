@@ -182,7 +182,7 @@ class DifferentiableForward:
             rel  = abs(g_ad - g_fd) / (abs(g_fd) + 1e-14)
             rel_errors.append(rel)
             if verbose:
-                st = "✅" if rel < 1e-4 else "❌"
+                st = "Y" if rel < 1e-4 else "x"
                 print(f"{j:6d}  {g_ad:14.6e}  {g_fd:14.6e}  {rel:10.3e} {st}")
 
         max_rel = max(rel_errors)
@@ -190,7 +190,7 @@ class DifferentiableForward:
         if verbose:
             print("-" * 62)
             print(f"Max relative error: {max_rel:.3e}  "
-                  f"→  {'PASS ✅' if passed else 'FAIL ❌'}")
+                  f"→  {'PASS" if passed else 'FAIL'}")
             print("=" * 62)
         return {'max_rel_error': max_rel, 'passed': passed,
                 'rel_errors': rel_errors}
@@ -228,5 +228,5 @@ if __name__ == "__main__":
 
     jit_fwd = jax.jit(fwd.gamma_from_kappa)
     g1j, g2j = jit_fwd(kappa_jax)
-    print(f"JIT max|γ₁| = {float(jnp.max(jnp.abs(g1j))):.4f}  ✅")
-    print("✅  forward.py OK")
+    print(f"JIT max|γ₁| = {float(jnp.max(jnp.abs(g1j))):.4f}")
+    print("forward.py OK")

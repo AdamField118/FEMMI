@@ -212,7 +212,7 @@ def plot_main(res, title="P3 FEM Weak Lensing Pipeline", out="p3_pipeline.png"):
                    headwidth=0, headlength=0, headaxislength=0, alpha=0.6, pivot='middle')
 
     plt.savefig(out, dpi=180, facecolor='#0e0e0e', bbox_inches='tight')
-    print(f"✅  {out}"); plt.close()
+    print(f"{out}"); plt.close()
 
 
 def plot_validation(res, A, sigma, out="p3_shear_validation.png"):
@@ -240,7 +240,7 @@ def plot_validation(res, A, sigma, out="p3_shear_validation.png"):
 
     plt.tight_layout(rect=[0,0,1,0.95])
     plt.savefig(out, dpi=180, facecolor='#0e0e0e', bbox_inches='tight')
-    print(f"✅  {out}"); plt.close()
+    print(f"{out}"); plt.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
