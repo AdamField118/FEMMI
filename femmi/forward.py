@@ -97,23 +97,19 @@ class DifferentiableForward:
         L = build_laplacian(ops)
 
         # Build all JAX-traceable primitives
-        self._fem_solve  = _make_fem_solve(ops.K_lu, ops.boundary, n)
+        self._fem_solve  = _make_fem_solve(ops.A_coupled_lu, ops.boundary, n)
         self._M_mv       = _make_matvec(ops.M,  n)
         self._S1_mv      = _make_matvec(ops.S1, n)
         self._S2_mv      = _make_matvec(ops.S2, n)
         self._L_mv       = _make_matvec(L,       n)
 
-        # Boundary mask as a JAX constant (used to zero BC entries)
-        bnd_mask = np.zeros(n, dtype=np.float64)
-        bnd_mask[ops.boundary] = 1.0
-        self._bnd_mask = jnp.array(bnd_mask)
-
     # ── core pipeline ──────────────────────────────────────────────────────────
 
     def rhs_from_kappa(self, kappa: jnp.ndarray) -> jnp.ndarray:
-        """F = -2 M κ  with BC rows zeroed."""
-        F = -2.0 * self._M_mv(kappa)
-        return F * (1.0 - self._bnd_mask)
+        """F = -2 M κ  (full M, no boundary zeroing — A_coupled handles BCs)."""
+        rhs = -2.0 * self._M_mv(kappa)
+        idx = int(self.ops.bnd_mesh.node_indices[0])
+        return rhs.at[idx].set(0.0)
 
     def psi_from_kappa(self, kappa: jnp.ndarray) -> jnp.ndarray:
         """Differentiable κ → ψ."""
@@ -189,8 +185,8 @@ class DifferentiableForward:
         passed  = max_rel < 1e-4
         if verbose:
             print("-" * 62)
-            print(f"Max relative error: {max_rel:.3e}  "
-                  f"→  {'PASS" if passed else 'FAIL'}")
+            status = "PASS" if passed else "FAIL"
+            print(f"Max relative error: {max_rel:.3e}  →  {status}")
             print("=" * 62)
         return {'max_rel_error': max_rel, 'passed': passed,
                 'rel_errors': rel_errors}
