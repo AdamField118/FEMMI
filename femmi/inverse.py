@@ -76,12 +76,14 @@ class MAPReconstructor:
                  maxiter: int = 500,
                  gtol: float = 1e-9,
                  callback_every: int = 50,
-                 wiener_length: float = 0.0):
+                 wiener_length: float = 0.0,
+                 noise_std: Optional[float] = None):
         self.fwd            = fwd
         self.maxiter        = maxiter
         self.gtol           = gtol
         self.callback_every = callback_every
         self.wiener_length  = wiener_length
+        self.noise_std      = noise_std
         self.ops            = fwd.ops
 
         # Build regularizer matrix R once
@@ -110,44 +112,46 @@ class MAPReconstructor:
         M     = ops.M
         S1    = ops.S1
         S2    = ops.S2
-        K_lu  = ops.K_lu
-        bnd   = ops.boundary
+        A_lu  = ops.A_coupled_lu   # FEM-BEM coupled solver (replaces K_lu)
         lam   = self.fwd.lam_reg
         R     = self._R
-
+ 
         loss_history = []
-
+        
+        idx_gauge = int(ops.bnd_mesh.node_indices[0])
+ 
         def obj_grad(kappa_flat):
             kappa = kappa_flat.reshape(-1)
-
-            # Forward pass
+ 
+            # Forward pass — A_coupled ψ = −2Mκ  (MATH.md §6.2)
+            # Full M (no boundary zeroing); A_coupled encodes BCs via BEM.
             rhs = -2.0 * M @ kappa
-            rhs[bnd] = 0.0
-            psi = K_lu.solve(rhs)
+            rhs[idx_gauge] = 0.0
+            psi = A_lu.solve(rhs)
             g1  = S1 @ psi
             g2  = S2 @ psi
-
+ 
             # Residuals
             r1 = g1 - gamma1_obs
             r2 = g2 - gamma2_obs
-
+ 
             # Data loss
             data_loss = float(np.dot(r1, r1) + np.dot(r2, r2))
-
+ 
             # Regularisation loss
             Rk       = R @ kappa
             reg_loss = float(lam * np.dot(kappa, Rk))
-
+ 
             loss = data_loss + reg_loss
             loss_history.append(loss)
-
-            # Adjoint solve
+ 
+            # Adjoint solve — A_coupled φ = S1ᵀr1 + S2ᵀr2  (MATH.md §12.2)
             rhs_adj = S1.T @ r1 + S2.T @ r2
-            rhs_adj[bnd] = 0.0
-            adj = K_lu.solve(rhs_adj)
-
+            rhs_adj[idx_gauge] = 0.0
+            adj = A_lu.solve(rhs_adj)
+ 
             grad = -4.0 * (M.T @ adj) + 2.0 * lam * Rk
-
+ 
             return loss, grad.astype(np.float64)
 
         return obj_grad, loss_history
@@ -173,6 +177,28 @@ class MAPReconstructor:
             kappa_map : (n_nodes,) MAP estimate
             result    : ReconstructionResult dataclass
         """
+        # ── Phase 3.4: auto-select λ via Morozov if noise_std provided ───
+        if self.noise_std is not None:
+            from .regularization import MorozovSelector
+            if verbose:
+                print(f"[Morozov] Auto-selecting λ (noise_std={self.noise_std:.3e})...")
+            selector = MorozovSelector(
+                self.ops,
+                noise_std=self.noise_std,
+                wiener_length=self.wiener_length,
+                maxiter_inner=min(150, self.maxiter),
+                verbose=verbose,
+            )
+            lam_star = selector.select(gamma1_obs, gamma2_obs)
+            if verbose:
+                print(f"[Morozov] λ* = {lam_star:.4e}\n")
+            self.fwd.lam_reg = lam_star
+            # Rebuild regularizer at new λ
+            if self.wiener_length > 0.0:
+                self._R = build_wiener_regularizer(self.ops, self.wiener_length)
+            else:
+                self._R = self.ops.K
+
         ops    = self.ops
         n      = ops.n_nodes
 
@@ -308,6 +334,7 @@ def kaiser_squires(gamma1: np.ndarray, gamma2: np.ndarray,
 def run_comparison(nx: int = 20,
                    noise_level: float = 0.10,
                    lam_reg: float = 1e-2,
+                   use_morozov: bool = False,
                    apply_mask: bool = False,
                    mask_center: Tuple[float, float] = (0.0, 0.0),
                    mask_radius: float = 0.5,
@@ -370,8 +397,10 @@ def run_comparison(nx: int = 20,
         g2_obs[mask] = 0.0
         print(f"\n  Masked {mask.sum()} nodes ({100*mask.mean():.1f}%)")
 
+    noise_std_morozov = (noise if use_morozov else None)
     rec = MAPReconstructor(fwd, maxiter=500, gtol=1e-9, callback_every=50,
-                           wiener_length=wiener_length)
+                           wiener_length=wiener_length,
+                           noise_std=noise_std_morozov)
     kappa_map, result = rec.reconstruct(g1_obs, g2_obs, verbose=True)
 
     kappa_ks = kaiser_squires(g1_obs, g2_obs, nodes)

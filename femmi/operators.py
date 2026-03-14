@@ -47,6 +47,7 @@ from .p3_assembly import (
     apply_boundary_conditions_p3,
 )
 from .fem_solver import Mesh
+from .bem import extract_boundary_edges, assemble_bem_matrices
 
 
 # =============================================================================
@@ -131,6 +132,28 @@ def _assemble_shear_ops(nodes, elements, H_ref):
     sc  = sp.diags(1.0 / np.maximum(counts, 1))
     return (sc @ S1r).tocsr(), (sc @ S2r).tocsr()
 
+def _precompute_reference_data(quad_pts_np: np.ndarray,
+                               quad_wts_np: np.ndarray):
+    """
+    Precompute shape function values and reference gradients at all
+    quadrature points.  Called once per assembly; shapes are fixed.
+ 
+    Returns
+    -------
+    N_ref  : (nq, 10)    – N_j(xi_q, eta_q)
+    dN_ref : (nq, 10, 2) – [dN_j/dxi, dN_j/deta] at each quad point
+    """
+    nq = len(quad_wts_np)
+    N_ref  = np.zeros((nq, 10), dtype=np.float64)
+    dN_ref = np.zeros((nq, 10, 2), dtype=np.float64)
+ 
+    for q, (xi, eta) in enumerate(quad_pts_np):
+        # Use JAX autodiff for accuracy, but only called nq=13 times total
+        N_ref[q]  = np.array(compute_p3_shape_functions(xi, eta))
+        dN_ref[q] = np.array(
+            compute_p3_shape_gradients_reference(xi, eta))
+ 
+    return N_ref, dN_ref
 
 # =============================================================================
 # FEMOperators
@@ -139,51 +162,59 @@ def _assemble_shear_ops(nodes, elements, H_ref):
 @dataclass
 class FEMOperators:
     """
-    All precomputed FEM operators for a fixed mesh.
-
+    All precomputed FEM-BEM operators for a fixed mesh.
+ 
     Attributes
     ----------
-    mesh      : P3 Mesh (nodes, elements, boundary)
-    K         : stiffness matrix (Dirichlet BCs applied)
-    M         : mass matrix (boundary rows zeroed)
-    S1, S2    : shear operators
-    K_lu      : SuperLU factorization of K
-    n_nodes   : total node count
-    boundary  : boundary node indices
-    interior  : bool mask (True = interior node)
+    mesh          : P3 Mesh (nodes, elements, boundary)
+    K             : Neumann stiffness — NO Dirichlet rows (null space = span{1})
+    M             : Full mass matrix — NO boundary row zeroing
+    S1, S2        : shear operators
+    K_lu          : DEPRECATED SuperLU of Dirichlet K (kept for reference only)
+    A_coupled     : K_neumann + P^T C P  (FEM-BEM coupled stiffness)
+    A_coupled_lu  : SuperLU factorization of A_coupled
+    bnd_mesh      : BoundaryMesh from extract_boundary_edges
+    C_dense       : (N_b × N_b) Calderon matrix V_h^{-1}(½M_b + K_h)
+    n_nodes       : total node count
+    boundary      : boundary node indices (from P3 mesh, unordered)
+    interior      : bool mask (True = interior node)
     """
-    mesh     : object
-    K        : sp.csr_matrix
-    M        : sp.csr_matrix
-    S1       : sp.csr_matrix
-    S2       : sp.csr_matrix
-    K_lu     : object
-    n_nodes  : int
-    boundary : np.ndarray
-    interior : np.ndarray
-
+    mesh         : object
+    K            : sp.csr_matrix
+    M            : sp.csr_matrix
+    S1           : sp.csr_matrix
+    S2           : sp.csr_matrix
+    K_lu         : object          # DEPRECATED – Dirichlet solver
+    A_coupled    : sp.csr_matrix   # NEW – BEM-coupled stiffness
+    A_coupled_lu : object          # NEW – splu(A_coupled)
+    bnd_mesh     : object          # NEW – BoundaryMesh
+    C_dense      : np.ndarray      # NEW – (N_b × N_b) Calderon matrix
+    n_nodes      : int
+    boundary     : np.ndarray
+    interior     : np.ndarray
+ 
     def psi_from_kappa(self, kappa: np.ndarray) -> np.ndarray:
-        """Solve K psi = -2 M kappa."""
+        """Solve A_coupled ψ = −2Mκ (FEM-BEM coupled system)."""
         rhs = -2.0 * self.M @ kappa
-        rhs[self.boundary] = 0.0
-        return self.K_lu.solve(rhs)
-
+        rhs[int(self.bnd_mesh.node_indices[0])] = 0.0   # gauge fix
+        return self.A_coupled_lu.solve(rhs)
+ 
     def shear_from_psi(self, psi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return self.S1 @ psi, self.S2 @ psi
-
+ 
     def forward(self, kappa: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return self.shear_from_psi(self.psi_from_kappa(kappa))
-
+ 
     def shear_magnitude(self, kappa: np.ndarray) -> np.ndarray:
         g1, g2 = self.forward(kappa)
         return np.sqrt(g1**2 + g2**2)
-
+ 
     def adjoint_rhs(self, dL_dg1: np.ndarray,
                     dL_dg2: np.ndarray) -> np.ndarray:
-        """dL/dkappa = -2 M^T K^{-1} (S1^T dL/dg1 + S2^T dL/dg2)."""
+        """dL/dkappa = −2 Mᵀ A_coupled⁻¹ (S1ᵀ dL/dg1 + S2ᵀ dL/dg2)."""
         rhs = self.S1.T @ dL_dg1 + self.S2.T @ dL_dg2
-        rhs[self.boundary] = 0.0
-        return -2.0 * self.M.T @ self.K_lu.solve(rhs)
+        rhs[int(self.bnd_mesh.node_indices[0])] = 0.0   # gauge fix
+        return -2.0 * self.M.T @ self.A_coupled_lu.solve(rhs)
 
 
 # =============================================================================
@@ -214,41 +245,63 @@ def _assemble_operators_from_mesh(mesh, verbose: bool = True,
     quad_pts_np = np.array(quad_pts)
     quad_wts_np = np.array(quad_wts)
 
-    # -- Stiffness K ----------------------------------------------------------
-    if verbose: print("[femmi] Assembling stiffness matrix K...")
+    # -- Precompute reference-space data (one-time, cheap) -------------------
+    N_ref, dN_ref = _precompute_reference_data(quad_pts_np, quad_wts_np)
+ 
+    # -- Stiffness K (Neumann — NO Dirichlet row modification) ---------------
+    # Pure numpy einsum assembly: no JAX @jit overhead per element.
+    # Ke[i,j] = area * sum_q w_q * dot(dN_phys[q,i], dN_phys[q,j])
+    # where dN_phys = dN_ref @ J_inv.T
+    if verbose: print("[femmi] Assembling stiffness matrix K (Neumann)...")
     t1 = time.perf_counter()
     max_nnz = len(elements) * 100
     I_k = np.zeros(max_nnz, dtype=np.int32)
     J_k = np.zeros(max_nnz, dtype=np.int32)
-    K_d = np.zeros(max_nnz)
+    K_d = np.zeros(max_nnz, dtype=np.float64)
     entry = 0
     for elem in elements:
-        Ke = np.array(compute_element_stiffness_p3(
-            jnp.array(nodes[elem]),
-            jnp.array(quad_pts_np),
-            jnp.array(quad_wts_np)))
-        for i in range(10):
-            for j in range(10):
-                I_k[entry]=elem[i]; J_k[entry]=elem[j]; K_d[entry]=Ke[i,j]; entry+=1
-    K_raw = sp.coo_matrix((K_d[:entry],(I_k[:entry],J_k[:entry])),
-                          shape=(n_nodes,n_nodes)).tocsr()
-    K_lil = K_raw.tolil()
-    for b in boundary:
-        K_lil[b,:] = 0; K_lil[b,b] = 1.0
-    K = K_lil.tocsr()
+        xy      = nodes[elem[:3]]                           # (3, 2) vertices
+        Jac     = np.array([[xy[1,0]-xy[0,0], xy[1,1]-xy[0,1]],
+                             [xy[2,0]-xy[0,0], xy[2,1]-xy[0,1]]])
+        area    = abs(np.linalg.det(Jac)) / 2.0
+        J_inv_T = np.linalg.inv(Jac).T                     # (2, 2)
+        dN_phys = dN_ref @ J_inv_T                          # (nq, 10, 2)
+        Ke      = area * np.einsum('q,qia,qja->ij',
+                                   quad_wts_np, dN_phys, dN_phys)  # (10,10)
+        I_k[entry:entry+100] = np.repeat(elem, 10)
+        J_k[entry:entry+100] = np.tile(elem, 10)
+        K_d[entry:entry+100] = Ke.ravel()
+        entry += 100
+    K = sp.coo_matrix((K_d[:entry], (I_k[:entry], J_k[:entry])),
+                      shape=(n_nodes, n_nodes)).tocsr()
     if verbose:
-        print(f"       K assembled: {K.shape}, nnz={K.nnz}  ({time.perf_counter()-t1:.1f}s)")
+        print(f"       K assembled (Neumann): {K.shape}, nnz={K.nnz}  "
+              f"({time.perf_counter()-t1:.1f}s)")
 
-    # -- Mass M ---------------------------------------------------------------
-    if verbose: print("[femmi] Assembling mass matrix M...")
+    # -- Mass M (full — NO boundary row zeroing) -----------------------------
+    # Pure numpy assembly using the same precomputed N_ref.
+    # Me[i,j] = area * sum_q w_q * N_ref[q,i] * N_ref[q,j]
+    if verbose: print("[femmi] Assembling mass matrix M (full)...")
     t2 = time.perf_counter()
-    M_raw = _assemble_mass_p3(nodes, elements, quad_pts_np, quad_wts_np)
-    M_lil = M_raw.tolil()
-    for b in boundary:
-        M_lil[b,:] = 0
-    M = M_lil.tocsr()
+    I_m = np.zeros(max_nnz, dtype=np.int32)
+    J_m = np.zeros(max_nnz, dtype=np.int32)
+    M_d = np.zeros(max_nnz, dtype=np.float64)
+    entry = 0
+    for elem in elements:
+        xy   = nodes[elem[:3]]
+        Jac  = np.array([[xy[1,0]-xy[0,0], xy[1,1]-xy[0,1]],
+                          [xy[2,0]-xy[0,0], xy[2,1]-xy[0,1]]])
+        area = abs(np.linalg.det(Jac)) / 2.0
+        Me   = area * np.einsum('q,qi,qj->ij', quad_wts_np, N_ref, N_ref)
+        I_m[entry:entry+100] = np.repeat(elem, 10)
+        J_m[entry:entry+100] = np.tile(elem, 10)
+        M_d[entry:entry+100] = Me.ravel()
+        entry += 100
+    M = sp.coo_matrix((M_d[:entry], (I_m[:entry], J_m[:entry])),
+                      shape=(n_nodes, n_nodes)).tocsr()
     if verbose:
-        print(f"       M assembled: {M.shape}, nnz={M.nnz}  ({time.perf_counter()-t2:.1f}s)")
+        print(f"       M assembled (full): {M.shape}, nnz={M.nnz}  "
+              f"({time.perf_counter()-t2:.1f}s)")
 
     # -- Reference Hessians ---------------------------------------------------
     if verbose: print("[femmi] Precomputing P3 reference Hessians (JAX AD)...")
@@ -263,16 +316,63 @@ def _assemble_operators_from_mesh(mesh, verbose: bool = True,
     if verbose:
         print(f"       S1, S2 assembled: nnz={S1.nnz}, {S2.nnz}  ({time.perf_counter()-t4:.1f}s)")
 
-    # -- SuperLU factorise ----------------------------------------------------
-    if verbose: print("[femmi] Factorizing K (SuperLU)...")
-    t5 = time.perf_counter()
-    K_lu = spla.splu(K.tocsc())
+    # -- Deprecated Dirichlet K_lu (kept for reference / old tests) -----------
+    K_lil_dir = K.tolil()
+    for b in boundary:
+        K_lil_dir[b, :] = 0
+        K_lil_dir[b, b] = 1.0
+    K_lu = spla.splu(K_lil_dir.tocsc())
+ 
+    # -- BEM matrices ---------------------------------------------------------
+    # Assemble V_h, K_h, M_b on ∂Ω; form Calderon operator C.
+    # MATH.md §5–6; bem.py §1.3–1.6.
+    if verbose: print("[femmi] Assembling BEM matrices (V_h, K_h, M_b)...")
+    t_bem = time.perf_counter()
+    bnd_mesh = extract_boundary_edges(mesh)
+    N_b      = bnd_mesh.n_boundary_dofs
+    V_h, K_h, M_b = assemble_bem_matrices(bnd_mesh, n_quad_sl=25, n_quad_dl=8)
     if verbose:
-        print(f"       LU factorization done  ({time.perf_counter()-t5:.1f}s)")
+        print(f"       BEM assembled: N_b={N_b}  ({time.perf_counter()-t_bem:.1f}s)")
+ 
+    # C = V_h^{-1} (½M_b + K_h)   (N_b × N_b dense)
+    C_dense = np.linalg.solve(V_h, 0.5 * M_b + K_h)
+ 
+    # -- Coupled stiffness A_coupled = K_neumann + P^T C P -------------------
+    # P is the restriction to boundary DOFs (in CCW order from bnd_mesh).
+    # P^T C P adds C[a,b] to A[bnd[a], bnd[b]] for all a, b in 0..N_b-1.
+    # MATH.md §6.2.
+    if verbose: print("[femmi] Assembling A_coupled = K + P^T C P...")
+    t_ac = time.perf_counter()
+    bnd_idx  = bnd_mesh.node_indices          # (N_b,) global DOF indices
+    A_lil    = K.tolil()
+    A_lil[np.ix_(bnd_idx, bnd_idx)] += C_dense
+    # Gauge fix: pin one boundary node to break the constant null space.
+    # ψ → 0 at ∞ means ψ ≈ 0 on ∂Ω for localized κ; we enforce this at
+    # one node to remove the translation ambiguity.  The shear γ = ∂²ψ is
+    # constant-independent so this gauge choice doesn't affect γ.
+    idx_gauge = int(bnd_idx[0])
+    A_lil[idx_gauge, :] = 0.0
+    A_lil[idx_gauge, idx_gauge] = 1.0
+    A_coupled = A_lil.tocsr()
+    if verbose:
+        print(f"       A_coupled assembled: {A_coupled.shape}  "
+              f"({time.perf_counter()-t_ac:.1f}s)")
+ 
+    # -- Factorize A_coupled --------------------------------------------------
+    if verbose: print("[femmi] Factorizing A_coupled (SuperLU)...")
+    t5 = time.perf_counter()
+    A_coupled_lu = spla.splu(A_coupled.tocsc())
+    if verbose:
+        print(f"       A_coupled LU done  ({time.perf_counter()-t5:.1f}s)")
         print(f"[femmi] All operators ready  (total {time.perf_counter()-t0:.1f}s)\n")
-
+ 
     return FEMOperators(
-        mesh=mesh, K=K, M=M, S1=S1, S2=S2, K_lu=K_lu,
+        mesh=mesh, K=K, M=M, S1=S1, S2=S2,
+        K_lu=K_lu,                  # deprecated
+        A_coupled=A_coupled,
+        A_coupled_lu=A_coupled_lu,
+        bnd_mesh=bnd_mesh,
+        C_dense=C_dense,
         n_nodes=n_nodes, boundary=boundary, interior=interior,
     )
 
