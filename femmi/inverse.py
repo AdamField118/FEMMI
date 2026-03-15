@@ -148,7 +148,7 @@ class MAPReconstructor:
             # Adjoint solve — A_coupled φ = S1ᵀr1 + S2ᵀr2  (MATH.md §12.2)
             rhs_adj = S1.T @ r1 + S2.T @ r2
             rhs_adj[idx_gauge] = 0.0
-            adj = A_lu.solve(rhs_adj)
+            adj = A_lu.solve(rhs_adj, trans='T')
  
             grad = -4.0 * (M.T @ adj) + 2.0 * lam * Rk
  

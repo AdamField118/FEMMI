@@ -26,6 +26,10 @@ def _make_fem_solve(K_lu, boundary: np.ndarray, n_nodes: int):
 
     def _solve_np(b):
         return K_lu.solve(np.array(b, dtype=np.float64))
+        
+    
+    def _solve_np_T(b):
+        return K_lu.solve(np.array(b, dtype=np.float64), trans='T')
 
     @jax.custom_vjp
     def fem_solve(b: jnp.ndarray) -> jnp.ndarray:
@@ -36,7 +40,7 @@ def _make_fem_solve(K_lu, boundary: np.ndarray, n_nodes: int):
         return x, x                  # residual = solution (for bwd)
 
     def fem_solve_bwd(x, g):
-        lam = jax.pure_callback(_solve_np, shape_struct, g)
+        lam = jax.pure_callback(_solve_np_T, shape_struct, g)
         return (lam,)
 
     fem_solve.defvjp(fem_solve_fwd, fem_solve_bwd)
