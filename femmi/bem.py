@@ -1,34 +1,10 @@
 """
 femmi/bem.py
-============
-Boundary Element Method matrices for FEM-BEM coupling.
+Boundary element matrices for FEM-BEM coupling.
 
-Uses P3 (cubic) boundary elements matching the FEM interior order.
-
-The P3 mesh boundary nodes naturally sit at t = 0, 1/3, 2/3, 1 on each
-original mesh edge, giving one 4-node P3 BEM element per FEM boundary edge.
-No new nodes are needed; the BEM and FEM share the same DOFs on ∂Ω.
-
-P3 BEM error in H^{-1/2}(∂Ω): O(h^4).
-Coupled system (Costabel-Stephan):
-    ‖ψ − ψ_h‖_{H^1(Ω)} = O(h^{min(3,4)}) = O(h^3)
-    ‖ψ − ψ_h‖_{L^2(Ω)} = O(h^4)  via Aubin-Nitsche
-
-Provides:
-    V_h  – single-layer   (N_b × N_b)  symmetric
-    K_h  – double-layer   (N_b × N_b)
-    M_b  – boundary mass  (N_b × N_b)  symmetric positive definite
-    C    = V_h⁻¹(½M_b + K_h)           as LinearOperator
-
-Public API (unchanged from P1 version):
-    BoundaryMesh
-    extract_boundary_edges(mesh)           → BoundaryMesh
-    log_gauss_jacobi_points(n)             → (nodes, weights)
-    assemble_single_layer(bnd, n_quad=25)  → V_h
-    assemble_double_layer(bnd, n_quad=8)   → K_h
-    assemble_boundary_mass(bnd)            → M_b
-    assemble_bem_matrices(bnd, ...)        → (V_h, K_h, M_b)
-    calderon_matrix(V_h, K_h, M_b)        → LinearOperator
+Assembles V_h (single-layer), K_h (double-layer), M_b (boundary mass)
+on the P3 boundary mesh, and builds the Calderon preconditioner
+C = V_h^{-1}(0.5*M_b + K_h).
 """
 
 import numpy as np
@@ -40,30 +16,13 @@ from typing import Tuple
 np.set_printoptions(precision=15)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Data class
-# ─────────────────────────────────────────────────────────────────────────────
-
 @dataclass
 class BoundaryMesh:
     """
     Ordered boundary node data for P3 BEM assembly.
 
-    The N_b boundary nodes are CCW-ordered.  Every 3 consecutive nodes
-    [3i, 3i+1, 3i+2] together with the next vertex node [3(i+1) % N_b]
-    form one P3 boundary element (4 nodes at t = 0, 1/3, 2/3, 1).
-
-    Attributes
-    ----------
-    node_indices    : (N_b,) int    – global FEM DOF indices
-    nodes           : (N_b, 2)     – physical coordinates
-    edge_lengths    : (N_b,)       – sub-segment lengths (consecutive nodes)
-    normals         : (N_b, 2)     – outward normal of each sub-segment
-    n_boundary_dofs : int          – N_b  (total boundary nodes)
-    elements        : (N_elem, 4)  – indices into nodes[] for each P3 element
-    element_lengths : (N_elem,)    – physical length of each P3 element
-    element_normals : (N_elem, 2)  – outward unit normal of each P3 element
-    n_elements      : int          – N_elem = N_b // 3
+    N_b boundary nodes in CCW order. Every 3 consecutive nodes [3i, 3i+1, 3i+2]
+    together with node [3(i+1) % N_b] form one P3 boundary element.
     """
     node_indices    : np.ndarray
     nodes           : np.ndarray
@@ -76,28 +35,11 @@ class BoundaryMesh:
     n_elements      : int = 0
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# P3 Lagrange basis on [0, 1] at nodes {0, 1/3, 2/3, 1}
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _p3_boundary_basis(t_arr: np.ndarray) -> np.ndarray:
+def _p3_boundary_basis(t_arr):
     """
     Evaluate the four P3 Lagrange basis functions at each point in t_arr.
 
-    Nodes at t = 0, 1/3, 2/3, 1 (matching P3 FEM edge nodes).
-    Basis functions:
-        φ_0(t) = ½(1−t)(1−3t)(2−3t)   [t=0 vertex]
-        φ_1(t) = 9/2 · t(1−t)(2−3t)   [t=1/3 interior]
-        φ_2(t) = 9/2 · t(1−t)(3t−1)   [t=2/3 interior]
-        φ_3(t) = ½ · t(3t−1)(3t−2)    [t=1 vertex]
-
-    Parameters
-    ----------
-    t_arr : (n,) array of parameter values in [0, 1]
-
-    Returns
-    -------
-    phi : (n, 4) array
+    Nodes at t = 0, 1/3, 2/3, 1. Returns (n, 4) array.
     """
     t = np.asarray(t_arr, dtype=np.float64).ravel()
     phi = np.empty((len(t), 4), dtype=np.float64)
@@ -108,26 +50,20 @@ def _p3_boundary_basis(t_arr: np.ndarray) -> np.ndarray:
     return phi
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Boundary mesh extraction
-# ─────────────────────────────────────────────────────────────────────────────
-
-def extract_boundary_edges(mesh) -> BoundaryMesh:
+def extract_boundary_edges(mesh):
     """
-    Extract boundary nodes from a P3 FEM mesh and return in CCW order.
+    Extract boundary nodes from a P3 mesh in CCW order.
 
-    Builds P3 boundary elements: each original mesh edge on ∂Ω contributes
-    one 4-node element [vertex, t=1/3 node, t=2/3 node, next vertex].
-
-    Requires N_b % 3 == 0 (guaranteed for structured rectangular P3 meshes).
+    Returns a BoundaryMesh with P3 element groupings. Requires N_b % 3 == 0,
+    which is guaranteed for structured rectangular P3 meshes.
     """
-    nodes_all = np.array(mesh.nodes, dtype=np.float64)
-    bnd_idx   = np.array(mesh.boundary, dtype=np.int64)
+    nodes_all  = np.array(mesh.nodes, dtype=np.float64)
+    bnd_idx    = np.array(mesh.boundary, dtype=np.int64)
     bnd_coords = nodes_all[bnd_idx]
 
     xmin = bnd_coords[:, 0].min(); xmax = bnd_coords[:, 0].max()
     ymin = bnd_coords[:, 1].min(); ymax = bnd_coords[:, 1].max()
-    tol = 1e-8 * max(xmax - xmin, ymax - ymin)
+    tol  = 1e-8 * max(xmax - xmin, ymax - ymin)
 
     on_bottom = np.abs(bnd_coords[:, 1] - ymin) < tol
     on_right  = np.abs(bnd_coords[:, 0] - xmax) < tol
@@ -139,8 +75,8 @@ def extract_boundary_edges(mesh) -> BoundaryMesh:
         coords = nodes_all[idx]
         return list(zip(idx, coords))
 
-    bottom = sorted(_side(on_bottom), key=lambda p: +p[1][0])
-    right  = sorted(_side(on_right),  key=lambda p: +p[1][1])
+    bottom = sorted(_side(on_bottom), key=lambda p:  p[1][0])
+    right  = sorted(_side(on_right),  key=lambda p:  p[1][1])
     top    = sorted(_side(on_top),    key=lambda p: -p[1][0])
     left   = sorted(_side(on_left),   key=lambda p: -p[1][1])
 
@@ -152,16 +88,15 @@ def extract_boundary_edges(mesh) -> BoundaryMesh:
     N_b = len(ordered)
 
     if N_b == 0:
-        raise ValueError("extract_boundary_edges: no boundary nodes found.")
+        raise ValueError("No boundary nodes found.")
     if N_b % 3 != 0:
         raise ValueError(
-            f"extract_boundary_edges: N_b={N_b} is not divisible by 3. "
-            "P3 BEM requires 3 nodes per original mesh edge on ∂Ω. "
-            "Use a structured P3 mesh.")
+            f"N_b={N_b} is not divisible by 3. "
+            "P3 BEM requires 3 nodes per boundary edge."
+        )
 
-    ordered_coords = nodes_all[ordered]  # (N_b, 2)
+    ordered_coords = nodes_all[ordered]
 
-    # Sub-segment edge lengths and normals (between consecutive boundary nodes)
     edge_lengths = np.empty(N_b)
     normals      = np.empty((N_b, 2))
     for i in range(N_b):
@@ -172,10 +107,9 @@ def extract_boundary_edges(mesh) -> BoundaryMesh:
         if L < 1e-15:
             raise ValueError(f"Degenerate sub-segment at boundary node {ordered[i]}.")
         edge_lengths[i] = L
-        normals[i] = np.array([dy, -dx]) / L
+        normals[i]      = np.array([dy, -dx]) / L
 
-    # P3 elements: element i has nodes [3i, 3i+1, 3i+2, (3i+3) % N_b]
-    N_elem = N_b // 3
+    N_elem          = N_b // 3
     elements        = np.empty((N_elem, 4), dtype=np.int64)
     element_lengths = np.empty(N_elem)
     element_normals = np.empty((N_elem, 2))
@@ -189,7 +123,7 @@ def extract_boundary_edges(mesh) -> BoundaryMesh:
         dx = p3[0] - p0[0]; dy = p3[1] - p0[1]
         L  = np.hypot(dx, dy)
         element_lengths[e] = L
-        element_normals[e] = np.array([dy, -dx]) / L  # outward unit normal
+        element_normals[e] = np.array([dy, -dx]) / L
 
     return BoundaryMesh(
         node_indices    = ordered,
@@ -204,116 +138,91 @@ def extract_boundary_edges(mesh) -> BoundaryMesh:
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Quadrature helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def log_gauss_jacobi_points(n: int) -> Tuple[np.ndarray, np.ndarray]:
+def log_gauss_jacobi_points(n):
     """
-    n-point quadrature (nodes, weights) for ∫₀¹ f(t)(−ln t) dt.
+    n-point quadrature for integrals of the form int_0^1 f(t)*(-ln t) dt.
 
-    Uses generalised Gauss-Laguerre (α=1) with substitution t = e^{−u}.
+    Uses generalized Gauss-Laguerre (alpha=1) with t = exp(-u).
     """
     u_nodes, weights = roots_genlaguerre(n, 1)
     return np.exp(-u_nodes), weights
 
 
-def _gauss_legendre(n: int) -> Tuple[np.ndarray, np.ndarray]:
-    """n-point Gauss-Legendre nodes and weights on [0, 1]."""
+def _gauss_legendre(n):
+    """n-point Gauss-Legendre nodes and weights mapped to [0, 1]."""
     xi, wi = roots_legendre(n)
     return 0.5 * (xi + 1.0), 0.5 * wi
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Single-layer matrix V_h  (P3 elements)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def assemble_single_layer(bnd: BoundaryMesh, n_quad: int = 25) -> np.ndarray:
+def assemble_single_layer(bnd, n_quad=25):
     """
-    Assemble the single-layer BEM matrix V_h with P3 boundary elements.
+    Assemble the single-layer BEM matrix V_h.
 
-        V_h[i,j] = ∫_{∂Ω}∫_{∂Ω} G(x,y) φ_i(x) φ_j(y) ds(x) ds(y)
-        G(x,y)   = (1/2π) ln|x−y|
+    V_h[i,j] = integral G(x,y) phi_i(x) phi_j(y) ds(x) ds(y)
+    where G(x,y) = (1/2pi) ln|x-y|.
 
-    Off-diagonal element pairs: standard Gauss-Legendre.
-    Diagonal (self-interaction): Duffy decomposition into two GL quadratures
-        + one log-GL quadrature, generalised from P1 to P3 basis.
-
-    Returns (N_b × N_b) symmetric matrix.
+    Off-diagonal blocks use Gauss-Legendre; diagonal blocks use
+    Duffy decomposition with log-Gauss-Laguerre for the log singularity.
     """
     N_b    = bnd.n_boundary_dofs
     N_elem = bnd.n_elements
     xi_gl, w_gl = _gauss_legendre(n_quad)
     xi_lj, w_lj = log_gauss_jacobi_points(n_quad)
 
-    phi_gl = _p3_boundary_basis(xi_gl)  # (nq, 4)
+    phi_gl = _p3_boundary_basis(xi_gl)
 
-    # Precompute element first/last physical points and lengths
-    elems = bnd.elements                            # (N_elem, 4) local node indices
-    p0_all = bnd.nodes[elems[:, 0]]                 # (N_elem, 2)
-    p3_all = bnd.nodes[elems[:, 3]]                 # (N_elem, 2)
-    L_all  = bnd.element_lengths                    # (N_elem,)
+    elems  = bnd.elements
+    p0_all = bnd.nodes[elems[:, 0]]
+    p3_all = bnd.nodes[elems[:, 3]]
+    L_all  = bnd.element_lengths
 
-    # Physical quadrature points on all elements
-    # x_pts[e, q, :] = p0_e + t_q * (p3_e - p0_e)
-    x_pts = (p0_all[:, None, :] +
-             xi_gl[None, :, None] * (p3_all - p0_all)[:, None, :])  # (N_elem, nq, 2)
+    x_pts = (p0_all[:, None, :]
+             + xi_gl[None, :, None] * (p3_all - p0_all)[:, None, :])
 
     V = np.zeros((N_b, N_b))
 
     for s in range(N_elem):
-        L_s    = L_all[s]
-        p0_s   = p0_all[s]
-        p3_s   = p3_all[s]
-        s_nodes = elems[s]   # 4 global local indices
+        L_s     = L_all[s]
+        p0_s    = p0_all[s]
+        p3_s    = p3_all[s]
+        s_nodes = elems[s]
 
-        # Physical quadrature points on element s
-        xs = (p0_s[None, :] +
-              xi_gl[:, None] * (p3_s - p0_s)[None, :])  # (nq, 2)
+        xs = p0_s[None, :] + xi_gl[:, None] * (p3_s - p0_s)[None, :]
 
-        # ── Off-diagonal: vectorized over all t ──────────────────────────
-        # diff[t, q, r, :] = xs[q] - x_pts[t, r]
-        diff = xs[None, :, None, :] - x_pts[:, None, :, :]  # (N_elem, nq, nq, 2)
-        r2   = np.sum(diff**2, axis=-1)                      # (N_elem, nq, nq)
+        diff = xs[None, :, None, :] - x_pts[:, None, :, :]
+        r2   = np.sum(diff**2, axis=-1)
         with np.errstate(divide='ignore', invalid='ignore'):
             G_val = np.where(r2 > 1e-30,
                              np.log(np.maximum(r2, 1e-300)) / (4.0 * np.pi),
-                             0.0)  # (N_elem, nq, nq)
+                             0.0)
 
-        # kernel[t, q, r] = L_s * L_t * G * w_q * w_r
-        kernel = (L_s * L_all[:, None, None] * G_val
-                  * w_gl[None, :, None] * w_gl[None, None, :])  # (N_elem, nq, nq)
-        kernel[s] = 0.0  # diagonal handled below
+        kernel      = (L_s * L_all[:, None, None] * G_val
+                       * w_gl[None, :, None] * w_gl[None, None, :])
+        kernel[s]   = 0.0
 
-        # V_elem[t, a, b] = Σ_{q,r} kernel[t,q,r] * phi_a[q] * phi_b[r]
-        V_elem = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)  # (N_elem, 4, 4)
+        V_elem = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)
 
-        # ── Diagonal: Duffy decomposition ────────────────────────────────
-        # ln(L|s-t|) = ln(L*sigma) + ln(1 - v)  after substitution
-        # Split into: sigma * ln(L*sigma) term (GL×GL) and -sigma*ln(v) term (GL×log-GL)
+        # Diagonal self-interaction via Duffy decomposition
         V_diag = np.zeros((4, 4))
         for q, (sigma, wq) in enumerate(zip(xi_gl, w_gl)):
-            phi_s = phi_gl[q]                     # (4,)  basis at sigma
+            phi_s    = phi_gl[q]
             log_Lsig = np.log(L_s * sigma)
 
-            # GL inner integral (ln(sigma) part)
             for r, (v, wv) in enumerate(zip(xi_gl, w_gl)):
-                tau     = sigma * (1.0 - v)
-                phi_t   = _p3_boundary_basis(np.array([tau]))[0]  # (4,)
-                pre     = L_s**2 / (2.0 * np.pi) * sigma * log_Lsig * wq * wv
+                tau   = sigma * (1.0 - v)
+                phi_t = _p3_boundary_basis(np.array([tau]))[0]
+                pre   = L_s**2 / (2.0 * np.pi) * sigma * log_Lsig * wq * wv
                 V_diag += pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
 
-            # log-GL inner integral (-ln(v) part)
             for v, wv_lj in zip(xi_lj, w_lj):
-                tau     = sigma * (1.0 - v)
-                phi_t   = _p3_boundary_basis(np.array([tau]))[0]  # (4,)
-                pre     = L_s**2 / (2.0 * np.pi) * sigma * wq * wv_lj
+                tau   = sigma * (1.0 - v)
+                phi_t = _p3_boundary_basis(np.array([tau]))[0]
+                pre   = L_s**2 / (2.0 * np.pi) * sigma * wq * wv_lj
                 V_diag -= pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
 
         V_elem[s] = V_diag
 
-        # Accumulate into global matrix
-        t_nodes = elems  # (N_elem, 4)
+        t_nodes = elems
         for a in range(4):
             for b in range(4):
                 np.add.at(V, (s_nodes[a], t_nodes[:, b]), V_elem[:, a, b])
@@ -321,34 +230,29 @@ def assemble_single_layer(bnd: BoundaryMesh, n_quad: int = 25) -> np.ndarray:
     return 0.5 * (V + V.T)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Double-layer matrix K_h  (P3 elements)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def assemble_double_layer(bnd: BoundaryMesh, n_quad: int = 8) -> np.ndarray:
+def assemble_double_layer(bnd, n_quad=8):
     """
-    Assemble the double-layer BEM matrix K_h with P3 boundary elements.
+    Assemble the double-layer BEM matrix K_h.
 
-        K_h[i,j] = ∫_{∂Ω}∫_{∂Ω} (∂G/∂n(y))(x,y) φ_i(x) φ_j(y) ds(x) ds(y)
-        ∂G/∂n(y) = (1/2π)(x−y)·n(y) / |x−y|²
+    K_h[i,j] = integral (dG/dn(y))(x,y) phi_i(x) phi_j(y) ds(x) ds(y)
+    where dG/dn = (1/2pi) (x-y).n(y) / |x-y|^2.
 
-    Diagonal element self-interaction is zero for straight boundary segments
-    (the factor (x−y)·n(y) = 0 when x−y is parallel to the segment).
+    Diagonal blocks are zero for straight boundary segments.
     """
     N_b    = bnd.n_boundary_dofs
     N_elem = bnd.n_elements
     xi_gl, w_gl = _gauss_legendre(n_quad)
 
-    phi_gl = _p3_boundary_basis(xi_gl)  # (nq, 4)
+    phi_gl = _p3_boundary_basis(xi_gl)
 
     elems  = bnd.elements
     p0_all = bnd.nodes[elems[:, 0]]
     p3_all = bnd.nodes[elems[:, 3]]
     L_all  = bnd.element_lengths
-    n_all  = bnd.element_normals          # (N_elem, 2) outward normals
+    n_all  = bnd.element_normals
 
-    x_pts = (p0_all[:, None, :] +
-             xi_gl[None, :, None] * (p3_all - p0_all)[:, None, :])  # (N_elem, nq, 2)
+    x_pts = (p0_all[:, None, :]
+             + xi_gl[None, :, None] * (p3_all - p0_all)[:, None, :])
 
     K = np.zeros((N_b, N_b))
 
@@ -357,24 +261,18 @@ def assemble_double_layer(bnd: BoundaryMesh, n_quad: int = 8) -> np.ndarray:
         p0_s    = p0_all[s]; p3_s = p3_all[s]
         s_nodes = elems[s]
 
-        xs = (p0_s[None, :] +
-              xi_gl[:, None] * (p3_s - p0_s)[None, :])  # (nq, 2)
-
-        # diff[t, q, r, :] = xs[q] - x_pts[t, r]
-        diff = xs[None, :, None, :] - x_pts[:, None, :, :]  # (N_elem, nq, nq, 2)
-        r2   = np.sum(diff**2, axis=-1)                      # (N_elem, nq, nq)
+        xs   = p0_s[None, :] + xi_gl[:, None] * (p3_s - p0_s)[None, :]
+        diff = xs[None, :, None, :] - x_pts[:, None, :, :]
+        r2   = np.sum(diff**2, axis=-1)
         r2   = np.where(r2 < 1e-28, np.inf, r2)
 
-        # dGdn[t,q,r] = (x-y)·n_t / (2π|x-y|²)
-        dGdn = (np.sum(diff * n_all[:, None, None, :], axis=-1)
-                / (2.0 * np.pi * r2))                        # (N_elem, nq, nq)
-
+        dGdn   = (np.sum(diff * n_all[:, None, None, :], axis=-1)
+                  / (2.0 * np.pi * r2))
         kernel = (L_s * L_all[:, None, None] * dGdn
                   * w_gl[None, :, None] * w_gl[None, None, :])
-        kernel[s] = 0.0   # zero for straight segments
+        kernel[s] = 0.0
 
-        K_elem = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)  # (N_elem, 4, 4)
-
+        K_elem  = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)
         t_nodes = elems
         for a in range(4):
             for b in range(4):
@@ -383,35 +281,25 @@ def assemble_double_layer(bnd: BoundaryMesh, n_quad: int = 8) -> np.ndarray:
     return K
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Boundary mass matrix M_b  (P3 elements)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def assemble_boundary_mass(bnd: BoundaryMesh) -> np.ndarray:
+def assemble_boundary_mass(bnd):
     """
-    Assemble the boundary mass (Gram) matrix M_b with P3 elements.
+    Assemble the boundary Gram matrix M_b.
 
-        M_b[i,j] = ∫_{∂Ω} φ_i(s) φ_j(s) ds
-
-    Uses 7-point Gauss-Legendre (exact for degree 13, sufficient for P3×P3).
-
-    Verification: M_b @ ones = total boundary length.
+    M_b[i,j] = integral phi_i(s) phi_j(s) ds.
+    Verification: M_b @ ones = perimeter.
     """
     N_b    = bnd.n_boundary_dofs
     N_elem = bnd.n_elements
     xi_gl, w_gl = _gauss_legendre(7)
-    phi_gl = _p3_boundary_basis(xi_gl)   # (7, 4)
+    phi_gl = _p3_boundary_basis(xi_gl)
 
-    # Element mass matrix (reference): Me_ref[a,b] = Σ_q w_q φ_a(t_q) φ_b(t_q)
-    Me_ref = np.einsum('q,qa,qb->ab', w_gl, phi_gl, phi_gl)  # (4, 4)
+    Me_ref = np.einsum('q,qa,qb->ab', w_gl, phi_gl, phi_gl)
 
     M = np.zeros((N_b, N_b))
-    elems = bnd.elements
-
     for e in range(N_elem):
         L_e  = bnd.element_lengths[e]
-        elem = elems[e]                    # 4 global node indices
-        Me   = L_e * Me_ref                # scale by element length
+        elem = bnd.elements[e]
+        Me   = L_e * Me_ref
         for a in range(4):
             for b in range(4):
                 M[elem[a], elem[b]] += Me[a, b]
@@ -419,39 +307,25 @@ def assemble_boundary_mass(bnd: BoundaryMesh) -> np.ndarray:
     return M
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Calderon preconditioner  C = V_h⁻¹(½M_b + K_h)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def calderon_matrix(V_h: np.ndarray,
-                    K_h: np.ndarray,
-                    M_b: np.ndarray) -> spla.LinearOperator:
+def calderon_matrix(V_h, K_h, M_b):
     """
-    C = V_h⁻¹(½M_b + K_h) as a LinearOperator.
+    Return C = V_h^{-1}(0.5*M_b + K_h) as a LinearOperator.
 
-    LU-factorises V_h once; matvec applies the factored solve.
-    Complexity: O(N_b³) factorisation + O(N_b²) per matvec.
+    LU-factorises V_h once; each matvec applies the factored solve.
     """
     import scipy.linalg as sla
     N_b = V_h.shape[0]
     half_Mb_plus_Kh = 0.5 * M_b + K_h
     V_lu = sla.lu_factor(V_h)
 
-    def _matvec(x: np.ndarray) -> np.ndarray:
+    def _matvec(x):
         return sla.lu_solve(V_lu, half_Mb_plus_Kh @ x)
 
     return spla.LinearOperator(shape=(N_b, N_b), matvec=_matvec, dtype=np.float64)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Convenience wrapper
-# ─────────────────────────────────────────────────────────────────────────────
-
-def assemble_bem_matrices(bnd: BoundaryMesh,
-                          n_quad_sl: int = 25,
-                          n_quad_dl: int = 8
-                          ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Assemble V_h, K_h, M_b in one call."""
+def assemble_bem_matrices(bnd, n_quad_sl=25, n_quad_dl=8):
+    """Assemble and return (V_h, K_h, M_b) in one call."""
     V_h = assemble_single_layer(bnd, n_quad=n_quad_sl)
     K_h = assemble_double_layer(bnd, n_quad=n_quad_dl)
     M_b = assemble_boundary_mass(bnd)
