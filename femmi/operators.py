@@ -214,7 +214,7 @@ class FEMOperators:
         """dL/dkappa = −2 Mᵀ A_coupled⁻¹ (S1ᵀ dL/dg1 + S2ᵀ dL/dg2)."""
         rhs = self.S1.T @ dL_dg1 + self.S2.T @ dL_dg2
         rhs[int(self.bnd_mesh.node_indices[0])] = 0.0   # gauge fix
-        return -2.0 * self.M.T @ self.A_coupled_lu.solve(rhs)
+        return -2.0 * self.M.T @ self.A_coupled_lu.solve(rhs, trans='T')
 
 
 # =============================================================================
@@ -315,6 +315,13 @@ def _assemble_operators_from_mesh(mesh, verbose: bool = True,
     S1, S2 = _assemble_shear_ops(nodes, elements, H_ref)
     if verbose:
         print(f"       S1, S2 assembled: nnz={S1.nnz}, {S2.nnz}  ({time.perf_counter()-t4:.1f}s)")
+    
+    # Zero out shear at boundary nodes. P3 nodal averaging is unreliable
+    # there (1-2 element contributions vs 6 for interior), producing
+    # large spurious spikes that dominate the MAP loss.
+    S1_lil = S1.tolil(); S1_lil[boundary, :] = 0; S1 = S1_lil.tocsr()
+    S2_lil = S2.tolil(); S2_lil[boundary, :] = 0; S2 = S2_lil.tocsr()
+
 
     # -- Deprecated Dirichlet K_lu (kept for reference / old tests) -----------
     K_lil_dir = K.tolil()
