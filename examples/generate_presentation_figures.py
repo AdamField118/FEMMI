@@ -138,57 +138,102 @@ def save_fig(fig, name):
 
 # =========================================================================
 # FIGURE 1 -- P3 Forward Convergence
+#
+# Measures the FORWARD operator convergence: for fixed κ_true, how does
+# the shear error ‖γ_h − γ_ref‖ shrink as the mesh is refined?
+#
+# Why forward (not inverse)?
+#   The ill-posed inverse problem converges at O(δ^{2/3}) from Morozov
+#   theory — that's noise-driven, not h-driven.  The forward operator
+#   has a clean theoretical rate:
+#     γ (shear = ∂²ψ): O(h²)  — P3 nodal Hessian averaging
+#     ψ (potential):   O(h^{5/3}) — P1 BEM limited by square corners
+#
+# Key design choices (from convergence debugging):
+#   σ = 1.5:  σ/h ≥ 1.5 on all test meshes → asymptotic regime
+#   mesh_sizes starts at nx=8: avoids pre-asymptotic (σ/h < 1) regime
+#   Deep interior masking: γ is only compared at |x|,|y| < DEEP_LIM
+#     because the shear operator zeros boundary nodes (S1,S2 zeroed there)
+#     and the reference mesh has edge artifacts within ~1 element of ∂Ω.
 # =========================================================================
 print("\nFig 1: P3 forward convergence (coarse->fine reference)")
 
 xmin, xmax, ymin, ymax = DOMAIN
 
-print("  Building reference mesh (nx=40)...")
-ops_ref   = build_operators(40, 40, xmin, xmax, ymin, ymax, verbose=False)
-nodes_ref = np.array(ops_ref.mesh.nodes)
-kappa_mfr_ref = gaussian_kappa(nodes_ref)
-g1_ref, g2_ref = ops_ref.forward(kappa_mfr_ref)
-interior_ref   = np.array(ops_ref.interior)
+# Forward convergence parameters — separate from SIGMA_LENS used elsewhere
+SIGMA_FIG1 = 1.5    # σ/h ≥ 1.5 at nx=8  (σ/h = 9.6 at nx=32)
+DEEP_LIM   = 1.5    # deep interior threshold: exclude near-boundary shear noise
+NX_REF     = 40     # reference mesh; h_ref=0.125, safely finer than nx=32
 
-mesh_sizes = [4, 6, 8, 10, 14, 18, 24, 32]
+print(f"  Building reference mesh (nx={NX_REF}, σ={SIGMA_FIG1})...")
+ops_ref   = build_operators(NX_REF, NX_REF, xmin, xmax, ymin, ymax, verbose=False)
+nodes_ref = np.array(ops_ref.mesh.nodes)
+kappa_ref = gaussian_kappa(nodes_ref, sigma=SIGMA_FIG1)
+g1_ref, g2_ref = ops_ref.forward(kappa_ref)
+
+# Deep interior mask on reference mesh
+int_ref  = np.array(ops_ref.interior, dtype=bool)
+x_r, y_r = nodes_ref[:, 0], nodes_ref[:, 1]
+deep_ref  = int_ref & (np.abs(x_r) < DEEP_LIM) & (np.abs(y_r) < DEEP_LIM)
+print(f"  Reference: {ops_ref.n_nodes} nodes, "
+      f"{deep_ref.sum()} deep-interior nodes used for γ comparison")
+print(f"  max|γ_ref| deep interior = "
+      f"{max(np.abs(g1_ref[deep_ref]).max(), np.abs(g2_ref[deep_ref]).max()):.4f}")
+
+# Test mesh sequence — start at nx=8 so σ/h ≥ 1.5 everywhere
+mesh_sizes = [8, 10, 14, 18, 24, 32]
 h_vals, errs = [], []
 
 for nx in mesh_sizes:
-    print(f"  nx={nx:2d} ... ", end="", flush=True)
+    print(f"  nx={nx:2d} (σ/h={SIGMA_FIG1/((xmax-xmin)/nx):.1f}) ... ", end="", flush=True)
     ops_c    = build_operators(nx, nx, xmin, xmax, ymin, ymax, verbose=False)
     nodes_c  = np.array(ops_c.mesh.nodes)
-    g1_c, g2_c = ops_c.forward(gaussian_kappa(nodes_c))
+    g1_c, g2_c = ops_c.forward(gaussian_kappa(nodes_c, sigma=SIGMA_FIG1))
 
-    g1_on = griddata(nodes_c, g1_c, nodes_ref, method="linear")
-    g1_nn = griddata(nodes_c, g1_c, nodes_ref, method="nearest")
-    g1_on[~np.isfinite(g1_on)] = g1_nn[~np.isfinite(g1_on)]
-    g2_on = griddata(nodes_c, g2_c, nodes_ref, method="linear")
-    g2_nn = griddata(nodes_c, g2_c, nodes_ref, method="nearest")
-    g2_on[~np.isfinite(g2_on)] = g2_nn[~np.isfinite(g2_on)]
+    # Deep interior mask on coarse mesh
+    int_c   = np.array(ops_c.interior, dtype=bool)
+    x_c, y_c = nodes_c[:, 0], nodes_c[:, 1]
+    deep_c  = int_c & (np.abs(x_c) < DEEP_LIM) & (np.abs(y_c) < DEEP_LIM)
 
-    num = float(np.sqrt(np.sum((g1_on[interior_ref]-g1_ref[interior_ref])**2 +
-                               (g2_on[interior_ref]-g2_ref[interior_ref])**2)))
-    den = float(np.sqrt(np.sum(g1_ref[interior_ref]**2 + g2_ref[interior_ref]**2)))
+    # Interpolate reference γ (from deep interior only) onto coarse deep nodes
+    # Linear interpolation avoids Runge oscillations near the boundary
+    g1_on = griddata(nodes_ref[deep_ref], g1_ref[deep_ref],
+                     nodes_c[deep_c], method="linear")
+    g1_nn = griddata(nodes_ref[deep_ref], g1_ref[deep_ref],
+                     nodes_c[deep_c], method="nearest")
+    g1_on = np.where(np.isfinite(g1_on), g1_on, g1_nn)
+
+    g2_on = griddata(nodes_ref[deep_ref], g2_ref[deep_ref],
+                     nodes_c[deep_c], method="linear")
+    g2_nn = griddata(nodes_ref[deep_ref], g2_ref[deep_ref],
+                     nodes_c[deep_c], method="nearest")
+    g2_on = np.where(np.isfinite(g2_on), g2_on, g2_nn)
+
+    num = float(np.sqrt(np.mean((g1_c[deep_c] - g1_on)**2 +
+                                (g2_c[deep_c] - g2_on)**2)))
+    den = float(np.sqrt(np.mean(g1_on**2 + g2_on**2)))
     err = num / (den if den > 0 else 1.0)
     h   = (xmax - xmin) / nx
     h_vals.append(h); errs.append(err)
     print(f"h={h:.3f}  L2={err:.4e}")
 
 h_arr = np.array(h_vals); e_arr = np.array(errs)
+# Use middle range for rate fitting (skip first point: may be pre-asymptotic)
 mid   = slice(1, -1)
 slope = float(np.polyfit(np.log(h_arr[mid]), np.log(e_arr[mid]), 1)[0])
-print(f"  Fitted convergence rate: O(h^{slope:.2f})")
+print(f"  Fitted γ convergence rate: O(h^{slope:.2f})  (theory O(h²) for P3 nodal Hessian)")
 
 fig, ax = plt.subplots(figsize=(7, 5))
 ax.loglog(h_arr, e_arr, "o-", color=GREEN, lw=2.5, ms=8, zorder=5,
-          label=f"P3 FEM (slope {slope:.2f})")
+          label=f"P3 FEM-BEM  γ (slope {slope:.2f})")
 h_ref = np.array([h_arr.min()*0.8, h_arr.max()*1.2])
-for exp, col, lab in [(3, ORANGE, "O(h3)"), (2, BLUE, "O(h2)")]:
+# Theory lines: O(h²) for γ (expected), O(h^{5/3}) for ψ context
+for exp, col, lab in [(2, ORANGE, r"O($h^2$) — theory"), (5/3, BLUE, r"O($h^{5/3}$) — ψ BEM limit")]:
     c = e_arr[mid][-1] / h_arr[mid][-1]**exp
     ax.loglog(h_ref, c*h_ref**exp, "--", color=col, alpha=0.75, lw=1.8, label=lab)
 ax.set_xlabel("Mesh spacing h", fontsize=12)
-ax.set_ylabel("Normalised L2 shear error", fontsize=11)
-ax.set_title("P3 FEM-BEM Forward Convergence", color=GREEN, fontsize=13)
+ax.set_ylabel("Normalised L² shear error (deep interior)", fontsize=11)
+ax.set_title(f"P3 FEM-BEM Forward Convergence  (σ={SIGMA_FIG1})", color=GREEN, fontsize=13)
 ax.legend(fontsize=11, framealpha=0.3)
 ax.grid(True, which="both", alpha=0.4)
 fig.tight_layout()
@@ -403,7 +448,7 @@ save_fig(fig, "fig6_summary_bar.png")
 print(f"""
 All figures saved to outputs/
 
-fig1_convergence.png  -- P3 convergence O(h^{slope:.1f})
+fig1_convergence.png  -- P3 γ convergence O(h^{slope:.1f})  (theory O(h²))
 fig2_noiseless.png    -- MAP L2={e_map_nl:.3f}   KS L2={e_ks_nl:.4f}
 fig3_noisy.png        -- MAP L2={e_map_n:.3f}   KS L2={e_ks_n:.4f}
 fig4_masked.png       -- MAP L2={e_map_mask:.3f}   KS L2={e_ks_mask:.4f}  (adaptive mesh)
