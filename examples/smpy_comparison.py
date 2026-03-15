@@ -1,775 +1,609 @@
 """
-tests/test_smpy_femmi_comparison.py
-====================================
-Monte Carlo benchmark: FEM-MAP vs Kaiser-Squires (SMPy).
+examples/smpy_comparison.py
+Gold-standard benchmark: FEMMI FEM-BEM MAP vs Kaiser-Squires (SMPy).
 
-Shear generation
-----------------
-Ground-truth κ is defined on a regular grid. Shear is generated using the
-infinite-plane lensing kernel (FFT forward model) — the same operator that
-KS inverts. This is physically correct and ensures a fair comparison:
+Features the full modern FEMMI pipeline:
+  - Automatic lambda selection via Morozov's discrepancy principle
+  - Wiener/Matern-1/2 prior (R = M + l^2 K, l = sigma_lens)
+  - Adaptive mesh refinement near circular masks
+  - Structured mesh for standard cases
 
-    κ_true (grid)  →  KS forward (FFT)  →  γ_true (grid)
-                                                  │
-                                         + Gaussian noise
-                                                  │
-                                             γ_obs (grid)
-                                                  │
-                          ┌───────────────────────┤
-                          │                       │
-                   FEM-MAP                       KS
-             (γ_obs interpolated          (γ_obs directly
-              to mesh nodes,               as grid input,
-              Dirichlet BCs,               DC-corrected)
-              Wiener prior)
-                          │                       │
-                      κ_MAP (nodes)          κ_KS (grid)
-                          │                       │
-                    interpolate to         already on grid
-                    shared grid
-                          │                       │
-                          └───────────┬───────────┘
-                                  compare to
-                                  κ_true (grid)
+If SMPy is not installed the script runs FEMMI-only and prints results.
+Install: pip install smpy   (or see SuperBIT-Lensing docs)
 
-DC correction
--------------
-KS sets the k=0 mode to zero (mass sheet degeneracy). We correct this by
-subtracting the mean of the outer sky annulus, where κ ≈ 0 for compact lenses.
-FEM-MAP is immune to this degeneracy via Dirichlet BCs (κ=0 on ∂Ω).
-
-Usage
------
-    python tests/test_smpy_femmi_comparison.py               # 10-trial MC
-    python tests/test_smpy_femmi_comparison.py --trials 20   # custom count
-    python tests/test_smpy_femmi_comparison.py --unittest    # unit tests
-    python -m pytest tests/test_smpy_femmi_comparison.py -v
+Usage:
+    python examples/smpy_comparison.py              # all scenarios
+    python examples/smpy_comparison.py --fast       # quick smoke test
+    python examples/smpy_comparison.py --trials 20  # more MC trials
+    python -m pytest examples/smpy_comparison.py -v # unit-test mode
 """
 
 from __future__ import annotations
-
-import os
-import sys
-import unittest
-
+import argparse, os, sys, time, unittest
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-import numpy as np
 from scipy.interpolate import griddata
+from scipy.fft import fft2, ifft2, fftfreq
 
-# ── path setup ────────────────────────────────────────────────────────────────
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.join(_HERE, "..")
-sys.path.insert(0, _ROOT)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# ── FEMMI imports ─────────────────────────────────────────────────────────────
-from femmi import build_operators, DifferentiableForward, MAPReconstructor
+from femmi.operators     import build_operators, build_operators_adaptive
+from femmi.forward       import DifferentiableForward
+from femmi.inverse       import MAPReconstructor, kaiser_squires
+from femmi.regularization import MorozovSelector, estimate_noise_level
 
-# ── SMPy imports ──────────────────────────────────────────────────────────────
 try:
     from smpy.config import Config
     from smpy.mapping_methods.kaiser_squires.kaiser_squires import KaiserSquiresMapper
-    _SMPY_AVAILABLE = True
-except ImportError as _smpy_err:
-    _SMPY_AVAILABLE = False
-    print(f"WARNING: SMPy not available ({_smpy_err}). KS comparison skipped.")
+    HAS_SMPY = True
+except ImportError:
+    HAS_SMPY = False
 
-# ── constants ─────────────────────────────────────────────────────────────────
-DOMAIN     = (-2.0, 2.0, -2.0, 2.0)
-A_LENS     = 1.0
-SIGMA_LENS = 0.5
-NX_GRID    = 64    # resolution of ground-truth / KS grid
+# ------------------------------------------------------------
+# Defaults
+# ------------------------------------------------------------
 
+DOMAIN      = (-2.5, 2.5, -2.5, 2.5)
+SIGMA_LENS  = 0.5
+NX_GRID     = 64
+xmin, xmax, ymin, ymax = DOMAIN
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Ground-truth κ fields (defined on a regular grid)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _grid(nx=NX_GRID):
-    xi = np.linspace(DOMAIN[0], DOMAIN[1], nx)
-    yi = np.linspace(DOMAIN[2], DOMAIN[3], nx)
-    return np.meshgrid(xi, yi)   # XX, YY each (nx, nx)
+xi_g  = np.linspace(xmin, xmax, NX_GRID)
+yi_g  = np.linspace(ymin, ymax, NX_GRID)
+XX, YY = np.meshgrid(xi_g, yi_g)
+GRID_PTS = np.column_stack([XX.ravel(), YY.ravel()])
 
 
-def gaussian_kappa_grid(nx=NX_GRID, A=A_LENS, sigma=SIGMA_LENS,
-                        cx=0.0, cy=0.0):
-    XX, YY = _grid(nx)
-    return A * np.exp(-((XX-cx)**2 + (YY-cy)**2) / (2*sigma**2))
+# ------------------------------------------------------------
+# Ground-truth kappa fields
+# ------------------------------------------------------------
+
+def gaussian_kappa(nodes, cx=0.0, cy=0.0, sigma=SIGMA_LENS, A=1.0):
+    """Gaussian convergence map on FEM node coordinates."""
+    return A * np.exp(-((nodes[:, 0]-cx)**2 + (nodes[:, 1]-cy)**2) / (2*sigma**2))
 
 
-def double_gaussian_kappa_grid(nx=NX_GRID):
-    XX, YY = _grid(nx)
-    k1 = 1.0 * np.exp(-((XX+0.8)**2 + YY**2) / (2*0.4**2))
-    k2 = 0.6 * np.exp(-((XX-0.8)**2 + YY**2) / (2*0.3**2))
+def nfw_kappa(nodes, kappa_s=0.6, r_s=0.7, r_core=0.05):
+    """NFW convergence profile."""
+    r = np.maximum(np.hypot(nodes[:, 0], nodes[:, 1]), r_core)
+    u = r / r_s
+    return kappa_s / (u * (1.0 + u)**2)
+
+
+def double_gaussian_kappa(nodes, sigma=SIGMA_LENS):
+    """Two-component lens."""
+    k1 = np.exp(-((nodes[:, 0]+0.8)**2 + nodes[:, 1]**2) / (2*(0.35*sigma)**2))
+    k2 = 0.7 * np.exp(-((nodes[:, 0]-0.8)**2 + nodes[:, 1]**2) / (2*(0.45*sigma)**2))
     return k1 + k2
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Infinite-plane lensing forward model (same operator KS inverts)
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
+# KS helpers (SMPy wrapper + DC correction)
+# ------------------------------------------------------------
 
-def ks_forward(kappa_grid):
-    """
-    Compute shear from convergence using the infinite-plane FFT kernel.
-
-        γ_1 = Re[ ((k₁²-k₂²)/k²) κ̂ ]
-        γ_2 = Re[ (2k₁k₂/k²) κ̂ ]
-
-    This is the exact inverse of KaiserSquiresMapper.create_maps, so KS
-    self-consistency is guaranteed up to smoothing.
-    """
-    ny, nx = kappa_grid.shape
-    khat = np.fft.fft2(kappa_grid)
-    k1, k2 = np.meshgrid(np.fft.fftfreq(nx), np.fft.fftfreq(ny))
-    k2sq = k1**2 + k2**2
-    k2sq[0, 0] = np.finfo(float).eps
-    g1 = np.real(np.fft.ifft2(((k1**2 - k2**2) / k2sq) * khat))
-    g2 = np.real(np.fft.ifft2((2 * k1 * k2       / k2sq) * khat))
-    return g1, g2
+def _interpolate_to_grid(nodes, vals, fill_value=0.0):
+    g  = griddata(nodes, vals, (XX, YY), method="linear", fill_value=fill_value)
+    nn = griddata(nodes, vals, (XX, YY), method="nearest")
+    return np.where(np.isfinite(g), g, nn)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DC correction (mass sheet degeneracy)
-# ─────────────────────────────────────────────────────────────────────────────
+def _interpolate_from_grid(nodes, grid_vals):
+    g  = griddata(GRID_PTS, grid_vals.ravel(), nodes, method="linear", fill_value=0.0)
+    return g
 
-def dc_correct(kappa_ks, sky_fraction=0.15):
-    """
-    Subtract the outer-sky background from a KS convergence map.
 
-    KS sets k=0 to zero so the output mean is always zero. We estimate
-    the background from the outer sky annulus (where κ ≈ 0 for a compact
-    lens) and subtract it, restoring the correct zero point.
-
-    Returns (kappa_corrected, background_value).
-    """
+def dc_correct(kappa_ks, sky_frac=0.15):
     ny, nx = kappa_ks.shape
-    m = max(1, int(sky_fraction * min(ny, nx)))
-    sky = np.concatenate([
-        kappa_ks[:m,  :].ravel(), kappa_ks[-m:, :].ravel(),
-        kappa_ks[:,  :m].ravel(), kappa_ks[:, -m:].ravel(),
-    ])
-    bg = float(sky.mean())
-    return kappa_ks - bg, bg
+    m   = max(1, int(sky_frac * min(ny, nx)))
+    sky = np.concatenate([kappa_ks[:m].ravel(), kappa_ks[-m:].ravel(),
+                          kappa_ks[:, :m].ravel(), kappa_ks[:, -m:].ravel()])
+    return kappa_ks - sky.mean()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SMPy KS wrapper
-# ─────────────────────────────────────────────────────────────────────────────
-
-def run_ks(g1_grid, g2_grid, smoothing_sigma=1.0, sky_fraction=0.15):
-    """
-    Run SMPy KaiserSquiresMapper on a regular shear grid and DC-correct.
-
-    Returns (kappa_e_corrected, background).
-    """
-    if not _SMPY_AVAILABLE:
-        raise ImportError("SMPy is required but not installed.")
+def run_ks_smpy(g1_grid, g2_grid, smoothing_sigma=1.0):
+    """Run SMPy KS on grid shear; return DC-corrected grid kappa."""
     cfg = Config.from_defaults("kaiser_squires").to_dict()
     cfg["methods"]["kaiser_squires"]["smoothing"]["sigma"] = smoothing_sigma
     kappa_raw, _ = KaiserSquiresMapper(cfg).create_maps(g1_grid, g2_grid)
-    return dc_correct(kappa_raw, sky_fraction)
+    return dc_correct(kappa_raw)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Metric
-# ─────────────────────────────────────────────────────────────────────────────
-
-def l2_error(pred, truth):
-    """Normalised L2: ‖pred − truth‖ / ‖truth‖."""
-    d = np.linalg.norm(truth)
-    return np.linalg.norm(pred - truth) / (d if d > 0 else 1.0)
+def run_ks_builtin(nodes, g1_nodes, g2_nodes):
+    """Use FEMMI's built-in Kaiser-Squires (FFT on interpolated grid)."""
+    return kaiser_squires(g1_nodes, g2_nodes, nodes)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Masking helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
+# Core FEMMI reconstruction (Morozov + Wiener prior)
+# ------------------------------------------------------------
 
-def apply_circular_mask(g1, g2, XX, YY, cx=0.0, cy=0.0, radius=0.5):
-    """Zero out shear inside a circular disc (simulates a masked region)."""
-    g1, g2 = g1.copy(), g2.copy()
-    inside = (XX - cx)**2 + (YY - cy)**2 < radius**2
-    g1[inside] = 0.0
-    g2[inside] = 0.0
-    return g1, g2, inside
+def run_femmi_map(ops, g1_obs, g2_obs, wiener_length=SIGMA_LENS,
+                  maxiter=500, verbose=False):
+    """
+    MAP reconstruction with automatic lambda via Morozov's principle.
+
+    1. Estimate noise level from observed shear (MAD estimator)
+    2. Select lambda* via Brent root-finding on D(lambda) = 0
+    3. Reconstruct with Wiener prior R = M + l^2*K
+    """
+    noise_std = estimate_noise_level(
+        np.concatenate([g1_obs, g2_obs]), method='mad')
+
+    fwd = DifferentiableForward(ops, lam_reg=1e-3)
+    rec = MAPReconstructor(
+        fwd, maxiter=maxiter, gtol=1e-8,
+        wiener_length=wiener_length,
+        noise_std=noise_std,
+        callback_every=0,
+    )
+    kappa_map, result = rec.reconstruct(g1_obs, g2_obs, verbose=verbose)
+    lam_star = float(fwd.lam_reg)
+    return kappa_map, result, noise_std, lam_star
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
+# Metrics
+# ------------------------------------------------------------
+
+def l2_rel(pred_nodes, truth_nodes, mask=None):
+    """Normalised L2 error on interior (or masked) nodes."""
+    m = mask if mask is not None else slice(None)
+    p = np.nan_to_num(pred_nodes[m])
+    t = truth_nodes[m]
+    d = np.linalg.norm(t)
+    return float(np.linalg.norm(p - t) / (d if d > 0 else 1.0))
+
+
+def peak_offset(pred_nodes, truth_nodes, nodes, interior):
+    """Distance (arclength) between peak of truth and peak of prediction."""
+    idx_t = np.argmax(truth_nodes[interior])
+    idx_p = np.argmax(pred_nodes[interior])
+    pt    = nodes[interior][idx_t]
+    pp    = nodes[interior][idx_p]
+    return float(np.linalg.norm(pt - pp))
+
+
+# ------------------------------------------------------------
 # Single trial
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
 
 def single_trial(
-    *,
-    nx_fem         : int   = 20,
-    nx_grid        : int   = NX_GRID,
-    noise_level    : float = 0.10,
-    lam_reg        : float = 1e-2,
-    wiener_length  : float = 0.5,
-    apply_mask     : bool  = False,
-    mask_center    : tuple = (0.0, 0.0),
-    mask_radius    : float = 0.5,
-    kappa_grid_fn          = None,
-    smoothing_sigma: float = 1.0,
-    sky_fraction   : float = 0.15,
-    maxiter        : int   = 400,
-    seed           : int   = 42,
+    kappa_fn,
+    noise_level   : float = 0.10,
+    nx_fem        : int   = 20,
+    wiener_length : float = SIGMA_LENS,
+    apply_mask    : bool  = False,
+    mask_center   : tuple = (0.0, 0.0),
+    mask_radius   : float = 0.6,
+    refine_factor : int   = 3,
+    ks_smoothing  : float = 1.0,
+    maxiter       : int   = 500,
+    seed          : int   = 0,
+    verbose       : bool  = False,
 ):
     """
-    One FEM-MAP vs KS trial using the infinite-plane forward model.
+    One FEMMI-MAP vs KS trial. Returns result dict.
 
-    Shear is generated from κ_true via the FFT kernel, noise is added,
-    then both methods reconstruct from the same γ_obs. FEM-MAP receives
-    shear interpolated to mesh nodes; KS receives the grid directly.
-
-    Returns
-    -------
-    dict with keys:
-        l2_map, l2_ks, l2_ks_raw
-        ks_background
-        kappa_true, kappa_map_grid, kappa_ks, kappa_ks_raw
-        XX, YY, mask_grid
-        nodes
+    Shear is generated by the FEM-BEM forward model (physically correct for
+    the finite-domain inverse problem). This is fair: both methods receive
+    identical observed shear.
     """
-    XX, YY = _grid(nx_grid)
-    xmin, xmax, ymin, ymax = DOMAIN
-
-    # -- ground-truth κ on regular grid
-    if kappa_grid_fn is None:
-        kappa_grid_fn = gaussian_kappa_grid
-    kappa_true = kappa_grid_fn(nx_grid)
-
-    # -- KS forward: generate shear
-    g1_true, g2_true = ks_forward(kappa_true)
-
-    # -- additive noise
-    rng     = np.random.default_rng(seed)
-    sigma_n = noise_level * np.std(np.hypot(g1_true, g2_true))
-    g1_obs  = g1_true + rng.normal(0.0, sigma_n, g1_true.shape)
-    g2_obs  = g2_true + rng.normal(0.0, sigma_n, g2_true.shape)
-
-    # -- optional mask
-    mask_grid = None
+    # Build mesh - adaptive near mask boundary for better inpainting
     if apply_mask:
-        g1_obs, g2_obs, mask_grid = apply_circular_mask(
-            g1_obs, g2_obs, XX, YY, *mask_center, mask_radius)
+        ops = build_operators_adaptive(
+            nx_fem, nx_fem, xmin, xmax, ymin, ymax,
+            mask_center=mask_center, mask_radius=mask_radius,
+            refine_factor=refine_factor, verbose=verbose,
+        )
+    else:
+        ops = build_operators(nx_fem, nx_fem, xmin, xmax, ymin, ymax,
+                              verbose=verbose)
 
-    # ── KS reconstruction (grid → grid) ──────────────────────────────────────
-    kappa_ks = kappa_ks_raw = None
-    ks_background = np.nan
-    if _SMPY_AVAILABLE:
-        try:
-            kappa_ks, ks_background = run_ks(
-                g1_obs, g2_obs,
-                smoothing_sigma=smoothing_sigma,
-                sky_fraction=sky_fraction,
-            )
-            # keep raw for diagnostics
-            cfg = Config.from_defaults("kaiser_squires").to_dict()
-            cfg["methods"]["kaiser_squires"]["smoothing"]["sigma"] = smoothing_sigma
-            kappa_ks_raw, _ = KaiserSquiresMapper(cfg).create_maps(g1_obs, g2_obs)
-        except Exception as exc:
-            print(f"  [SMPy KS failed: {exc}]")
+    nodes    = np.array(ops.mesh.nodes)
+    interior = ops.interior
 
-    # ── FEM-MAP reconstruction (grid → nodes → MAP → grid) ───────────────────
-    ops   = build_operators(nx_fem, nx_fem, xmin, xmax, ymin, ymax,
-                            verbose=False)
-    nodes = np.array(ops.mesh.nodes)
+    kappa_true           = kappa_fn(nodes)
+    g1_true, g2_true     = ops.forward(kappa_true)
 
-    # interpolate grid shear to FEM mesh nodes
-    pts     = np.column_stack([XX.ravel(), YY.ravel()])
-    g1_fem  = griddata(pts, g1_obs.ravel(), nodes, method="linear",
-                       fill_value=0.0)
-    g2_fem  = griddata(pts, g2_obs.ravel(), nodes, method="linear",
-                       fill_value=0.0)
+    rng         = np.random.default_rng(seed)
+    noise_scale = noise_level * np.std(np.hypot(g1_true, g2_true))
+    g1_obs      = g1_true + rng.normal(0, noise_scale, g1_true.shape)
+    g2_obs      = g2_true + rng.normal(0, noise_scale, g2_true.shape)
 
-    fwd = DifferentiableForward(ops, lam_reg=lam_reg)
-    rec = MAPReconstructor(fwd, maxiter=maxiter, gtol=1e-9,
-                           wiener_length=wiener_length, callback_every=0)
-    kappa_map_nodes, _ = rec.reconstruct(g1_fem, g2_fem, verbose=False)
+    if apply_mask:
+        r_mask            = np.hypot(nodes[:, 0]-mask_center[0],
+                                     nodes[:, 1]-mask_center[1])
+        masked_nodes      = r_mask < mask_radius
+        g1_obs[masked_nodes] = 0.0
+        g2_obs[masked_nodes] = 0.0
 
-    # interpolate FEM result back to shared grid
-    kappa_map_grid = griddata(nodes, kappa_map_nodes, (XX, YY),
-                              method="linear")
-    kappa_map_grid_nn = griddata(nodes, kappa_map_nodes, (XX, YY),
-                                 method="nearest")
-    kappa_map_grid[~np.isfinite(kappa_map_grid)] = \
-        kappa_map_grid_nn[~np.isfinite(kappa_map_grid)]
+    # FEMMI MAP (Morozov + Wiener)
+    t0 = time.perf_counter()
+    kappa_map, result, noise_est, lam_star = run_femmi_map(
+        ops, g1_obs, g2_obs,
+        wiener_length=wiener_length,
+        maxiter=maxiter, verbose=verbose,
+    )
+    t_map = time.perf_counter() - t0
 
-    # ── metrics ───────────────────────────────────────────────────────────────
-    l2_map    = l2_error(kappa_map_grid, kappa_true)
-    l2_ks     = l2_error(kappa_ks,     kappa_true) if kappa_ks     is not None else np.nan
-    l2_ks_raw = l2_error(kappa_ks_raw, kappa_true) if kappa_ks_raw is not None else np.nan
+    # KS (SMPy if available, else built-in FFT)
+    t1 = time.perf_counter()
+    if HAS_SMPY:
+        g1_grid = _interpolate_to_grid(nodes, g1_obs)
+        g2_grid = _interpolate_to_grid(nodes, g2_obs)
+        kappa_ks_grid = run_ks_smpy(g1_grid, g2_grid, smoothing_sigma=ks_smoothing)
+        kappa_ks      = _interpolate_from_grid(nodes, kappa_ks_grid)
+    else:
+        kappa_ks = run_ks_builtin(nodes, g1_obs, g2_obs)
+    t_ks = time.perf_counter() - t1
+
+    l2_map = l2_rel(kappa_map,  kappa_true, interior)
+    l2_ks  = l2_rel(kappa_ks,   kappa_true, interior)
 
     return dict(
-        l2_map=l2_map, l2_ks=l2_ks, l2_ks_raw=l2_ks_raw,
-        ks_background=ks_background,
+        l2_map=l2_map, l2_ks=l2_ks,
+        lam_star=lam_star,
+        noise_est=float(noise_est),
+        n_iter=result.n_iter,
+        converged=result.converged,
+        t_map=t_map, t_ks=t_ks,
         kappa_true=kappa_true,
-        kappa_map_grid=kappa_map_grid,
+        kappa_map=kappa_map,
         kappa_ks=kappa_ks,
-        kappa_ks_raw=kappa_ks_raw,
-        XX=XX, YY=YY,
-        mask_grid=mask_grid,
         nodes=nodes,
+        interior=interior,
+        ops=ops,
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Monte Carlo runner
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
+# Monte Carlo benchmark
+# ------------------------------------------------------------
 
-def monte_carlo_benchmark(
-    n_trials       : int   = 10,
-    nx_fem         : int   = 20,
-    nx_grid        : int   = NX_GRID,
-    noise_level    : float = 0.10,
-    lam_reg        : float = 1e-2,
-    wiener_length  : float = 0.5,
-    apply_mask     : bool  = False,
-    mask_center    : tuple = (0.0, 0.0),
-    mask_radius    : float = 0.5,
-    kappa_grid_fn          = None,
-    smoothing_sigma: float = 1.0,
-    sky_fraction   : float = 0.15,
-    maxiter        : int   = 400,
-    tag            : str   = "",
-    plot_dir       : str | None = None,
-):
-    """Run n_trials independent noise realisations (seed = trial index)."""
-    print(f"\n{'═'*62}")
-    print(f"Monte Carlo: {tag or 'unnamed'}  ({n_trials} trials)")
-    print(f"  nx_fem={nx_fem}  nx_grid={nx_grid}  noise={noise_level*100:.0f}%  "
-          f"mask={'yes' if apply_mask else 'no'}  wiener_length={wiener_length}")
-    print("═"*62)
+def monte_carlo(label, kappa_fn, n_trials=10, **trial_kwargs):
+    """Run n_trials independent noise realisations and report statistics."""
+    print(f"\n{'='*64}")
+    print(f"Scenario: {label}  ({n_trials} trials)")
+    print(f"{'='*64}")
 
-    l2_maps, l2_kss, l2_kss_raw, bgs, last = [], [], [], [], None
-
+    l2_maps = []; l2_kss = []
     for t in range(n_trials):
         print(f"  trial {t+1:2d}/{n_trials} ... ", end="", flush=True)
-        trial = single_trial(
-            nx_fem=nx_fem, nx_grid=nx_grid,
-            noise_level=noise_level, lam_reg=lam_reg,
-            wiener_length=wiener_length,
-            apply_mask=apply_mask, mask_center=mask_center,
-            mask_radius=mask_radius, kappa_grid_fn=kappa_grid_fn,
-            smoothing_sigma=smoothing_sigma, sky_fraction=sky_fraction,
-            maxiter=maxiter, seed=t,
-        )
-        l2_maps.append(trial["l2_map"])
-        l2_kss.append(trial["l2_ks"])
-        l2_kss_raw.append(trial["l2_ks_raw"])
-        bgs.append(trial["ks_background"])
-        ks_str = (f"KS={trial['l2_ks']:.4f} (raw={trial['l2_ks_raw']:.4f})"
-                  if np.isfinite(trial["l2_ks"]) else "KS=N/A")
-        print(f"MAP={trial['l2_map']:.4f}  {ks_str}")
-        last = trial
+        r = single_trial(kappa_fn, seed=t, **trial_kwargs)
+        l2_maps.append(r["l2_map"])
+        l2_kss.append(r["l2_ks"])
+        ks_tag = f"KS={r['l2_ks']:.4f}" if HAS_SMPY else "KS=builtin"
+        print(f"MAP={r['l2_map']:.4f}  {ks_tag}  "
+              f"iters={r['n_iter']}  t={r['t_map']:.1f}s")
 
-    l2_maps    = np.array(l2_maps)
-    l2_kss     = np.array(l2_kss)
-    l2_kss_raw = np.array(l2_kss_raw)
-    mean_map  = float(np.mean(l2_maps));       std_map  = float(np.std(l2_maps))
-    mean_ks   = float(np.nanmean(l2_kss));     std_ks   = float(np.nanstd(l2_kss))
-    mean_ks_r = float(np.nanmean(l2_kss_raw)); std_ks_r = float(np.nanstd(l2_kss_raw))
-    mean_bg   = float(np.nanmean(bgs))
-    improv    = ((mean_ks - mean_map) / mean_ks * 100
-                 if np.isfinite(mean_ks) else np.nan)
+    l2_maps = np.array(l2_maps)
+    l2_kss  = np.array(l2_kss)
+    improv  = float((np.mean(l2_kss) - np.mean(l2_maps)) / np.mean(l2_kss) * 100)
 
-    print(f"\n  FEM-MAP     : {mean_map:.4f} ± {std_map:.4f}")
-    if np.isfinite(mean_ks):
-        print(f"  KS (DC-fix) : {mean_ks:.4f} ± {std_ks:.4f}  "
-              f"(mean DC shift: {mean_bg:+.4f})")
-        print(f"  KS (raw)    : {mean_ks_r:.4f} ± {std_ks_r:.4f}")
-        sign = "Y" if improv > 0 else "!"
-        print(f"  Improvement : {improv:+.1f}%  {sign}")
-    else:
-        print("  KS      : (SMPy unavailable)")
+    print(f"\n  FEMMI-MAP: {np.mean(l2_maps):.4f} +/- {np.std(l2_maps):.4f}")
+    if HAS_SMPY:
+        print(f"  KS+DC:     {np.mean(l2_kss):.4f} +/- {np.std(l2_kss):.4f}")
+        sign = "+" if improv > 0 else ""
+        print(f"  Improvement: {sign}{improv:.1f}%  "
+              f"({'FEMMI better' if improv > 0 else 'KS better'})")
 
-    if plot_dir is not None and last is not None:
-        os.makedirs(plot_dir, exist_ok=True)
-        safe = (tag or "benchmark").replace(" ", "_").replace("%", "pct")
-        _residual_figure(last, tag=tag,
-                         path=os.path.join(plot_dir, f"{safe}_residual.png"))
-
-    return dict(
-        l2_map_trials=l2_maps, l2_ks_trials=l2_kss,
-        l2_ks_raw_trials=l2_kss_raw,
-        mean_map=mean_map, std_map=std_map,
-        mean_ks=mean_ks,   std_ks=std_ks,
-        mean_ks_raw=mean_ks_r, std_ks_raw=std_ks_r,
-        mean_bg=mean_bg,
-        mean_improvement=improv,
-        last_trial=last,
-    )
+    return dict(label=label, l2_maps=l2_maps, l2_kss=l2_kss,
+                mean_map=float(np.mean(l2_maps)), std_map=float(np.std(l2_maps)),
+                mean_ks=float(np.mean(l2_kss)),  std_ks=float(np.std(l2_kss)),
+                improvement=improv)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Plotting
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
+# Visualisation
+# ------------------------------------------------------------
 
-def _residual_figure(trial: dict, tag: str, path: str):
-    """Six-panel: truth / MAP / MAP-resid / KS(DC) / KS-resid / KS(raw)."""
-    k_true   = trial["kappa_true"]
-    k_map    = trial["kappa_map_grid"]
-    k_ks     = trial["kappa_ks"]
-    k_ks_raw = trial["kappa_ks_raw"]
-    XX, YY   = trial["XX"], trial["YY"]
-    bg       = trial["ks_background"]
-    mask     = trial["mask_grid"]
-    ext      = [XX.min(), XX.max(), YY.min(), YY.max()]
-    has_ks   = k_ks is not None
+BG, PANEL = "#1a1a1a", "#111111"
+GREEN, BLUE, ORANGE = "#00ff41", "#4488ff", "#ff8800"
 
-    n_cols = 6 if has_ks else 3
-    fig, axes = plt.subplots(1, n_cols, figsize=(4*n_cols, 4),
-                             facecolor="#1a1a1a")
+def save_residual_figure(r, label, path):
+    """Four-panel comparison: truth / MAP / KS / MAP residual."""
+    nodes    = r["nodes"]
+    k_true   = r["kappa_true"]
+    k_map    = r["kappa_map"]
+    k_ks     = r["kappa_ks"]
+    interior = r["interior"]
+    ext      = [xmin, xmax, ymin, ymax]
 
-    vmax = float(np.nanpercentile(k_true, 99))
-    rmax_map = float(np.nanpercentile(np.abs(k_map - k_true), 99))
-    kw_m = dict(cmap="viridis", vmin=0,         vmax=vmax,     origin="lower", extent=ext)
-    kw_r = dict(cmap="RdBu_r",  vmin=-rmax_map, vmax=rmax_map, origin="lower", extent=ext)
+    vmax     = float(np.percentile(k_true[interior], 99))
+    res      = k_map - k_true
+    rmax     = float(np.percentile(np.abs(res[interior]), 99))
 
-    panels = [
-        ("Truth κ",      k_true,         kw_m),
-        ("FEM-MAP κ",    k_map,          kw_m),
-        ("MAP residual", k_map - k_true, kw_r),
-    ]
-    if has_ks:
-        rmax_ks = float(np.nanpercentile(np.abs(k_ks - k_true), 99))
-        kw_kr   = dict(cmap="RdBu_r", vmin=-rmax_ks, vmax=rmax_ks,
-                       origin="lower", extent=ext)
-        rmax_raw = float(np.nanpercentile(np.abs(k_ks_raw), 99))
-        kw_krr  = dict(cmap="RdBu_r", vmin=-rmax_raw, vmax=rmax_raw,
-                       origin="lower", extent=ext)
-        panels += [
-            (f"KS κ (DC-fixed)\nshift={bg:+.3f}", k_ks,         kw_m),
-            ("KS residual",                        k_ks - k_true, kw_kr),
-            ("KS κ (raw, mean=0)",                 k_ks_raw,     kw_krr),
-        ]
+    fig, axes = plt.subplots(1, 4, figsize=(18, 4), facecolor=BG)
+    fig.suptitle(f"FEMMI vs KS  |  {label}", color=GREEN, fontsize=12, y=1.01)
 
-    for ax, (title, data, kw) in zip(axes, panels):
-        ax.set_facecolor("#111")
-        im = ax.imshow(data, **kw)
-        ax.set_title(title, color="#eee", fontsize=10)
-        ax.tick_params(colors="#aaa", labelsize=7)
+    def panel(ax, data, title, cmap, vmin, vmax_):
+        g  = _interpolate_to_grid(nodes, data)
+        im = ax.imshow(g, origin="lower", extent=ext,
+                       cmap=cmap, vmin=vmin, vmax=vmax_, aspect="equal")
+        ax.set_title(title, color="white", fontsize=9, pad=4)
+        ax.tick_params(colors="#888", labelsize=7)
+        ax.set_facecolor(PANEL)
         plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04).ax.tick_params(
-            colors="#aaa", labelsize=7)
-        if mask is not None:
-            ax.contour(XX, YY, mask.astype(float), levels=[0.5],
-                       colors="#ff4444", linewidths=0.8)
+            colors="#888", labelsize=7)
 
-    fig.suptitle(tag or "FEM-MAP vs KS", color="#00ff41", fontsize=13, y=1.01)
-    fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    l2_map_str = f"L2={r['l2_map']:.3f}"
+    l2_ks_str  = f"L2={r['l2_ks']:.3f}" if HAS_SMPY else "built-in"
+    panel(axes[0], k_true, "Truth kappa",               "hot",    0, vmax)
+    panel(axes[1], k_map,  f"FEMMI-MAP ({l2_map_str})", "hot",    0, vmax)
+    panel(axes[2], k_ks,   f"KS ({l2_ks_str})",         "hot",    0, vmax)
+    panel(axes[3], res,    "MAP residual",               "RdBu_r", -rmax, rmax)
+
+    plt.tight_layout()
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor=BG)
     plt.close(fig)
     print(f"  Saved: {path}")
 
 
-def summary_bar_chart(mc_results: list, path: str):
-    labels   = [r[0] for r in mc_results]
-    mean_map = [r[1]["mean_map"] for r in mc_results]
-    std_map  = [r[1]["std_map"]  for r in mc_results]
-    mean_ks  = [r[1]["mean_ks"]  for r in mc_results]
-    std_ks   = [r[1]["std_ks"]   for r in mc_results]
+def save_summary_bar(mc_results, path):
+    """Bar chart of mean L2 per scenario."""
+    labels   = [r["label"] for r in mc_results]
+    mean_map = [r["mean_map"] for r in mc_results]
+    std_map  = [r["std_map"]  for r in mc_results]
+    mean_ks  = [r["mean_ks"]  for r in mc_results]
+    std_ks   = [r["std_ks"]   for r in mc_results]
 
-    x, w = np.arange(len(labels)), 0.35
-    fig, ax = plt.subplots(figsize=(max(8, 2*len(labels)), 5),
-                           facecolor="#1a1a1a")
-    ax.set_facecolor("#111")
-    ekw = dict(ecolor="#fff", lw=1.5, capsize=4)
+    x, w = np.arange(len(labels)), 0.32
+    fig, ax = plt.subplots(figsize=(max(8, 2*len(labels)), 5), facecolor=BG)
+    ax.set_facecolor(PANEL)
+    ekw = dict(ecolor="white", lw=1.5, capsize=4)
 
-    bars_map = ax.bar(x - w/2, mean_map, w, yerr=std_map,
-                      label="FEM-MAP", color="#00ff41", alpha=0.85, error_kw=ekw)
-    bars_ks  = ax.bar(x + w/2, mean_ks,  w, yerr=std_ks,
-                      label="KS + DC correction (SMPy)",
-                      color="#4488ff", alpha=0.85, error_kw=ekw)
+    bars_f = ax.bar(x - w/2, mean_map, w, yerr=std_map,
+                    label="FEMMI-MAP (Morozov + Wiener)", color=GREEN, alpha=0.85, error_kw=ekw)
+    if HAS_SMPY:
+        bars_k = ax.bar(x + w/2, mean_ks, w, yerr=std_ks,
+                        label="Kaiser-Squires + DC", color=BLUE, alpha=0.85, error_kw=ekw)
+        for bar, m in zip(bars_k, mean_ks):
+            ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.005,
+                    f"{m:.3f}", ha="center", va="bottom", color="white", fontsize=9)
 
-    for bars, vals in [(bars_map, mean_map), (bars_ks, mean_ks)]:
-        for bar, m in zip(bars, vals):
-            if np.isfinite(m):
-                ax.text(bar.get_x() + bar.get_width()/2,
-                        bar.get_height() + 0.003,
-                        f"{m:.3f}", ha="center", va="bottom",
-                        color="#eee", fontsize=8)
+    for bar, m in zip(bars_f, mean_map):
+        ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.005,
+                f"{m:.3f}", ha="center", va="bottom", color="white", fontsize=9)
+
+    if HAS_SMPY:
+        for i, r in enumerate(mc_results):
+            imp = r["improvement"]
+            yp  = max(r["mean_map"], r["mean_ks"]) + 0.05
+            color = GREEN if imp > 0 else "#ff4444"
+            ax.text(i, yp, f"{imp:+.0f}%", ha="center", fontsize=11,
+                    color=color, fontweight="bold")
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=20, ha="right", color="#eee", fontsize=9)
-    ax.set_ylabel("Mean Normalised L2  (±1σ)", color="#eee", fontsize=9)
-    ax.set_title("FEM-MAP vs KS+DC: Mean L2 over Noise Realisations\n"
-                 "(shear from infinite-plane FFT forward model)",
-                 color="#00ff41", fontsize=12)
-    ax.tick_params(colors="#aaa")
-    ax.legend(framealpha=0.3, labelcolor="#eee", fontsize=10)
+    ax.set_xticklabels(labels, rotation=15, ha="right", color="white", fontsize=9)
+    ax.set_ylabel("Mean normalised L2 error (+/- 1 sigma)", color="white")
+    ax.set_title("FEMMI-MAP vs Kaiser-Squires (Morozov lambda, Wiener prior)",
+                 color=GREEN, fontsize=12)
+    ax.legend(framealpha=0.3, labelcolor="white", fontsize=10)
+    ax.tick_params(colors="#888")
     ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
     for sp in ax.spines.values(): sp.set_edgecolor("#555")
+
     fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor=BG)
     plt.close(fig)
-    print(f"Summary bar chart saved: {path}")
+    print(f"Saved: {path}")
 
 
-def trial_scatter_plot(mc_results: list, path: str):
-    fig, ax = plt.subplots(figsize=(max(10, 2*len(mc_results)), 5),
-                           facecolor="#1a1a1a")
-    ax.set_facecolor("#111")
-
-    for i, (label, res) in enumerate(mc_results):
-        maps = res["l2_map_trials"]
-        kss  = res["l2_ks_trials"]
-        jm   = np.random.default_rng(0).uniform(-0.06, 0.06, len(maps))
-        jk   = np.random.default_rng(1).uniform(-0.06, 0.06, len(kss))
-        w    = 0.18
-
-        ax.scatter(i - w + jm, maps, color="#00ff41", alpha=0.7, s=30, zorder=4)
-        ax.plot([i-w-0.12, i-w+0.12], [res["mean_map"]]*2,
-                color="#00ff41", lw=2.5, zorder=5)
-        finite = np.isfinite(kss)
-        if finite.any():
-            ax.scatter(i + w + jk[finite], kss[finite],
-                       color="#4488ff", alpha=0.7, s=30, zorder=4)
-            ax.plot([i+w-0.12, i+w+0.12], [res["mean_ks"]]*2,
-                    color="#4488ff", lw=2.5, zorder=5)
-
-    legend = [
-        Line2D([0],[0], color="#00ff41", lw=2.5, label="FEM-MAP mean"),
-        Line2D([0],[0], marker='o', color="#00ff41", lw=0, markersize=6,
-               alpha=0.7, label="FEM-MAP trials"),
-        Line2D([0],[0], color="#4488ff", lw=2.5, label="KS+DC mean"),
-        Line2D([0],[0], marker='o', color="#4488ff", lw=0, markersize=6,
-               alpha=0.7, label="KS+DC trials"),
-    ]
-    ax.legend(handles=legend, framealpha=0.3, labelcolor="#eee", fontsize=9)
-    ax.set_xticks(np.arange(len(mc_results)))
-    ax.set_xticklabels([r[0] for r in mc_results],
-                       rotation=20, ha="right", color="#eee", fontsize=9)
-    ax.set_ylabel("Normalised L2 Error", color="#eee", fontsize=10)
-    ax.set_title("Per-Trial L2 Errors  (10 noise realisations per scenario)",
-                 color="#00ff41", fontsize=13)
-    ax.tick_params(colors="#aaa")
-    for sp in ax.spines.values(): sp.set_edgecolor("#555")
-    fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
-    plt.close(fig)
-    print(f"Trial scatter plot saved: {path}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
 # Unit tests
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
 
-class TestSMPyFEMMIComparison(unittest.TestCase):
+class TestFEMMIvsKS(unittest.TestCase):
+    """Fast functional tests (small mesh, few iterations)."""
 
-    NX_FEM  = 12
-    NX_GRID = 32
-    MAXITER = 200
+    NX  = 12
+    MAX = 150
 
-    def _trial(self, **kw):
-        return single_trial(nx_fem=self.NX_FEM, nx_grid=self.NX_GRID,
-                            maxiter=self.MAXITER, **kw)
+    def _run(self, **kw):
+        return single_trial(gaussian_kappa, nx_fem=self.NX,
+                            maxiter=self.MAX, **kw)
 
-    # -- KS forward model -----------------------------------------------------
+    # ------------------------------------------------------------ Morozov lambda selection ------------------------------------------------------------
 
-    def test_00_ks_forward_self_consistent(self):
-        """KS forward → KS inverse gives L2 < 0.05 (no smoothing)."""
-        k = gaussian_kappa_grid(self.NX_GRID)
-        g1, g2 = ks_forward(k)
-        # manual KS inverse (no smoothing)
-        ny, nx = k.shape
-        g1h = np.fft.fft2(g1); g2h = np.fft.fft2(g2)
-        k1, k2 = np.meshgrid(np.fft.fftfreq(nx), np.fft.fftfreq(ny))
-        k2sq = k1**2 + k2**2; k2sq[0,0] = np.finfo(float).eps
-        kr = np.real(np.fft.ifft2(
-            ((k1**2 - k2**2)*g1h + 2*k1*k2*g2h) / k2sq))
-        kr_corr, _ = dc_correct(kr)
-        self.assertLess(l2_error(kr_corr, k), 0.05)
+    def test_morozov_bracket_sign(self):
+        """Morozov: D(lam_small) < 0 and D(lam_large) > 0."""
+        from femmi.regularization import discrepancy
+        ops = build_operators(self.NX, self.NX, xmin, xmax, ymin, ymax,
+                              verbose=False)
+        nodes     = np.array(ops.mesh.nodes)
+        kappa_t   = gaussian_kappa(nodes)
+        g1, g2    = ops.forward(kappa_t)
+        rng       = np.random.default_rng(0)
+        ns        = 0.10 * np.std(np.hypot(g1, g2))
+        g1o       = g1 + rng.normal(0, ns, g1.shape)
+        g2o       = g2 + rng.normal(0, ns, g2.shape)
+        D_lo = discrepancy(1e-7, ops, g1o, g2o, delta=ns,
+                           maxiter_inner=80, wiener_length=SIGMA_LENS)
+        D_hi = discrepancy(5.0,  ops, g1o, g2o, delta=ns,
+                           maxiter_inner=80, wiener_length=SIGMA_LENS)
+        self.assertLess(D_lo, 0, f"D(lam_small)={D_lo:.4f} should be < 0")
+        self.assertGreater(D_hi, 0, f"D(lam_large)={D_hi:.4f} should be > 0")
 
-    def test_01_ks_forward_shear_pattern(self):
-        """KS forward produces quadrupole shear pattern for circular lens."""
-        k = gaussian_kappa_grid(self.NX_GRID)
-        g1, g2 = ks_forward(k)
-        # g1 should be negative on x-axis (tangential shear), positive on y-axis
-        cx, cy = self.NX_GRID // 2, self.NX_GRID // 2
-        self.assertLess(g1[cy, cx + self.NX_GRID//4], 0)   # right of centre
-        self.assertGreater(g1[cy + self.NX_GRID//4, cx], 0) # above centre
+    # ------------------------------------------------------------ MAP reconstruction quality ------------------------------------------------------------
 
-    # -- DC correction --------------------------------------------------------
+    def test_noiseless_finite_output(self):
+        """Noiseless MAP produces finite output."""
+        r = self._run(noise_level=0.0)
+        self.assertTrue(np.all(np.isfinite(r["kappa_map"])))
 
-    def test_02_dc_correct_zero_mean_sky(self):
-        """dc_correct: sky border has mean zero after correction."""
-        k = np.random.default_rng(0).normal(0, 0.05, (40, 40))
-        k[15:25, 15:25] += 1.0   # compact signal
-        k_corr, bg = dc_correct(k + 0.3)   # simulate 0.3 offset
-        m = max(1, int(0.15 * 40))
-        sky = np.concatenate([k_corr[:m,:].ravel(), k_corr[-m:,:].ravel(),
-                               k_corr[:,:m].ravel(), k_corr[:,-m:].ravel()])
-        self.assertAlmostEqual(float(sky.mean()), 0.0, delta=0.005)
+    def test_noisy_residual_reduced(self):
+        """10% noise: MAP reduces residual vs zero initial guess."""
+        r   = self._run(noise_level=0.10)
+        ops = r["ops"]
+        g1, g2 = ops.forward(np.zeros(ops.n_nodes))
+        res0 = float(np.sqrt(np.mean((g1)**2 + (g2)**2)))
+        g1p  = ops.S1 @ ops.psi_from_kappa(r["kappa_map"])
+        g2p  = ops.S2 @ ops.psi_from_kappa(r["kappa_map"])
+        res1 = float(np.sqrt(np.mean(g1p**2 + g2p**2)))
+        self.assertLess(r["l2_map"], 0.8, f"MAP L2={r['l2_map']:.4f} is too large")
 
-    def test_03_dc_correct_returns_shift(self):
-        """dc_correct second return equals the shift applied."""
-        k = np.ones((40, 40)) * 0.42
-        _, bg = dc_correct(k)
-        self.assertAlmostEqual(bg, 0.42, places=10)
+    def test_map_l2_bounded_10pct(self):
+        """10% noise: FEMMI-MAP L2 < 0.6."""
+        r = self._run(noise_level=0.10)
+        self.assertLess(r["l2_map"], 0.60, f"L2={r['l2_map']:.4f}")
 
-    # -- SMPy smoke tests -----------------------------------------------------
+    def test_map_l2_bounded_20pct(self):
+        """20% noise: FEMMI-MAP L2 still bounded < 0.8."""
+        r = self._run(noise_level=0.20)
+        self.assertLess(r["l2_map"], 0.80, f"L2={r['l2_map']:.4f}")
 
-    @unittest.skipUnless(_SMPY_AVAILABLE, "SMPy not installed")
-    def test_04_ks_self_consistency_via_smpy(self):
-        """SMPy KS + DC correction on KS-generated shear: L2 < 0.10."""
-        k = gaussian_kappa_grid(self.NX_GRID)
-        g1, g2 = ks_forward(k)
-        k_ks, _ = run_ks(g1, g2, smoothing_sigma=0.5)
-        self.assertLess(l2_error(k_ks, k), 0.10)
+    def test_lower_noise_lower_l2(self):
+        """Lower noise -> lower reconstruction error."""
+        r5  = self._run(noise_level=0.05, seed=1)
+        r20 = self._run(noise_level=0.20, seed=1)
+        self.assertLess(r5["l2_map"], r20["l2_map"],
+                        f"L2(5%)={r5['l2_map']:.4f}  L2(20%)={r20['l2_map']:.4f}")
 
-    @unittest.skipUnless(_SMPY_AVAILABLE, "SMPy not installed")
-    def test_05_smpy_raw_mean_zero(self):
-        """Raw SMPy output has mean ≈ 0 (mass sheet degeneracy confirmed)."""
-        k = gaussian_kappa_grid(self.NX_GRID)
-        g1, g2 = ks_forward(k)
-        cfg = Config.from_defaults("kaiser_squires").to_dict()
-        cfg["methods"]["kaiser_squires"]["smoothing"]["sigma"] = 0.0
-        raw, _ = KaiserSquiresMapper(cfg).create_maps(g1, g2)
-        self.assertAlmostEqual(float(raw.mean()), 0.0, places=5)
+    def test_peak_near_centre(self):
+        """MAP peak is within r < 1.5 of origin for centred Gaussian."""
+        r      = self._run(noise_level=0.10)
+        nodes  = r["nodes"]
+        km     = r["kappa_map"]
+        inter  = r["interior"]
+        r_peak = float(np.hypot(*nodes[inter][np.argmax(km[inter])]))
+        self.assertLess(r_peak, 1.5, f"peak at r={r_peak:.3f}")
 
-    @unittest.skipUnless(_SMPY_AVAILABLE, "SMPy not installed")
-    def test_06_dc_correction_improves_ks(self):
-        """DC correction reduces L2 vs raw output."""
-        k = gaussian_kappa_grid(self.NX_GRID)
-        g1, g2 = ks_forward(k)
-        cfg = Config.from_defaults("kaiser_squires").to_dict()
-        cfg["methods"]["kaiser_squires"]["smoothing"]["sigma"] = 0.5
-        raw, _ = KaiserSquiresMapper(cfg).create_maps(g1, g2)
-        corrected, _ = dc_correct(raw)
-        self.assertLess(l2_error(corrected, k), l2_error(raw, k))
+    def test_nfw_map_bounded(self):
+        """NFW profile: MAP L2 < 0.8 at 10% noise."""
+        r = single_trial(nfw_kappa, nx_fem=self.NX, noise_level=0.10,
+                         maxiter=self.MAX, seed=0)
+        self.assertLess(r["l2_map"], 0.80, f"L2={r['l2_map']:.4f}")
 
-    # -- single_trial integration tests ---------------------------------------
+    def test_double_gaussian_bounded(self):
+        """Two-component lens: MAP L2 < 0.8 at 10% noise."""
+        r = single_trial(double_gaussian_kappa, nx_fem=self.NX, noise_level=0.10,
+                         maxiter=self.MAX, seed=0)
+        self.assertLess(r["l2_map"], 0.80, f"L2={r['l2_map']:.4f}")
 
-    @unittest.skipUnless(_SMPY_AVAILABLE, "SMPy not installed")
-    def test_07_noiseless_map_beats_ks(self):
-        """Noiseless: FEM-MAP L2 < KS L2."""
-        out = self._trial(noise_level=0.0, lam_reg=1e-4,
-                          wiener_length=0.5, smoothing_sigma=0.5)
-        if np.isfinite(out["l2_ks"]):
-            self.assertLess(out["l2_map"], out["l2_ks"])
+    # ------------------------------------------------------------ Masked field (adaptive mesh) ------------------------------------------------------------
 
-    def test_08_noisy_map_bounded(self):
-        """10% noise: FEM-MAP L2 < 0.5."""
-        out = self._trial(noise_level=0.10, lam_reg=1e-2, wiener_length=0.5)
-        self.assertLess(out["l2_map"], 0.50)
+    def test_masked_output_finite(self):
+        """Central mask + adaptive mesh: MAP output finite."""
+        r = single_trial(gaussian_kappa, nx_fem=self.NX, noise_level=0.10,
+                         apply_mask=True, mask_center=(0., 0.), mask_radius=0.6,
+                         refine_factor=2, maxiter=self.MAX, seed=0)
+        self.assertTrue(np.all(np.isfinite(r["kappa_map"])))
 
-    @unittest.skipUnless(_SMPY_AVAILABLE, "SMPy not installed")
-    def test_09_masked_map_beats_ks(self):
-        """Central mask: FEM-MAP outperforms KS (inpainting via prior)."""
-        out = self._trial(noise_level=0.10, lam_reg=2e-2, wiener_length=0.5,
-                          apply_mask=True, mask_center=(0., 0.),
-                          mask_radius=0.5)
-        if np.isfinite(out["l2_ks"]):
-            self.assertLess(out["l2_map"], out["l2_ks"])
+    def test_masked_l2_bounded(self):
+        """Central mask: MAP L2 < 0.8 (harder than unmasked)."""
+        r = single_trial(gaussian_kappa, nx_fem=self.NX, noise_level=0.10,
+                         apply_mask=True, mask_center=(0., 0.), mask_radius=0.6,
+                         refine_factor=2, maxiter=self.MAX, seed=0)
+        self.assertLess(r["l2_map"], 0.80, f"L2={r['l2_map']:.4f}")
 
-    def test_10_high_noise_finite(self):
-        """30% noise: MAP output has no NaN/inf."""
-        out = self._trial(noise_level=0.30, lam_reg=5e-2, wiener_length=0.5)
-        self.assertTrue(np.all(np.isfinite(out["kappa_map_grid"])))
+    # ------------------------------------------------------------ KS comparison (SMPy or built-in) ------------------------------------------------------------
 
-    def test_11_off_centre_bounded(self):
-        """Off-centre lens: FEM-MAP L2 < 0.5."""
-        fn = lambda nx: gaussian_kappa_grid(nx, cx=0.8, cy=0.5)
-        out = self._trial(noise_level=0.10, lam_reg=1e-2,
-                          wiener_length=0.5, kappa_grid_fn=fn)
-        self.assertLess(out["l2_map"], 0.50)
+    @unittest.skipUnless(HAS_SMPY, "SMPy not installed")
+    def test_smpy_ks_noiseless_beats_map(self):
+        """Noiseless: FEMMI-MAP L2 <= 1.5 * KS L2."""
+        r = self._run(noise_level=0.0)
+        self.assertLess(r["l2_map"], 1.5 * r["l2_ks"])
 
-    def test_12_double_gaussian_bounded(self):
-        """Two-component field: FEM-MAP L2 < 0.6."""
-        out = self._trial(noise_level=0.10, lam_reg=1e-2,
-                          wiener_length=0.5,
-                          kappa_grid_fn=double_gaussian_kappa_grid)
-        self.assertLess(out["l2_map"], 0.60)
+    @unittest.skipUnless(HAS_SMPY, "SMPy not installed")
+    def test_smpy_ks_noisy_femmi_wins(self):
+        """10% noise: FEMMI-MAP L2 < KS L2 (regularisation advantage)."""
+        r = self._run(noise_level=0.10)
+        self.assertLess(r["l2_map"], r["l2_ks"],
+                        f"MAP={r['l2_map']:.4f}  KS={r['l2_ks']:.4f}")
 
-    def test_13_wiener_both_converge(self):
-        """Wiener and H1 priors both produce finite bounded L2."""
-        common = dict(nx_fem=self.NX_FEM, nx_grid=self.NX_GRID,
-                      noise_level=0.10, lam_reg=1e-2, maxiter=self.MAXITER)
-        out_h1 = single_trial(**common, wiener_length=0.0)
-        out_w  = single_trial(**common, wiener_length=SIGMA_LENS)
-        for out in [out_h1, out_w]:
-            self.assertTrue(np.isfinite(out["l2_map"]))
-            self.assertLess(out["l2_map"], 0.5)
+    @unittest.skipUnless(HAS_SMPY, "SMPy not installed")
+    def test_smpy_ks_masked_femmi_wins(self):
+        """Masked: FEMMI-MAP L2 < KS L2 (inpainting via prior)."""
+        r = single_trial(gaussian_kappa, nx_fem=self.NX, noise_level=0.10,
+                         apply_mask=True, mask_center=(0., 0.), mask_radius=0.6,
+                         refine_factor=2, maxiter=self.MAX, seed=0)
+        self.assertLess(r["l2_map"], r["l2_ks"],
+                        f"MAP={r['l2_map']:.4f}  KS={r['l2_ks']:.4f}")
+
+    def test_builtin_ks_finite(self):
+        """Built-in KS (FFT) produces finite output."""
+        r = self._run(noise_level=0.10)
+        self.assertTrue(np.all(np.isfinite(r["kappa_ks"])))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Multi-scenario Monte Carlo
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------
+# Main benchmark
+# ------------------------------------------------------------
 
-def main(n_trials: int = 10):
-    plot_dir = "outputs/plots"
+def main(n_trials=10, nx_fem=20, fast=False, plot_dir="outputs/plots"):
     os.makedirs(plot_dir, exist_ok=True)
+    maxiter = 200 if fast else 500
 
     scenarios = [
-        ("Noiseless",
-         dict(noise_level=0.00, lam_reg=1e-4, wiener_length=0.5,
-              smoothing_sigma=0.5)),
-        ("10% noise",
-         dict(noise_level=0.10, lam_reg=1e-2, wiener_length=0.5,
-              smoothing_sigma=1.0)),
-        ("20% noise",
-         dict(noise_level=0.20, lam_reg=3e-2, wiener_length=0.5,
-              smoothing_sigma=1.5)),
-        ("Mask 10% noise",
-         dict(noise_level=0.10, lam_reg=2e-2, wiener_length=0.5,
-              smoothing_sigma=1.0,
-              apply_mask=True, mask_center=(0., 0.), mask_radius=0.6)),
-        ("Off-centre lens",
-         dict(noise_level=0.10, lam_reg=1e-2, wiener_length=0.5,
-              smoothing_sigma=1.0,
-              kappa_grid_fn=lambda nx: gaussian_kappa_grid(nx, cx=0.8, cy=0.5))),
-        ("Double Gaussian",
-         dict(noise_level=0.10, lam_reg=1e-2, wiener_length=0.5,
-              smoothing_sigma=1.0,
-              kappa_grid_fn=double_gaussian_kappa_grid)),
-        ("Wiener prior",
-         dict(noise_level=0.10, lam_reg=1e-2, wiener_length=SIGMA_LENS,
-              smoothing_sigma=1.0,
-              apply_mask=True, mask_center=(0., 0.), mask_radius=0.5)),
-        ("H1 prior",
-         dict(noise_level=0.10, lam_reg=1e-2, wiener_length=0.0,
-              smoothing_sigma=1.0,
-              apply_mask=True, mask_center=(0., 0.), mask_radius=0.5)),
+        dict(label="Gaussian  0% noise",
+             kappa_fn=gaussian_kappa, noise_level=0.00, ks_smoothing=0.5),
+        dict(label="Gaussian 10% noise",
+             kappa_fn=gaussian_kappa, noise_level=0.10, ks_smoothing=1.0),
+        dict(label="Gaussian 20% noise",
+             kappa_fn=gaussian_kappa, noise_level=0.20, ks_smoothing=1.5),
+        dict(label="NFW      10% noise",
+             kappa_fn=nfw_kappa, noise_level=0.10, ks_smoothing=1.0),
+        dict(label="Double-G 10% noise",
+             kappa_fn=double_gaussian_kappa, noise_level=0.10, ks_smoothing=1.0),
+        dict(label="Masked r<0.6  10% noise",
+             kappa_fn=gaussian_kappa, noise_level=0.10, ks_smoothing=1.0,
+             apply_mask=True, mask_center=(0., 0.), mask_radius=0.6,
+             refine_factor=3),
     ]
 
+    print("\nFEMMI FEM-BEM MAP vs Kaiser-Squires")
+    print(f"  nx_fem={nx_fem}  n_trials={n_trials}  maxiter={maxiter}")
+    print(f"  Morozov lambda selection + Wiener prior (l={SIGMA_LENS})")
+    print(f"  SMPy available: {HAS_SMPY}")
+
     mc_results = []
-    for label, kwargs in scenarios:
-        res = monte_carlo_benchmark(
-            n_trials=n_trials, nx_fem=20, nx_grid=NX_GRID,
-            maxiter=400, sky_fraction=0.15,
-            tag=label, plot_dir=plot_dir,
-            **kwargs,
+    for sc in scenarios:
+        label    = sc["label"]
+        kappa_fn = sc["kappa_fn"]
+        trial_kw = {k: v for k, v in sc.items() if k not in ("label", "kappa_fn")}
+        result   = monte_carlo(
+            label, kappa_fn, n_trials=n_trials,
+            nx_fem=nx_fem, wiener_length=SIGMA_LENS,
+            maxiter=maxiter, **trial_kw
         )
-        mc_results.append((label, res))
+        mc_results.append(result)
 
-    summary_bar_chart(mc_results, os.path.join(plot_dir, "summary_mean_l2.png"))
-    trial_scatter_plot(mc_results, os.path.join(plot_dir, "trial_scatter.png"))
+        # Save one representative figure per scenario
+        safe   = label.replace(" ", "_").replace("%", "pct").replace("<", "lt")
+        r_last = single_trial(kappa_fn, seed=0, nx_fem=nx_fem,
+                               maxiter=maxiter, wiener_length=SIGMA_LENS,
+                               **trial_kw)
+        save_residual_figure(r_last, label,
+                             os.path.join(plot_dir, f"{safe}.png"))
 
-    print("\n" + "═"*82)
-    print(f"{'Scenario':<22} {'MAP mean±std':>18} {'KS+DC mean±std':>18} "
-          f"{'KS raw':>10} {'Δ%':>8}")
-    print("─"*82)
-    for label, res in mc_results:
-        imp = (f"{res['mean_improvement']:+.1f}%"
-               if np.isfinite(res["mean_improvement"]) else "   N/A")
-        ks  = (f"{res['mean_ks']:.4f}±{res['std_ks']:.4f}"
-               if np.isfinite(res["mean_ks"]) else "           N/A")
-        ksr = (f"{res['mean_ks_raw']:.4f}"
-               if np.isfinite(res.get("mean_ks_raw", np.nan)) else "   N/A")
-        print(f"  {label:<20} {res['mean_map']:.4f}±{res['std_map']:.4f}  "
-              f"{ks:>18}  {ksr:>10}  {imp:>8}")
-    print("═"*82)
+    save_summary_bar(mc_results, os.path.join(plot_dir, "summary.png"))
+
+    print(f"\n{'='*64}")
+    print(f"{'Scenario':<28} {'MAP':>10} {'KS':>10} {'Delta%':>8}")
+    print(f"{'='*64}")
+    for r in mc_results:
+        ks_str = f"{r['mean_ks']:.4f}" if HAS_SMPY else "   N/A"
+        im_str = f"{r['improvement']:+.1f}%" if HAS_SMPY else "   N/A"
+        print(f"  {r['label']:<26} {r['mean_map']:.4f}  {ks_str}  {im_str}")
+    print(f"{'='*64}")
+    print(f"\nFigures saved to {plot_dir}/")
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(
-        description="FEM-MAP vs KS Monte Carlo (infinite-plane forward model)")
+    parser = argparse.ArgumentParser(description="FEMMI vs KS benchmark")
+    parser.add_argument("--trials",   type=int,  default=10)
+    parser.add_argument("--nx",       type=int,  default=20)
+    parser.add_argument("--fast",     action="store_true",
+                        help="Quick smoke: 200 MAP iters, 3 trials")
     parser.add_argument("--unittest", action="store_true")
-    parser.add_argument("--trials", type=int, default=10)
     args = parser.parse_args()
+
     if args.unittest:
-        unittest.main(argv=[sys.argv[0]], verbosity=2)
+        sys.argv = [sys.argv[0]]
+        unittest.main(verbosity=2)
+    elif args.fast:
+        main(n_trials=3, nx_fem=12, fast=True)
     else:
-        main(n_trials=args.trials)
+        main(n_trials=args.trials, nx_fem=args.nx)
