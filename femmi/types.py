@@ -1,6 +1,6 @@
-# femmi/types.py
 from typing import NamedTuple
 import numpy as np
+
 
 class Mesh(NamedTuple):
     nodes: np.ndarray
