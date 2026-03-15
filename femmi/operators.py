@@ -32,21 +32,21 @@ from dataclasses import dataclass
 from typing import Tuple, Optional
 import time
 
-from .p3_mesh_generator import (
+from .mesh import (
     generate_p3_structured_mesh,
     generate_p3_adaptive_mesh,
 )
-from .p3_shape_functions import (
+from .basis import (
     compute_p3_shape_functions,
     compute_p3_shape_gradients_reference,
 )
-from .p3_assembly import (
+from .assembly import (
     get_gauss_quadrature_triangle,
     compute_element_stiffness_p3,
     compute_element_load_p3,
     apply_boundary_conditions_p3,
 )
-from .fem_solver import Mesh
+from .types import Mesh
 from .bem import extract_boundary_edges, assemble_bem_matrices
 
 
@@ -170,7 +170,6 @@ class FEMOperators:
     K             : Neumann stiffness — NO Dirichlet rows (null space = span{1})
     M             : Full mass matrix — NO boundary row zeroing
     S1, S2        : shear operators
-    K_lu          : DEPRECATED SuperLU of Dirichlet K (kept for reference only)
     A_coupled     : K_neumann + P^T C P  (FEM-BEM coupled stiffness)
     A_coupled_lu  : SuperLU factorization of A_coupled
     bnd_mesh      : BoundaryMesh from extract_boundary_edges
@@ -184,11 +183,10 @@ class FEMOperators:
     M            : sp.csr_matrix
     S1           : sp.csr_matrix
     S2           : sp.csr_matrix
-    K_lu         : object          # DEPRECATED – Dirichlet solver
-    A_coupled    : sp.csr_matrix   # NEW – BEM-coupled stiffness
-    A_coupled_lu : object          # NEW – splu(A_coupled)
-    bnd_mesh     : object          # NEW – BoundaryMesh
-    C_dense      : np.ndarray      # NEW – (N_b × N_b) Calderon matrix
+    A_coupled    : sp.csr_matrix
+    A_coupled_lu : object
+    bnd_mesh     : object
+    C_dense      : np.ndarray
     n_nodes      : int
     boundary     : np.ndarray
     interior     : np.ndarray
@@ -321,14 +319,6 @@ def _assemble_operators_from_mesh(mesh, verbose: bool = True,
     # large spurious spikes that dominate the MAP loss.
     S1_lil = S1.tolil(); S1_lil[boundary, :] = 0; S1 = S1_lil.tocsr()
     S2_lil = S2.tolil(); S2_lil[boundary, :] = 0; S2 = S2_lil.tocsr()
-
-
-    # -- Deprecated Dirichlet K_lu (kept for reference / old tests) -----------
-    K_lil_dir = K.tolil()
-    for b in boundary:
-        K_lil_dir[b, :] = 0
-        K_lil_dir[b, b] = 1.0
-    K_lu = spla.splu(K_lil_dir.tocsc())
  
     # -- BEM matrices ---------------------------------------------------------
     # Assemble V_h, K_h, M_b on ∂Ω; form Calderon operator C.
@@ -375,7 +365,6 @@ def _assemble_operators_from_mesh(mesh, verbose: bool = True,
  
     return FEMOperators(
         mesh=mesh, K=K, M=M, S1=S1, S2=S2,
-        K_lu=K_lu,                  # deprecated
         A_coupled=A_coupled,
         A_coupled_lu=A_coupled_lu,
         bnd_mesh=bnd_mesh,
@@ -463,27 +452,3 @@ def build_wiener_regularizer(ops: FEMOperators,
         R : (n_nodes, n_nodes) sparse CSR matrix
     """
     return (ops.M + wiener_length**2 * ops.K).tocsr()
-
-
-# =============================================================================
-# Smoke test
-# =============================================================================
-
-if __name__ == "__main__":
-    print("=" * 60)
-    print("operators.py -- smoke test")
-
-    ops = build_operators(6, 6, verbose=True)
-    nodes = np.array(ops.mesh.nodes)
-    kappa = np.exp(-(nodes[:,0]**2 + nodes[:,1]**2) / (2*0.5**2))
-    g1, g2 = ops.forward(kappa)
-    print(f"max|g1|={np.abs(g1).max():.4f}  max|g2|={np.abs(g2).max():.4f}")
-
-    print("\n--- Adaptive 6x6 (mask r=0.5) ---")
-    ops2 = build_operators_adaptive(6, 6, mask_center=(0.,0.),
-                                    mask_radius=0.5, refine_factor=3)
-    nodes2 = np.array(ops2.mesh.nodes)
-    kappa2 = np.exp(-(nodes2[:,0]**2 + nodes2[:,1]**2) / (2*0.5**2))
-    g1b, g2b = ops2.forward(kappa2)
-    print(f"max|g1|={np.abs(g1b).max():.4f}  max|g2|={np.abs(g2b).max():.4f}")
-    print("\noperators.py OK")

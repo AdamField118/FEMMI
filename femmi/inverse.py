@@ -245,7 +245,6 @@ class MAPReconstructor:
                 'gtol'    : self.gtol,
                 'ftol'    : 1e-30,
                 'maxcor'  : 20,
-                'disp'    : False,
             }
         )
         wall = time.perf_counter() - t0
@@ -477,21 +476,3 @@ def _plot_comparison(nodes, kappa_true, kappa_map, kappa_ks,
                 facecolor='#1a1a1a')
     print("Saved: map_reconstruction.png")
     plt.close()
-
-
-# =============================================================================
-# Entry point
-# =============================================================================
-
-if __name__ == "__main__":
-    run_comparison(
-        nx=20,
-        noise_level=0.10,
-        lam_reg=2e-2,
-        apply_mask=True,
-        mask_center=(0.0, 0.0),
-        mask_radius=0.6,
-        wiener_length=0.5,
-        use_adaptive_mesh=True,
-        refine_factor=3,
-    )

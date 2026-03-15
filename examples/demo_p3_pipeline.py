@@ -21,9 +21,9 @@ import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from femmi.p3_mesh_generator  import generate_p3_structured_mesh
-from femmi.p3_assembly        import assemble_system_p3, apply_boundary_conditions_p3
-from femmi.p3_shape_functions import (
+from femmi.mesh  import generate_p3_structured_mesh
+from femmi.assembly        import assemble_system_p3, apply_boundary_conditions_p3
+from femmi.basis import (
     compute_p3_shape_functions,
     compute_p3_shape_gradients_reference,
 )

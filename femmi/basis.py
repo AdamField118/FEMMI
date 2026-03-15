@@ -346,28 +346,3 @@ def visualize_p3_basis_functions():
     plt.savefig('p3_basis_functions.png', dpi=150, bbox_inches='tight')
     print("Saved: p3_basis_functions.png")
     plt.close()
-
-
-if __name__ == "__main__":
-    print("\n" + "=" * 35)
-    print(" " * 20 + "P3 SHAPE FUNCTIONS - VALIDATION")
-    print("=" * 35 + "\n")
-    
-    # Run validation
-    success = validate_p3_shape_functions()
-    
-    # Generate visualizations
-    visualize_p3_basis_functions()
-    
-    if success:
-        print("\n" + "=" * 70)
-        print("P3 SHAPE FUNCTIONS READY!")
-        print("=" * 70)
-        print("\nNext steps:")
-        print("  1. Shape functions validated")
-        print("  2. Create P3 mesh generator")
-        print("  3. Implement P3 assembly")
-        print("  4. Add P3 shear computation")
-        print("=" * 70)
-    else:
-        print("\n Validation failed - review implementation")

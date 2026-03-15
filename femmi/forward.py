@@ -201,32 +201,3 @@ class DifferentiableForward:
         """Hessian-vector product H·v (O(2 solves), no H formed)."""
         f = lambda k: self.loss_fn(k, g1_obs, g2_obs)
         return jax.jvp(jax.grad(f), (kappa,), (v,))[1]
-
-
-# ── smoke test ─────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    from femmi.operators import build_operators
-    import numpy as np
-
-    print("=" * 60)
-    print("forward.py — smoke test + gradient validation")
-    print("=" * 60)
-
-    ops = build_operators(6, 6, verbose=True)
-    fwd = DifferentiableForward(ops, lam_reg=1e-3)
-
-    nodes = np.array(ops.mesh.nodes)
-    kappa_np = np.exp(-(nodes[:, 0]**2 + nodes[:, 1]**2) / (2*0.5**2))
-    kappa_jax = jnp.array(kappa_np)
-
-    g1, g2 = fwd.gamma_from_kappa(kappa_jax)
-    print(f"max|γ₁| = {float(jnp.max(jnp.abs(g1))):.4f}")
-    print(f"max|γ₂| = {float(jnp.max(jnp.abs(g2))):.4f}")
-
-    fwd.validate_gradients(kappa_np, np.array(g1), np.array(g2), n_checks=6)
-
-    jit_fwd = jax.jit(fwd.gamma_from_kappa)
-    g1j, g2j = jit_fwd(kappa_jax)
-    print(f"JIT max|γ₁| = {float(jnp.max(jnp.abs(g1j))):.4f}")
-    print("forward.py OK")
