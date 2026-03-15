@@ -183,9 +183,9 @@ def test_boundary_extraction():
     """
     print("\n--- test_boundary_extraction ---")
     try:
-        from femmi.p3_mesh_generator import generate_p3_structured_mesh
+        from femmi.mesh import generate_p3_structured_mesh
     except ImportError:
-        print("  SKIPPED (p3_mesh_generator not available)")
+        print("  SKIPPED (mesh not available)")
         return
 
     mesh = generate_p3_structured_mesh(4, 4, xmin=0, xmax=1, ymin=0, ymax=1)

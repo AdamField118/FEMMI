@@ -285,20 +285,21 @@ record("Reusing SVD is faster than recomputing (≥10× speedup)",
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
-print(f"\n{'='*58}")
-print("Summary")
-print(f"{'='*58}")
-n_pass = sum(1 for _, ok in results if ok)
-n_fail = sum(1 for _, ok in results if not ok)
-for name, ok in results:
-    print(f"  {'✓' if ok else '✗'}  {name}")
-print(f"\n  {n_pass}/{n_pass+n_fail} passed")
-if n_fail:
-    print("\n  FAILING:")
+if __name__ == "__main__":
+    print(f"\n{'='*58}")
+    print("Summary")
+    print(f"{'='*58}")
+    n_pass = sum(1 for _, ok in results if ok)
+    n_fail = sum(1 for _, ok in results if not ok)
     for name, ok in results:
-        if not ok:
-            print(f"    ✗  {name}")
-print(f"{'='*58}")
-
-import sys
-sys.exit(0 if n_fail == 0 else 1)
+        print(f"  {'✓' if ok else '✗'}  {name}")
+    print(f"\n  {n_pass}/{n_pass+n_fail} passed")
+    if n_fail:
+        print("\n  FAILING:")
+        for name, ok in results:
+            if not ok:
+                print(f"    ✗  {name}")
+    print(f"{'='*58}")
+    
+    import sys
+    sys.exit(0 if n_fail == 0 else 1)

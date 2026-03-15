@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from femmi.p3_mesh_generator import generate_p3_structured_mesh
-from femmi.p3_assembly        import solve_poisson_p3
+from femmi.mesh     import generate_p3_structured_mesh
+from femmi.assembly import solve_poisson_p3
 
 
 # ============================================================================

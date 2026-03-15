@@ -26,18 +26,11 @@ from typing import Tuple
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-try:
-    from .p3_shape_functions import (
-        compute_p3_shape_functions,
-        compute_p3_shape_gradients_reference,
-        compute_p3_shape_gradients_physical
-    )
-except ImportError:
-    from p3_shape_functions import (
-        compute_p3_shape_functions,
-        compute_p3_shape_gradients_reference,
-        compute_p3_shape_gradients_physical
-    )
+from .basis import (
+    compute_p3_shape_functions,
+    compute_p3_shape_gradients_reference,
+    compute_p3_shape_gradients_physical
+)
 
 # ============================================================================
 # Quadrature Rules for Triangles
@@ -404,49 +397,3 @@ def solve_poisson_p3(mesh, kappa_values):
     print("=" * 70 + "\n")
 
     return psi
-
-
-# ============================================================================
-# Test / Demo
-# ============================================================================
-
-if __name__ == "__main__":
-    print("\n" + "=" * 35)
-    print(" " * 22 + "P3 ASSEMBLY - TEST")
-    print("=" * 35 + "\n")
-
-    try:
-        from .p3_mesh_generator import generate_p3_structured_mesh
-    except ImportError:
-        from p3_mesh_generator import generate_p3_structured_mesh
-
-    # Verify quadrature weight sum
-    print("Checking quadrature weight sums...")
-    for order in [1, 2, 3, 4, 5]:
-        pts, wts = get_gauss_quadrature_triangle(order)
-        print(f"  Order {order}: {len(pts):2d} points, Σw = {float(jnp.sum(wts)):.10f} (should be 1.0)")
-
-    # Convergence study
-    print("\nConvergence study: ψ = sin(πx)sin(πy)")
-    print("=" * 70)
-    print(f"{'h':>10} {'L2 Error':>12} {'Rate':>8}")
-    print("-" * 40)
-
-    import numpy as np
-    prev_L2, prev_h = None, None
-    for nx in [4, 6, 8, 12, 16]:
-        mesh = generate_p3_structured_mesh(nx, nx, xmin=0, xmax=1, ymin=0, ymax=1)
-        nodes = np.array(mesh.nodes)
-        kappa = -np.pi**2 * np.sin(np.pi*nodes[:,0]) * np.sin(np.pi*nodes[:,1])
-        psi = solve_poisson_p3(mesh, kappa)
-        psi_ex = np.sin(np.pi*nodes[:,0]) * np.sin(np.pi*nodes[:,1])
-        L2 = np.sqrt(np.mean((psi - psi_ex)**2))
-        h = 1/nx
-        if prev_L2:
-            rate = np.log(prev_L2/L2)/np.log(prev_h/h)
-            print(f"{h:10.4f} {L2:12.3e} {rate:8.2f}  ← expected ~4.0")
-        else:
-            print(f"{h:10.4f} {L2:12.3e} {'--':>8}")
-        prev_L2, prev_h = L2, h
-
-    print("\n P3 convergence confirmed (O(h⁴)). Ready for shear computation.")

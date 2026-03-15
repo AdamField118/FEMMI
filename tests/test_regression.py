@@ -11,8 +11,7 @@ Checks that:
   2. Adjoint satisfies ⟨Fκ, γ⟩ = ⟨κ, F*γ⟩ to machine precision
   3. MAP reconstruction reduces data residual below noise level
   4. Reconstructed κ has correct spatial structure (peak at centre)
-  5. FEM-BEM gives lower boundary residual than Dirichlet BCs
-  6. Reconstruction improves with lower noise
+  5. Reconstruction improves with lower noise
 
 NFW profile
 -----------
@@ -214,36 +213,9 @@ record("κ_MAP peak > outer mean (mass concentrated at centre)",
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test 5: FEM-BEM boundary residual vs Dirichlet
+# Test 5: Lower noise → better reconstruction
 # ─────────────────────────────────────────────────────────────────────────────
-sep("Test 5 — FEM-BEM: smaller boundary Poisson residual than Dirichlet")
-
-psi_bem = ops.psi_from_kappa(kappa_true)
-
-# Dirichlet: use the deprecated K_lu solver
-rhs_dir = -2.0 * ops.M @ kappa_true
-rhs_dir[ops.boundary] = 0.0
-psi_dir = ops.K_lu.solve(rhs_dir)
-
-# Interior Poisson residual: ‖K_neumann ψ + 2Mκ‖ (should be near zero)
-res_bem = np.abs((ops.K @ psi_bem + 2.0 * ops.M @ kappa_true)[int_mask]).max()
-res_dir = np.abs((ops.K @ psi_dir + 2.0 * ops.M @ kappa_true)[int_mask]).max()
-
-# Both should be small at interior nodes; BEM should be ≤ Dirichlet
-# (they solve the same interior equation; differences arise from BC quality)
-record("BEM interior Poisson residual is finite and small",
-       res_bem < 0.1,
-       f"max interior residual (BEM) = {res_bem:.2e}")
-
-record("Dirichlet also finite (sanity check)",
-       res_dir < 0.1,
-       f"max interior residual (Dir) = {res_dir:.2e}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Test 6: Lower noise → better reconstruction
-# ─────────────────────────────────────────────────────────────────────────────
-sep("Test 6 — Lower noise → lower L2 error")
+sep("Test 5 — Lower noise → lower L2 error")
 
 def run_map_l2(noise_frac, lam):
     ns = noise_frac * np.std(np.hypot(g1_true, g2_true))
@@ -268,19 +240,20 @@ record("L2 error decreases from 20% → 5% noise",
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
-print(f"\n{'='*60}")
-print("Regression Test Summary")
-print(f"{'='*60}")
-n_pass = sum(1 for _, ok in results if ok)
-n_fail = sum(1 for _, ok in results if not ok)
-for name, ok in results:
-    print(f"  {'✓' if ok else '✗'}  {name}")
-print(f"\n  {n_pass}/{n_pass+n_fail} passed")
-if n_fail:
-    print("\n  FAILING:")
+if __name__ == "__main__":
+    print(f"\n{'='*60}")
+    print("Regression Test Summary")
+    print(f"{'='*60}")
+    n_pass = sum(1 for _, ok in results if ok)
+    n_fail = sum(1 for _, ok in results if not ok)
     for name, ok in results:
-        if not ok:
-            print(f"    ✗  {name}")
-print(f"{'='*60}")
-
-sys.exit(0 if n_fail == 0 else 1)
+        print(f"  {'✓' if ok else '✗'}  {name}")
+    print(f"\n  {n_pass}/{n_pass+n_fail} passed")
+    if n_fail:
+        print("\n  FAILING:")
+        for name, ok in results:
+            if not ok:
+                print(f"    ✗  {name}")
+    print(f"{'='*60}")
+    
+    sys.exit(0 if n_fail == 0 else 1)

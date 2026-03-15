@@ -251,20 +251,21 @@ record("D(λ) changes sign over the λ range",
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
-print("\n" + "=" * 55)
-print("Summary")
-print("=" * 55)
-n_pass = sum(1 for _, ok in results if ok)
-n_fail = sum(1 for _, ok in results if not ok)
-for name, ok in results:
-    print(f"  {'✓' if ok else '✗'}  {name}")
-print(f"\n  {n_pass}/{n_pass+n_fail} passed")
-if n_fail:
-    print("\n  FAILING:")
+if __name__ == "__main__":
+    print("\n" + "=" * 55)
+    print("Summary")
+    print("=" * 55)
+    n_pass = sum(1 for _, ok in results if ok)
+    n_fail = sum(1 for _, ok in results if not ok)
     for name, ok in results:
-        if not ok:
-            print(f"    ✗  {name}")
-print("=" * 55)
-
-import sys
-sys.exit(0 if n_fail == 0 else 1)
+        print(f"  {'✓' if ok else '✗'}  {name}")
+    print(f"\n  {n_pass}/{n_pass+n_fail} passed")
+    if n_fail:
+        print("\n  FAILING:")
+        for name, ok in results:
+            if not ok:
+                print(f"    ✗  {name}")
+    print("=" * 55)
+    
+    import sys
+    sys.exit(0 if n_fail == 0 else 1)

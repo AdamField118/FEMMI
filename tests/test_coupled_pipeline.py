@@ -16,7 +16,6 @@ Tests (in dependency order):
     7.  test_psi_smooth                – ψ has no large spikes (max|ψ| reasonable)
     8.  test_shear_order_of_magnitude  – max|γ| in expected range for Gaussian κ
     9.  test_shear_symmetry            – for radially symmetric κ, γ has expected symmetry
-    10. test_dirichlet_vs_bem          – on a large domain, shear magnitudes agree to ~50%
 
 Usage:
     cd ~/FEMMI && python -m tests.test_coupled_pipeline
@@ -303,57 +302,22 @@ else:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test 10: Compare BEM vs old Dirichlet on a large domain
-# ─────────────────────────────────────────────────────────────────────────────
-sep("Test 10 — BEM vs Dirichlet: shear magnitude comparison")
-
-# Build old Dirichlet forward using the deprecated K_lu
-rhs_dir = -2.0 * ops.M @ kappa_g
-rhs_dir[ops.boundary] = 0.0
-psi_dir   = ops.K_lu.solve(rhs_dir)
-g1_dir, g2_dir = ops.shear_from_psi(psi_dir)
-
-max_g1_dir = np.abs(g1_dir).max()
-max_g2_dir = np.abs(g2_dir).max()
-max_g1_bem = np.abs(g1_g).max()
-max_g2_bem = np.abs(g2_g).max()
-
-print(f"         Dirichlet:  max|γ₁|={max_g1_dir:.4f}  max|γ₂|={max_g2_dir:.4f}")
-print(f"         BEM-coupled: max|γ₁|={max_g1_bem:.4f}  max|γ₂|={max_g2_bem:.4f}")
-print(f"         Infinite-plane ref: {inf_plane_ref:.4f}")
-
-# On a 5×5 domain with σ=0.5, boundary BC error is large for Dirichlet,
-# but both should give shear in the same order of magnitude.
-ratio_g1 = max_g1_bem / (max_g1_dir + 1e-20)
-ratio_g2 = max_g2_bem / (max_g2_dir + 1e-20)
-print(f"         BEM/Dirichlet ratio: γ₁={ratio_g1:.2f}, γ₂={ratio_g2:.2f}")
-
-# Interior peak location comparison
-int_nodes = ops.interior
-g2_int_bem = np.abs(g2_g[int_nodes])
-g2_int_dir = np.abs(g2_dir[int_nodes])
-ratio_peak = g2_int_bem.max() / (g2_int_dir.max() + 1e-20)
-record("BEM/Dirichlet peak shear ratio in (0.1, 10)",
-       0.1 < ratio_peak < 10,
-       f"BEM peak |γ₂|={g2_int_bem.max():.4f}  Dirichlet={g2_int_dir.max():.4f}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
-print("\n" + "=" * 60)
-print("Summary")
-print("=" * 60)
-n_pass = sum(1 for _, ok in results if ok)
-n_fail = sum(1 for _, ok in results if not ok)
-for name, ok in results:
-    print(f"  {'✓' if ok else '✗'}  {name}")
-print(f"\n  {n_pass}/{n_pass+n_fail} passed")
-if n_fail > 0:
-    print("\n  FAILING TESTS:")
+if __name__ == "__main__":
+    print("\n" + "=" * 60)
+    print("Summary")
+    print("=" * 60)
+    n_pass = sum(1 for _, ok in results if ok)
+    n_fail = sum(1 for _, ok in results if not ok)
     for name, ok in results:
-        if not ok:
-            print(f"    ✗  {name}")
-print("=" * 60)
+        print(f"  {'✓' if ok else '✗'}  {name}")
+    print(f"\n  {n_pass}/{n_pass+n_fail} passed")
+    if n_fail > 0:
+        print("\n  FAILING TESTS:")
+        for name, ok in results:
+            if not ok:
+                print(f"    ✗  {name}")
+    print("=" * 60)
 
-sys.exit(0 if n_fail == 0 else 1)
+    sys.exit(0 if n_fail == 0 else 1)

@@ -117,7 +117,7 @@ if _JAX_AVAILABLE:
         kaiser_squires,
         run_comparison,
     )
-    from .p3_mesh_generator import (
+    from .mesh import (
         generate_p3_structured_mesh,
         generate_p3_adaptive_mesh,
     )

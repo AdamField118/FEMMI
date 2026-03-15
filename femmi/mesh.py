@@ -1,15 +1,13 @@
 """
-P3 Mesh Generation for Cubic Triangular Elements
+Mesh generation for P3 cubic triangular elements.
 
 Two generators:
-    generate_p3_structured_mesh   -- uniform structured grid (original, unchanged)
-    generate_p3_adaptive_mesh     -- locally refined near a circular mask boundary
+    generate_p3_structured_mesh  -- uniform structured grid
+    generate_p3_adaptive_mesh    -- locally refined near a circular mask boundary
 
-Both produce 10-node P3 elements with the node ordering:
+Both produce 10-node P3 elements with node ordering:
     [v0, v1, v2,  n3, n4,  n5, n6,  n7, n8,  n9]
      vertices     e01       e12       e20    centroid
-
-Convention matches p3_shape_functions.py.
 """
 
 import jax
@@ -21,38 +19,25 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from matplotlib.collections import PatchCollection
+from scipy.spatial import Delaunay
+from .types import Mesh
 
-
-# ============================================================================
-# Shared P1->P3 elevation helper
-# ============================================================================
 
 def _elevate_to_p3(vertices: np.ndarray,
                    p1_elements: np.ndarray,
                    xmin: float, xmax: float,
-                   ymin: float, ymax: float):
+                   ymin: float, ymax: float) -> Mesh:
     """
     Elevate a P1 triangulation to P3 by inserting edge and interior nodes.
 
-    For each unique edge (va, vb) inserts:
-      - node at t=1/3:  (2*pa + pb) / 3
-      - node at t=2/3:  (pa + 2*pb) / 3
-
+    For each unique edge (va, vb) inserts nodes at t=1/3 and t=2/3.
     For each triangle inserts one interior node at the centroid.
-
-    Triangles MUST be CCW-oriented before calling.
-    Returns a Mesh namedtuple (nodes, elements, boundary).
+    Triangles must be CCW-oriented before calling.
     """
-    try:
-        from .fem_solver import Mesh
-    except ImportError:
-        from fem_solver import Mesh
-
     n_verts    = len(vertices)
     nodes_list = list(vertices)
     next_idx   = n_verts
-    edge_dict  = {}   # (min_v, max_v) -> [idx_at_1/3, idx_at_2/3]
+    edge_dict  = {}
 
     def get_edge_nodes(va: int, vb: int) -> Tuple[int, int]:
         nonlocal next_idx
@@ -89,47 +74,32 @@ def _elevate_to_p3(vertices: np.ndarray,
     return Mesh(nodes=nodes_arr, elements=elems_arr, boundary=bnd)
 
 
-# ============================================================================
-# Generator 1: Structured (original -- completely unchanged)
-# ============================================================================
-
 def generate_p3_structured_mesh(nx: int, ny: int,
                                  xmin: float = 0.0, xmax: float = 1.0,
                                  ymin: float = 0.0, ymax: float = 1.0,
-                                 return_numpy: bool = False):
+                                 return_numpy: bool = False) -> Mesh:
     r"""
-    Generate P3 structured triangular mesh on rectangular domain.
+    Generate a P3 structured triangular mesh on a rectangular domain.
 
-    Process:
-    1. Create P1 base mesh (vertices only)
-    2. Add edge nodes at t=1/3, 2/3 for each edge
-    3. Add interior centroid node for each triangle
-    4. Build 10-node element connectivity
+    Each rectangular cell is split into two triangles. Edge nodes are
+    inserted at t=1/3 and t=2/3 along each edge; one centroid node per
+    triangle gives 10 DOFs per element.
 
-    Node Ordering (per triangle):
+    Node ordering per triangle:
         v2
         /\
        /  \
     8 /    \ 6
      /      \
-  9 /   10   \ 7
+  9 /        \ 7
    /          \
-  /            \
-v0-----3---4----v1
+  v0---3---4---v1
 
-    Nodes 0,1,2: Vertices
-    Nodes 3,4:   Edge 0->1 at t=1/3, 2/3
-    Nodes 5,6:   Edge 1->2 at t=1/3, 2/3
-    Nodes 7,8:   Edge 2->0 at t=1/3, 2/3
-    Node 9:      Interior (centroid)
+    Args:
+        nx, ny       : number of cells in x and y directions
+        xmin..ymax   : domain bounds
+        return_numpy : if True, return plain numpy arrays instead of JAX arrays
     """
-    try:
-        from .fem_solver import Mesh
-    except ImportError:
-        from fem_solver import Mesh
-
-    print(f"Generating P3 mesh: {nx}x{ny} cells...")
-
     x = np.linspace(xmin, xmax, nx + 1)
     y = np.linspace(ymin, ymax, ny + 1)
     xx, yy = np.meshgrid(x, y)
@@ -147,9 +117,6 @@ v0-----3---4----v1
             p1_elements.append([n0, n1, n2])
             p1_elements.append([n1, n3, n2])
     p1_elements = np.array(p1_elements, dtype=np.int32)
-    n_elements  = len(p1_elements)
-
-    print(f"  Base mesh: {n_vertices} vertices, {n_elements} triangles")
 
     edge_nodes    = {}
     nodes_list    = list(vertex_nodes)
@@ -181,14 +148,6 @@ v0-----3---4----v1
 
     nodes_array = np.array(nodes_list, dtype=np.float64)
     p3_elements = np.array(p3_elements, dtype=np.int32)
-    n_nodes     = len(nodes_array)
-
-    print(f"  P3 mesh created:")
-    print(f"    Total nodes: {n_nodes}")
-    print(f"    - Vertices: {n_vertices}")
-    print(f"    - Edge nodes: {len(edge_nodes) * 2}")
-    print(f"    - Interior nodes: {n_elements}")
-    print(f"    Elements: {n_elements} (10 nodes each)")
 
     tol = 1e-10
     bnd_mask = (
@@ -196,7 +155,6 @@ v0-----3---4----v1
         (nodes_array[:, 1] <= ymin + tol) | (nodes_array[:, 1] >= ymax - tol)
     )
     boundary = np.where(bnd_mask)[0].astype(np.int32)
-    print(f"    Boundary nodes: {len(boundary)}")
 
     if not return_numpy:
         nodes_array = jnp.array(nodes_array)
@@ -206,50 +164,28 @@ v0-----3---4----v1
     return Mesh(nodes=nodes_array, elements=p3_elements, boundary=boundary)
 
 
-# ============================================================================
-# Generator 2: Adaptive (new)
-# ============================================================================
-
 def generate_p3_adaptive_mesh(nx: int, ny: int,
                                xmin: float = -2.5, xmax: float = 2.5,
                                ymin: float = -2.5, ymax: float = 2.5,
                                mask_center: Tuple[float, float] = (0.0, 0.0),
                                mask_radius: float = 0.5,
                                refine_factor: int = 3,
-                               verbose: bool = True):
+                               verbose: bool = True) -> Mesh:
     """
-    Generate P3 mesh with local refinement near a circular mask boundary.
+    Generate a P3 mesh with local refinement near a circular mask boundary.
 
-    Strategy
-    --------
     Builds an adaptively-spaced point cloud, Delaunay-triangulates it, then
-    elevates P1->P3 using the same _elevate_to_p3 helper as the structured mesh.
-
-      1. Coarse grid (h = domain/nx) everywhere EXCEPT the annular band
-         |r - r_mask| < 2*h_coarse.
-      2. Fine grid (h / refine_factor) ONLY inside that annular band.
-         The two grids cover disjoint regions -- no duplicate points.
-      3. scipy.spatial.Delaunay triangulation of the combined cloud.
-      4. CCW orientation + degenerate triangle removal.
-      5. _elevate_to_p3 inserts edge and centroid nodes.
-
-    This gives O(refine_factor^2) more elements along the mask edge -- the
-    region where shear gradients are steepest and FEM accuracy matters most.
+    elevates P1->P3. Coarse spacing h=domain/nx is used everywhere except
+    the annular band |r - r_mask| < 2*h_coarse, which uses h/refine_factor.
 
     Args:
-        nx, ny         : background resolution (cells per axis)
+        nx, ny         : background grid resolution
         xmin..ymax     : domain bounds
         mask_center    : (cx, cy) centre of the circular mask
         mask_radius    : radius of the circular mask
-        refine_factor  : mesh density multiplier near the mask (3 = 3x finer)
-        verbose        : print statistics
-
-    Returns:
-        Mesh namedtuple -- identical format to generate_p3_structured_mesh,
-        fully compatible with build_operators / build_operators_adaptive.
+        refine_factor  : mesh density multiplier near the mask boundary
+        verbose        : print mesh statistics
     """
-    from scipy.spatial import Delaunay
-
     h_coarse = min((xmax - xmin) / nx, (ymax - ymin) / ny)
     h_fine   = h_coarse / refine_factor
     buffer   = 2.0 * h_coarse
@@ -261,7 +197,6 @@ def generate_p3_adaptive_mesh(nx: int, ny: int,
         print(f"  h_coarse={h_coarse:.4f}  h_fine={h_fine:.4f}  "
               f"annular buffer=+-{buffer:.4f}")
 
-    # -- Coarse grid: everywhere EXCEPT the annular refinement band ----------
     xi_c = np.arange(xmin, xmax + h_coarse / 2, h_coarse)
     yi_c = np.arange(ymin, ymax + h_coarse / 2, h_coarse)
     XX_c, YY_c = np.meshgrid(xi_c, yi_c)
@@ -269,7 +204,6 @@ def generate_p3_adaptive_mesh(nx: int, ny: int,
     far = np.abs(r_c - mask_radius) >= buffer
     coarse_pts = np.column_stack([XX_c[far], YY_c[far]])
 
-    # -- Fine grid: only inside the annular band ----------------------------
     xi_f = np.arange(xmin, xmax + h_fine / 2, h_fine)
     yi_f = np.arange(ymin, ymax + h_fine / 2, h_fine)
     XX_f, YY_f = np.meshgrid(xi_f, yi_f)
@@ -277,7 +211,6 @@ def generate_p3_adaptive_mesh(nx: int, ny: int,
     near = np.abs(r_f - mask_radius) < buffer
     fine_pts = np.column_stack([XX_f[near], YY_f[near]])
 
-    # -- Combine and clip to domain ----------------------------------------
     tol     = 1e-10
     all_pts = np.vstack([coarse_pts, fine_pts])
     in_dom  = (
@@ -290,23 +223,21 @@ def generate_p3_adaptive_mesh(nx: int, ny: int,
         print(f"  Point cloud: {len(coarse_pts)} coarse + {len(fine_pts)} fine "
               f"= {len(vertices)} vertices")
 
-    # -- Delaunay triangulation --------------------------------------------
     tri       = Delaunay(vertices)
     simplices = tri.simplices.copy()
 
-    # Enforce CCW orientation
+    # Enforce CCW orientation and drop degenerate triangles
     v0p = vertices[simplices[:, 0]]
     v1p = vertices[simplices[:, 1]]
     v2p = vertices[simplices[:, 2]]
     cross = ((v1p[:, 0] - v0p[:, 0]) * (v2p[:, 1] - v0p[:, 1]) -
              (v1p[:, 1] - v0p[:, 1]) * (v2p[:, 0] - v0p[:, 0]))
     simplices[cross < 0] = simplices[cross < 0][:, [0, 2, 1]]
-    simplices = simplices[np.abs(cross) > 1e-15]   # drop degenerate tris
+    simplices = simplices[np.abs(cross) > 1e-15]
 
     if verbose:
         print(f"  P1 triangles: {len(simplices)}")
 
-    # -- Elevate P1 -> P3 --------------------------------------------------
     mesh = _elevate_to_p3(vertices, simplices, xmin, xmax, ymin, ymax)
 
     if verbose:
@@ -319,39 +250,9 @@ def generate_p3_adaptive_mesh(nx: int, ny: int,
     return mesh
 
 
-# ============================================================================
-# Validation
-# ============================================================================
-
-def validate_p3_mesh(mesh):
-    nodes    = np.array(mesh.nodes)
-    elements = np.array(mesh.elements)
-    print("=" * 60)
-    print(f"P3 MESH VALIDATION  ({len(nodes)} nodes, {len(elements)} elements)")
-
-    max_edge_err = max_cent_err = 0.0
-    for elem in elements[:min(30, len(elements))]:
-        ec = nodes[elem]
-        max_edge_err = max(max_edge_err,
-            np.linalg.norm(ec[3] - (2*ec[0] + ec[1]) / 3),
-            np.linalg.norm(ec[4] - (ec[0] + 2*ec[1]) / 3))
-        max_cent_err = max(max_cent_err,
-            np.linalg.norm(ec[9] - (ec[0]+ec[1]+ec[2]) / 3))
-
-    ok_e = max_edge_err < 1e-10
-    ok_c = max_cent_err < 1e-10
-    print(f"  Edge node error : {max_edge_err:.2e}  {'OK' if ok_e else 'FAIL'}")
-    print(f"  Centroid error  : {max_cent_err:.2e}  {'OK' if ok_c else 'FAIL'}")
-    print("=" * 60)
-    return ok_e and ok_c
-
-
-# ============================================================================
-# Visualisation helpers (original unchanged)
-# ============================================================================
-
-def visualize_p3_mesh(mesh, filename='p3_mesh_structure.png',
-                      show_nodes=True, show_numbering=False):
+def visualize_p3_mesh(mesh, filename: str = 'p3_mesh_structure.png',
+                      show_nodes: bool = True):
+    """Save a plot of the mesh showing vertex, edge, and interior nodes."""
     nodes    = np.array(mesh.nodes)
     elements = np.array(mesh.elements)
 
@@ -385,19 +286,19 @@ def visualize_p3_mesh(mesh, filename='p3_mesh_structure.png',
     ax.set_title('P3 Mesh Structure', fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches='tight')
-    print(f"Saved: {filename}")
     plt.close()
 
 
-def visualize_single_p3_element(mesh, elem_idx=0,
-                                 filename='p3_element_detail.png'):
+def visualize_single_p3_element(mesh, elem_idx: int = 0,
+                                 filename: str = 'p3_element_detail.png'):
+    """Save a labeled diagram of a single P3 element showing all 10 DOF locations."""
     nodes = np.array(mesh.nodes)
     elem  = np.array(mesh.elements[elem_idx])
     ec    = nodes[elem]
-    labels  = ['v0','v1','v2','n3(1/3)','n4(2/3)',
-               'n5','n6','n7','n8','n9(int)']
-    colors  = ['#ff4444']*3 + ['#4444ff']*6 + ['#44ff44']
-    markers = ['o']*3 + ['s']*6 + ['^']
+    labels  = ['v0', 'v1', 'v2', 'n3(1/3)', 'n4(2/3)',
+               'n5', 'n6', 'n7', 'n8', 'n9(int)']
+    colors  = ['#ff4444'] * 3 + ['#4444ff'] * 6 + ['#44ff44']
+    markers = ['o'] * 3 + ['s'] * 6 + ['^']
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.add_patch(Polygon(ec[:3], fill=True, facecolor='#f0f0f0',
                          edgecolor='black', lw=2.5, alpha=0.3))
@@ -410,18 +311,4 @@ def visualize_single_p3_element(mesh, elem_idx=0,
     ax.set_title(f'P3 Element {elem_idx}', fontsize=14)
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches='tight')
-    print(f"Saved: {filename}")
     plt.close()
-
-
-if __name__ == "__main__":
-    print("=== Structured mesh ===")
-    m1 = generate_p3_structured_mesh(5, 5, xmin=-1, xmax=1, ymin=-1, ymax=1)
-    validate_p3_mesh(m1)
-
-    print("\n=== Adaptive mesh (mask at origin, r=0.5) ===")
-    m2 = generate_p3_adaptive_mesh(10, 10, xmin=-2, xmax=2, ymin=-2, ymax=2,
-                                    mask_center=(0., 0.), mask_radius=0.5,
-                                    refine_factor=3, verbose=True)
-    validate_p3_mesh(m2)
-    visualize_p3_mesh(m2, filename='adaptive_mesh.png')

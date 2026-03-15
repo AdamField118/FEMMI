@@ -371,40 +371,40 @@ record("7. Wiener and H1 prior both converge, within 30% of each other",
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary table
 # ─────────────────────────────────────────────────────────────────────────────
-
-print(f"\n{'='*65}")
-print("Benchmark Summary")
-print(f"{'='*65}")
-
-if HAS_SMPY:
-    print(f"  {'Case':<38} {'MAP L2':>8} {'KS L2':>8} {'Δ%':>8}")
-    print(f"  {'-'*38} {'-'*8} {'-'*8} {'-'*8}")
-    labels = ["1. Noiseless", "2. 10% noise", "3. 20% noise",
-              "4. Masked", "5. Off-centre", "6. Two-comp"]
-    keys   = ["noiseless", "10pct", "20pct", "masked", "offcenter", "two_comp"]
-    for lbl, key in zip(labels, keys):
-        l2m, l2k, imp = case_results[key]
-        imp_str = f"{imp:+.1f}%" if np.isfinite(imp) else "N/A"
-        l2k_str = f"{l2k:.4f}"  if np.isfinite(l2k) else " N/A  "
-        print(f"  {lbl:<38} {l2m:>8.4f} {l2k_str:>8} {imp_str:>8}")
-
-print(f"\n{'='*65}")
-print("Pass/Fail:")
-print(f"{'='*65}")
-n_pass = sum(1 for _, ok in results if ok)
-n_fail = sum(1 for _, ok in results if not ok)
-for name, ok in results:
-    print(f"  {'✓' if ok else '✗'}  {name}")
-print(f"\n  {n_pass}/{n_pass+n_fail} passed")
-if n_fail:
-    print("\n  FAILING:")
+if __name__ == "__main__":
+    print(f"\n{'='*65}")
+    print("Benchmark Summary")
+    print(f"{'='*65}")
+    
+    if HAS_SMPY:
+        print(f"  {'Case':<38} {'MAP L2':>8} {'KS L2':>8} {'Δ%':>8}")
+        print(f"  {'-'*38} {'-'*8} {'-'*8} {'-'*8}")
+        labels = ["1. Noiseless", "2. 10% noise", "3. 20% noise",
+                  "4. Masked", "5. Off-centre", "6. Two-comp"]
+        keys   = ["noiseless", "10pct", "20pct", "masked", "offcenter", "two_comp"]
+        for lbl, key in zip(labels, keys):
+            l2m, l2k, imp = case_results[key]
+            imp_str = f"{imp:+.1f}%" if np.isfinite(imp) else "N/A"
+            l2k_str = f"{l2k:.4f}"  if np.isfinite(l2k) else " N/A  "
+            print(f"  {lbl:<38} {l2m:>8.4f} {l2k_str:>8} {imp_str:>8}")
+    
+    print(f"\n{'='*65}")
+    print("Pass/Fail:")
+    print(f"{'='*65}")
+    n_pass = sum(1 for _, ok in results if ok)
+    n_fail = sum(1 for _, ok in results if not ok)
     for name, ok in results:
-        if not ok:
-            print(f"    ✗  {name}")
-print(f"{'='*65}")
-
-if not HAS_SMPY:
-    print("\n  NOTE: Install SMPy to enable full FEM-BEM vs KS comparison.")
-    print("        FEM-BEM reconstruction results above are still valid.")
-
-sys.exit(0 if n_fail == 0 else 1)
+        print(f"  {'✓' if ok else '✗'}  {name}")
+    print(f"\n  {n_pass}/{n_pass+n_fail} passed")
+    if n_fail:
+        print("\n  FAILING:")
+        for name, ok in results:
+            if not ok:
+                print(f"    ✗  {name}")
+    print(f"{'='*65}")
+    
+    if not HAS_SMPY:
+        print("\n  NOTE: Install SMPy to enable full FEM-BEM vs KS comparison.")
+        print("        FEM-BEM reconstruction results above are still valid.")
+    
+    sys.exit(0 if n_fail == 0 else 1)
