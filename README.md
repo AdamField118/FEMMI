@@ -1,134 +1,61 @@
-# FEMMI — Finite Element Mass Map Inversion
+# FEMMI --- Finite Element Mass Map Inversion
 
-**Weak gravitational lensing mass reconstruction via FEM-BEM coupled boundary value problems,
-Morozov-regularised Tikhonov inversion, and inverse scattering support recovery.**
+Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled
+boundary value problems, Morozov-regularised Tikhonov inversion, and
+inverse scattering support recovery.
 
 ---
 
 ## Overview
 
-FEMMI reconstructs the projected mass density κ(θ) of a gravitational lens from
-observed weak-lensing shear maps (γ₁, γ₂).  The lensing potential ψ satisfies
+FEMMI reconstructs the projected mass density $\kappa(\theta)$ of a gravitational lens
+from observed weak-lensing shear maps $(\gamma_1, \gamma_2)$. The lensing potential $\psi$ satisfies
 
-```
-∇²ψ = 2κ   in ℝ²,     ψ(θ) → 0  as |θ| → ∞,
-```
+$$\nabla^2 \psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi(\theta) \to 0 \text{ as } |\theta| \to \infty,$$
 
 with shear components
 
-```
-γ₁ = ½(∂²ψ/∂θ₁² − ∂²ψ/∂θ₂²),     γ₂ = ∂²ψ/∂θ₁∂θ₂.
-```
+$$\gamma_1 = \tfrac{1}{2}\!\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \partial\theta_2}.$$
 
-The inverse problem — recovering κ from (γ₁, γ₂) — is ill-posed (compact forward
-operator, no continuous inverse) and requires regularisation and careful treatment
-of the unbounded domain.
+The inverse problem --- recovering $\kappa$ from $(\gamma_1, \gamma_2)$ --- is ill-posed and
+requires regularisation and careful treatment of the unbounded domain.
 
-### What distinguishes FEMMI from Kaiser–Squires
-
-| Feature | Kaiser–Squires (1993) | FEMMI |
+| Feature | Kaiser-Squires (1993) | FEMMI |
 |---|---|---|
-| Domain | Periodic / whole sky | Finite patch Ω ⊂ ℝ² |
-| BC | Periodic Fourier | Exact exterior via BEM |
+| Boundary condition | Periodic / Dirichlet | Exact exterior via BEM |
 | Regularisation | Manual smoothing | Morozov discrepancy principle |
-| Inverse method | Direct linear | MAP + factorization + LSM |
-| Mass-sheet degeneracy | Present | Resolved (F injective) |
+| Mass-sheet degeneracy | Present | Resolved ($F$ injective) |
+| Inverse method | Direct linear | MAP + SVD support recovery |
 
 ---
 
 ## Mathematical Foundations
 
-Full derivations are in [`MATH.md`](MATH.md).  A summary of the key ideas follows.
+Full derivations are in [`MATH.md`](MATH.md). Key ideas:
 
-### 1. Why Dirichlet BCs fail
+**FEM-BEM coupling.** FEMMI couples a P3 FEM interior to a boundary element
+method on $\partial\Omega$ encoding $\psi \to 0$ at infinity. The coupled stiffness matrix is
 
-Setting ψ = 0 on ∂Ω introduces a boundary error e = ψ_true − ψ_FEM that satisfies
-∇²e = 0 in Ω with non-zero boundary data.  By the maximum principle this error
-propagates throughout the domain, producing spurious mass concentrations near the
-boundary that dominate the reconstruction for typical survey geometries.
+$$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = V_h^{-1}\!\left(\tfrac{1}{2}M_b + K_h\right)$$
 
-### 2. FEM-BEM coupling (exact exterior condition)
+where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the
+single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass
+matrix, and $P$ the DOF restriction to $\partial\Omega$. This makes the forward operator $F$
+injective, resolving the mass-sheet degeneracy present in Kaiser-Squires.
 
-FEMMI couples a P3 finite-element discretisation on the interior Ω to a
-boundary-element method (BEM) on the boundary ∂Ω encoding the condition ψ → 0
-at infinity via the 2-D logarithmic Green's function G(x,y) = (1/2π) ln|x−y|.
+**Shear operators.** Physical shear is computed from P3 reference-element
+Hessians via the covariant transform $H_{\mathrm{phys}} = A^\top H_{\mathrm{ref}} A$ (where $A = J^{-T}$), giving
+$O(h^2)$ shear convergence vs $O(h^0)$ for P2 and zero for P1.
 
-The coupled stiffness matrix is
+**Morozov regularisation.** The MAP estimate minimises
+$\|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\|\kappa\|_R^2$ with $R = M + \ell^2 K$ (Matern-Wiener prior).
+$\lambda$ is selected automatically by Brent's method on the discrepancy functional
+$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\| - c\delta$ (C\&K Thm 10.4).
 
-```
-A_coupled = K + Pᵀ V_h⁻¹ (½M_b + K_h) P
-```
-
-where:
-- **K** — P3 Neumann stiffness (no Dirichlet row modification)
-- **V_h** — BEM single-layer matrix (logarithmic quadrature, symmetric coercive)
-- **K_h** — BEM double-layer matrix
-- **M_b** — BEM boundary mass matrix
-- **P** — DOF restriction to ∂Ω nodes
-
-The forward solve becomes `A_coupled ψ = −2Mκ` (replaces `K_LU ψ = −2Mκ`).
-The operator F: L²(Ω) → L²(Ω)² defined by κ ↦ (γ₁, γ₂) is now injective,
-resolving the mass-sheet degeneracy.
-
-References: Colton & Kress (2013) [C&K] §2–3; Steinbach (2008) §3.
-
-### 3. Shear operators
-
-The physical shear is computed from the reference-element Hessian via the
-covariant Piola transform:
-
-```python
-H_phys = jnp.einsum('ka,lb,jkl->jab', A, A, H_ref)   # A = J^{-T}
-gamma   = jnp.einsum('ka,lb,jkl->jab', A, A, H_ref)
-```
-
-P3 elements (piecewise-linear second derivatives) give **O(h²) shear convergence**
-vs. O(h⁰) for P2 and identically zero for P1 (see MATH.md §9, §18).
-
-### 4. Regularisation: Morozov's discrepancy principle
-
-The MAP estimate solves
-
-```
-κ_λ = argmin_κ  ‖F κ − γ_obs‖² + λ ‖κ‖²_R,
-```
-
-where **R = M + ℓ²K** is a Matérn-Wiener prior (ℓ = σ_lens, the lens coherence
-length).  The regularisation parameter λ is chosen automatically by the Morozov
-discrepancy principle [C&K Thm 10.4]:
-
-```
-λ* = argzero_λ  D(λ) := ‖F κ_λ − γ_obs‖ − c δ,
-```
-
-where δ is the noise level and c ≈ 1.  D(λ) is strictly monotone decreasing, so
-λ* is found by Brent's method to machine precision in O(20) forward solves.
-
-### 5. Inverse scattering: support recovery
-
-Viewing F as an analogue of the far-field operator in acoustic scattering, FEMMI
-implements two shape-identification algorithms from inverse scattering theory:
-
-**Factorization method** [C&K Thm 6.15; Kirsch 1998]:
-
-```
-W(z) = ( Σ_{σᵢ > δ}  |⟨Φ_z, uᵢ⟩|² / σᵢ )⁻¹,     z ∈ Ω_grid,
-```
-
-W(z) is large iff z ∉ support(κ), giving a rigorous boundary indicator.
-
-**Linear sampling method** [C&K §5.5; Colton & Kirsch 1996]:
-
-```
-I(z) = 1 / ‖g_z^α‖,
-```
-
-where g_z^α is the Tikhonov-regularised solution to F g = Φ_z.  Both methods
-require a one-time truncated SVD of F.
-
-The **Picard plot** (log σᵢ vs log|⟨γ_obs, uᵢ⟩| vs log(|⟨γ_obs, uᵢ⟩|/σᵢ))
-diagnoses whether the observed data satisfies the Picard condition and identifies
-the effective noise floor.
+**Inverse scattering.** The forward operator $F$ is structurally equivalent
+to the Born-approximation far-field operator in acoustic scattering. FEMMI
+implements the factorization method (C\&K Thm 6.15) and linear sampling
+method (C\&K \S5.5) for parameter-free support recovery.
 
 ---
 
@@ -136,130 +63,141 @@ the effective noise floor.
 
 ```
 femmi/
-├── __init__.py
-├── mesh.py              # Triangulation, P3 DOF numbering, Dunavant quadrature
-├── operators.py         # K (Neumann), M, BEM matrices, A_coupled assembly
-├── bem.py               # BEM: V_h, K_h, M_b; logarithmic Gauss-Jacobi quadrature
-├── shear.py             # Shear operators S1, S2; physical Hessian via Piola
-├── forward.py           # Forward operator F: κ → (γ₁, γ₂) via A_coupled solve
-├── inverse.py           # MAPReconstructor, adjoint gradient, L-BFGS loop
-├── regularization.py    # MorozovSelector, LCurve, noise estimation
-├── svd_analysis.py      # SVD of F, Picard plot, factorization indicator, LSM
-└── utils.py             # 64-bit enforcement, convergence diagnostics
+|-- __init__.py
+|-- types.py             # Mesh namedtuple
+|-- mesh.py              # Structured and adaptive P3 mesh generation
+|-- basis.py             # P3 Lagrange basis functions (10 DOF/element)
+|-- assembly.py          # P3 element stiffness/mass assembly; Poisson solve
+|-- bem.py               # BEM: V_h, K_h, M_b; Calderon operator
+|-- operators.py         # K, M, S1, S2, A_coupled; FEMOperators dataclass
+|-- forward.py           # DifferentiableForward (JAX custom_vjp)
+|-- inverse.py           # MAPReconstructor, kaiser_squires
+|-- regularization.py    # MorozovSelector, estimate_noise_level
+`-- svd_analysis.py      # SVD of F, Picard diagnostic, FactorizationIndicator, LSM
 
 tests/
-├── test_fem_bem_coupling.py   # BEM matrices, transmission conditions
-├── test_morozov.py            # λ selection, monotonicity of D(λ)
-├── test_convergence_p3.py     # O(h⁴) L², O(h²) shear rates
-├── test_factorization.py      # Support recovery, Picard condition
-└── test_regression.py         # End-to-end NFW lens reconstruction
+|-- test_fem_bem_coupling.py   # BEM matrices (V_h, K_h, M_b, Calderon)
+|-- test_coupled_pipeline.py   # FEM-BEM pipeline invariants
+|-- test_morozov.py            # Morozov lambda selection, monotonicity
+|-- test_factorization.py      # SVD, Picard, support recovery indicators
+|-- test_convergence_p3.py     # O(h^4) L2 Poisson convergence
+|-- test_convergence.py        # Forward operator gamma convergence
+`-- test_regression.py         # End-to-end NFW reconstruction
+
+examples/
+|-- smpy_comparison.py               # FEMMI vs Kaiser-Squires benchmark
+|-- generate_presentation_figures.py # Publication figures (fig1-6)
+`-- visualize_results.py             # SVD modes, Picard, convergence plots
 ```
 
 ---
 
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-Requires: JAX ≥ 0.4, SciPy ≥ 1.11, NumPy ≥ 1.25, matplotlib.
+Requires: JAX >= 0.4, SciPy >= 1.11, NumPy >= 1.25, matplotlib.
 
-**64-bit arithmetic is mandatory.**  FEMMI enforces this automatically:
+**64-bit arithmetic is mandatory.** FEMMI enforces this at import time.
+For a $20 \times 20$ mesh $\kappa(A_{\mathrm{coupled}}) = O(1600)$; in 32-bit the solve error
+$O(\kappa\,\varepsilon_{32}) \approx 2 \times 10^{-5}$ dominates the P3 discretisation error
+$h^4 \approx 6 \times 10^{-6}$.
+
+---
+
+## Basic Usage
 
 ```python
-import jax
-jax.config.update("jax_enable_x64", True)
+import numpy as np
+from femmi.operators import build_operators
+from femmi.forward   import DifferentiableForward
+from femmi.inverse   import MAPReconstructor
+from femmi.regularization import estimate_noise_level
+
+# Build mesh and operators (20x20 structured P3 mesh on [-2.5, 2.5]^2)
+ops = build_operators(nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5)
+
+# Forward model: kappa -> (gamma1, gamma2)
+nodes = np.array(ops.mesh.nodes)
+kappa_true = np.exp(-(nodes[:, 0]**2 + nodes[:, 1]**2) / (2 * 0.5**2))
+g1, g2 = ops.forward(kappa_true)
+
+# MAP reconstruction with automatic lambda (Morozov)
+noise_std = estimate_noise_level(np.concatenate([g1, g2]), method='mad')
+fwd = DifferentiableForward(ops, lam_reg=1e-3)
+rec = MAPReconstructor(fwd, noise_std=noise_std, wiener_length=0.5)
+kappa_map, result = rec.reconstruct(g1_obs, g2_obs)
 ```
 
-For a 20×20 mesh the condition number κ(A_coupled) = O(1600); in 32-bit the
-solve error O(κ ε₃₂) ≈ 2×10⁻⁵ dominates the P3 discretisation error h⁴ ≈ 6×10⁻⁶.
-
-### Basic reconstruction
-
 ```python
-from femmi import Mesh, build_operators, MAPReconstructor
-
-# Build mesh and operators
-mesh = Mesh.unit_square(n=32)                 # 32×32 triangulation
-ops  = build_operators(mesh)                  # assembles A_coupled, S1, S2
-
-# Load shear data
-gamma_obs = load_shear_catalog(...)           # shape (2, N_obs)
-noise_std  = 0.02                             # per-component noise level
-
-# Reconstruct with automatic λ selection
-rec   = MAPReconstructor(ops, noise_std=noise_std)
-kappa = rec.reconstruct(gamma_obs)            # L-BFGS + Morozov λ
-
-# Support recovery (requires SVD pre-computation)
-from femmi.svd_analysis import FactorizationIndicator
-fi = FactorizationIndicator(ops, n_singular=40)
-W  = fi.indicator_map(mesh.test_grid(64))
+# Adaptive mesh near a circular mask
+from femmi.operators import build_operators_adaptive
+ops_a = build_operators_adaptive(
+    nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
+    mask_center=(0., 0.), mask_radius=0.6, refine_factor=3,
+)
 ```
 
-### Picard diagnostic
-
 ```python
-from femmi.svd_analysis import picard_plot
-picard_plot(ops, gamma_obs, noise_std=noise_std)
-# Saves picard.pdf showing singular values, Fourier coefficients, and ratio
+# SVD and support recovery
+from femmi.svd_analysis import compute_svd, FactorizationIndicator
+
+svd = compute_svd(ops, n_singular=40)
+fi  = FactorizationIndicator(ops, svd_result=svd)
+test_grid = np.column_stack([XX.ravel(), YY.ravel()])  # shape (n_test, 2)
+W = fi.indicator_map(test_grid)  # large inside support(kappa)
 ```
 
 ---
 
-## Algorithm Details
+## Algorithm Summary
 
-### Forward solve
+**Forward solve** (two solves per MAP iteration):
 
-```
-f          = −2 M κ
-A_coupled ψ = f            # sparse LU, O(n log n)
-γ₁         = S₁ ψ
-γ₂         = S₂ ψ
-```
+$$f = -2M\kappa, \qquad A_{\mathrm{coupled}}\,\psi = f, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
 
-### Adjoint gradient (for L-BFGS)
+**Adjoint gradient** (for L-BFGS):
 
-```
-r          = F κ − γ_obs
-A_coupled φ = S₁ᵀ r₁ + S₂ᵀ r₂
-grad       = −4 M φ + 2λ R κ
-```
+$$r = (\gamma_1 - \gamma_{1,\mathrm{obs}},\; \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
 
-Two FEM-BEM solves per iteration (factored A_coupled is reused).
+**Morozov $\lambda$ selection:** Brent root-finding on $D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$,
+typically 15--25 forward solves.
 
-### BEM assembly
-
-Diagonal blocks of V_h require logarithmic-singular integrals; FEMMI uses
-order-10 Gauss-Jacobi quadrature with weight w(t) = −ln(t) (25 points per panel,
-relative error < 10⁻¹²).  Off-diagonal blocks use standard Gauss-Legendre.
+**BEM assembly:** Diagonal blocks of $V_h$ use Gauss-Jacobi quadrature with
+weight $w(t) = -\ln(t)$ (25 points, relative error $< 10^{-12}$). Off-diagonal
+blocks use standard Gauss-Legendre (8 points).
 
 ---
 
 ## Convergence
 
-Tested on mesh sequence 4×4 → 8×8 → 16×16 → 32×32 with smooth NFW κ:
+Forward operator on mesh sequence $8 \to 32$ ($\sigma = 1.5$, deep interior):
 
-| Mesh | L² rate | Shear rate |
-|------|---------|------------|
-| 4→8  | 3.86 | 1.97 |
-| 8→16 | 3.90 | 1.99 |
-| 16→32| 3.97 | 2.00 |
+| Mesh | $\gamma$ rate | Theory |
+|------|--------|--------|
+| $8 \to 10$ | $\approx 2.0$ | $O(h^2)$ |
+| $10 \to 14$ | $\approx 2.0$ | $O(h^2)$ |
+| $14 \to 32$ | $\approx 2.0$ | $O(h^2)$ |
 
-Theoretical: O(h⁴) in L², O(h²) in shear (P3 elements; MATH.md §18).
+Poisson solve (P3, smooth RHS, unit square):
+
+| Mesh | $L^2$ rate | Theory |
+|------|---------|--------|
+| $4 \to 8$  | 3.86 | $O(h^4)$ |
+| $8 \to 16$ | 3.90 | $O(h^4)$ |
+| $16 \to 32$| 3.97 | $O(h^4)$ |
 
 ---
 
 ## References
 
-1. Colton, D. & Kress, R. (2013). *Inverse Acoustic and Electromagnetic Scattering Theory*, 3rd ed. Springer. **[Primary reference.]**
+1. Colton, D. & Kress, R. (2013). *Inverse Acoustic and Electromagnetic Scattering Theory*, 3rd ed. Springer.
 2. Steinbach, O. (2008). *Numerical Approximation Methods for Elliptic Boundary Value Problems*. Springer.
 3. Sauter, S. & Schwab, C. (2011). *Boundary Element Methods*. Springer.
-4. Kirsch, A. (1998). Characterization of the shape of a scattering obstacle using the spectral data of the far-field operator. *Inverse Problems*, 14, 1489.
-5. Colton, D. & Kirsch, A. (1996). A simple method for solving inverse scattering problems in the resonance region. *Inverse Problems*, 12, 383.
+4. Kirsch, A. (1998). Characterization of the shape of a scattering obstacle. *Inverse Problems*, 14, 1489.
+5. Colton, D. & Kirsch, A. (1996). A simple method for solving inverse scattering problems. *Inverse Problems*, 12, 383.
 6. Morozov, V. A. (1966). On the solution of functional equations by the method of regularization. *Soviet Math. Doklady*, 7, 414.
 7. Kaiser, N. & Squires, G. (1993). Mapping the dark matter with weak gravitational lensing. *ApJ*, 404, 441.
 8. Dunavant, D. A. (1985). High degree efficient symmetrical Gaussian quadrature rules for the triangle. *IJNME*, 21(6), 1129.
