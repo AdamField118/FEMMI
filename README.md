@@ -1,4 +1,4 @@
-# FEMMI --- Finite Element Mass Map Inversion
+# FEMMI - Finite Element Mass Map Inversion
 
 Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled
 boundary value problems, Morozov-regularised Tikhonov inversion, and
@@ -15,9 +15,9 @@ $$\nabla^2 \psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi(\theta) \to
 
 with shear components
 
-$$\gamma_1 = \tfrac{1}{2}\!\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \partial\theta_2}.$$
+$$\gamma_1 = \tfrac{1}{2}\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \partial\theta_2}.$$
 
-The inverse problem --- recovering $\kappa$ from $(\gamma_1, \gamma_2)$ --- is ill-posed and
+The inverse problem (recovering $\kappa$ from $(\gamma_1, \gamma_2)$) is ill-posed and
 requires regularisation and careful treatment of the unbounded domain.
 
 | Feature | Kaiser-Squires (1993) | FEMMI |
@@ -36,7 +36,7 @@ Full derivations are in [`MATH.md`](MATH.md). Key ideas:
 **FEM-BEM coupling.** FEMMI couples a P3 FEM interior to a boundary element
 method on $\partial\Omega$ encoding $\psi \to 0$ at infinity. The coupled stiffness matrix is
 
-$$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = V_h^{-1}\!\left(\tfrac{1}{2}M_b + K_h\right)$$
+$$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = V_h^{-1}\left(\tfrac{1}{2}M_b + K_h\right)$$
 
 where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the
 single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass
@@ -48,7 +48,7 @@ Hessians via the covariant transform $H_{\mathrm{phys}} = A^\top H_{\mathrm{ref}
 $O(h^2)$ shear convergence vs $O(h^0)$ for P2 and zero for P1.
 
 **Morozov regularisation.** The MAP estimate minimises
-$\|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\|\kappa\|_R^2$ with $R = M + \ell^2 K$ (Matern-Wiener prior).
+$\|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\|\kappa\|_R^2$ with $R = M + \mathcal{l}^2 K$ (Matern-Wiener prior).
 $\lambda$ is selected automatically by Brent's method on the discrepancy functional
 $D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\| - c\delta$ (C\&K Thm 10.4).
 
@@ -86,7 +86,7 @@ tests/
 
 examples/
 |-- smpy_comparison.py               # FEMMI vs Kaiser-Squires benchmark
-|-- generate_presentation_figures.py # Publication figures (fig1-6)
+|-- generate_presentation_figures.py # Figures (for final presentation in class)
 `-- visualize_results.py             # SVD modes, Picard, convergence plots
 ```
 
@@ -156,11 +156,11 @@ W = fi.indicator_map(test_grid)  # large inside support(kappa)
 
 **Forward solve** (two solves per MAP iteration):
 
-$$f = -2M\kappa, \qquad A_{\mathrm{coupled}}\,\psi = f, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
+$$f = -2M\kappa, \qquad A_{\mathrm{coupled}}\psi = f, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
 
 **Adjoint gradient** (for L-BFGS):
 
-$$r = (\gamma_1 - \gamma_{1,\mathrm{obs}},\; \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
+$$r = (\gamma_1 - \gamma_{1,\mathrm{obs}}, \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
 
 **Morozov $\lambda$ selection:** Brent root-finding on $D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$,
 typically 15--25 forward solves.

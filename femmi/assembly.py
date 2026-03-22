@@ -2,7 +2,7 @@
 P3 finite element assembly for the Poisson equation on triangular meshes.
 
 Assembles the stiffness matrix and RHS using 13-point Dunavant degree-7
-quadrature, which is exact for the degree-6 load integrand (cubic * cubic).
+quadrature
 """
 
 import jax
@@ -62,8 +62,7 @@ def get_gauss_quadrature_triangle(order=5):
         weights = jnp.array([w1, w2, w2, w2, w3, w3, w3])
 
     elif order == 5:
-        # Dunavant degree-7 rule (13 points). S111 orbit parameters are
-        # genuinely distinct; earlier versions had a degenerate orbit.
+        # Dunavant degree-7 rule (13 points)
         r2 = 0.260345966079040
         r3 = 0.065130102902216
         r4 = 0.048690315425316

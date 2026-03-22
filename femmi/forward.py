@@ -2,8 +2,6 @@
 femmi/forward.py
 Differentiable forward model: kappa -> (gamma1, gamma2).
 
-Uses jax.pure_callback to call scipy solvers from inside JAX tracing,
-which is the correct pattern for custom_vjp with external linear solvers.
 """
 
 import numpy as np
@@ -71,8 +69,6 @@ class DifferentiableForward:
     """
     Differentiable kappa -> (gamma1, gamma2) forward model.
 
-    All scipy objects cached at construction; public methods are
-    JAX-traceable (jax.grad, jax.jit, jax.vmap all work).
     """
 
     def __init__(self, ops: FEMOperators, lam_reg: float = 1e-3):

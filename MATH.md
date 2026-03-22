@@ -141,9 +141,9 @@ where $\mathbf{n}$ is the outward unit normal to $\Omega$.
 Multiplying $\nabla^2\psi = 2\kappa$ by a test function $v \in H^1(\Omega)$ and integrating by parts
 using Green's first identity:
 
-$$\int_\Omega \nabla\psi \cdot \nabla v\,dA = -2\int_\Omega \kappa\,v\,dA + \oint_{\partial\Omega} v\,\frac{\partial\psi}{\partial n}\,ds$$
+$$\int_\Omega \nabla\psi \cdot \nabla vdA = -2\int_\Omega \kappa vdA + \oint_{\partial\Omega} v\frac{\partial\psi}{\partial n}ds$$
 
-The boundary term $\oint_{\partial\Omega} v\,(\partial\psi/\partial n)\,ds$ is the **critical difference** from the
+The boundary term $\oint_{\partial\Omega} v(\partial\psi/\partial n)ds$ is the **critical difference** from the
 naive formulation. The Dirichlet approach forces $v = 0$ on $\partial\Omega$, making this
 term vanish and discarding the flux information entirely. In the FEM-BEM
 formulation, we retain this term and treat $t = \partial\psi/\partial n$ as an additional
@@ -172,7 +172,7 @@ Assembled in `operators.py`, function `_assemble_operators_from_mesh`.
 In $\Omega_{\rm ext}$, $\psi$ is harmonic with $\psi \to 0$ at infinity. Applying Green's second
 identity in $\Omega_{\rm ext}$ yields the **Somigliana identity** for $\mathbf{x} \in \Omega_{\rm ext}$:
 
-$$\psi(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\mathbf{y})\,t(\mathbf{y})\,ds(\mathbf{y}) - \int_{\partial\Omega} \psi(\mathbf{y})\,\frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})\,ds(\mathbf{y})$$
+$$\psi(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\mathbf{y})t(\mathbf{y})ds(\mathbf{y}) - \int_{\partial\Omega} \psi(\mathbf{y})\frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})ds(\mathbf{y})$$
 
 This is the direct analogue of **[C\&K \S2.1, Thm 2.5]**.
 
@@ -181,9 +181,9 @@ This is the direct analogue of **[C\&K \S2.1, Thm 2.5]**.
 All four classical boundary operators map functions on $\partial\Omega$ to functions on
 $\partial\Omega$. Their definitions and properties are developed in **[C\&K \S3.1--3.4]**:
 
-$$\text{Single layer: } (Vt)(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\mathbf{y})\,t(\mathbf{y})\,ds(\mathbf{y})$$
+$$\text{Single layer: } (Vt)(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\mathbf{y})t(\mathbf{y})ds(\mathbf{y})$$
 
-$$\text{Double layer: } (K\psi)(\mathbf{x}) = \mathrm{P.V.}\int_{\partial\Omega} \frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})\,\psi(\mathbf{y})\,ds(\mathbf{y})$$
+$$\text{Double layer: } (K\psi)(\mathbf{x}) = \mathrm{P.V.}\int_{\partial\Omega} \frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})\psi(\mathbf{y})ds(\mathbf{y})$$
 
 Key properties: $V$ is symmetric; on the unit square (logarithmic capacity
 $\approx 0.59 < 1$) $V$ is negative-definite, but remains invertible. $K$ is compact
@@ -195,11 +195,11 @@ and `assemble_double_layer`.
 Taking the limit of the Somigliana identity as $\mathbf{x} \to \partial\Omega$ and applying the jump
 relations (**[C\&K \S3.1, Thm 3.1 and Thm 3.3]**):
 
-$$\left(\tfrac{1}{2}I + K\right)\psi\big|_{\partial\Omega} = V\,t\big|_{\partial\Omega}, \qquad \mathbf{x} \in \partial\Omega$$
+$$\left(\tfrac{1}{2}I + K\right)\psi\big|_{\partial\Omega} = Vt\big|_{\partial\Omega}, \qquad \mathbf{x} \in \partial\Omega$$
 
 Discretized with $N_b$ boundary nodes (P3 traces on boundary edges):
 
-$$\left(\tfrac{1}{2}M_b + K_h\right)\psi_b = V_h\,t_b$$
+$$\left(\tfrac{1}{2}M_b + K_h\right)\psi_b = V_ht_b$$
 
 where $M_b$ is the boundary Gram matrix assembled in `bem.py`,
 `assemble_boundary_mass`. The solvability follows from the Fredholm alternative
@@ -218,17 +218,17 @@ in `bem.py` (25 points, relative error $< 10^{-12}$).
 Let $P$ be the restriction operator extracting boundary entries: $P\psi = \psi_b$.
 The full coupled system for unknowns $(\psi, t)$ is:
 
-$$\begin{pmatrix} K & -B \\ \left(\tfrac{1}{2}M_b + K_h\right)P & -V_h \end{pmatrix} \begin{pmatrix} \psi \\ t \end{pmatrix} = \begin{pmatrix} -2M\kappa \\ 0 \end{pmatrix}$$
+$$\begin{pmatrix} K & -B \\\ \left(\tfrac{1}{2}M_b + K_h\right)P & -V_h \end{pmatrix} \begin{pmatrix} \psi \\ t \end{pmatrix} = \begin{pmatrix} -2M\kappa \\\ 0 \end{pmatrix}$$
 
 ### 6.2 Schur Complement Reduction
 
 From the BEM equation: $t = V_h^{-1} (\tfrac{1}{2}M_b + K_h) P \psi$. Substituting yields:
 
-$$A_{\rm coupled}\,\psi = -2M\kappa$$
+$$A_{\rm coupled}\psi = -2M\kappa$$
 
 where:
 
-$$A_{\rm coupled} = K + P^\top V_h^{-1}\!\left(\tfrac{1}{2}M_b + K_h\right)P$$
+$$A_{\rm coupled} = K + P^\top V_h^{-1}\left(\tfrac{1}{2}M_b + K_h\right)P$$
 
 Implemented in `operators.py`, function `_assemble_operators_from_mesh`.
 The dense Calderon matrix $C = V_h^{-1}(\tfrac{1}{2}M_b + K_h)$ is stored in
@@ -255,7 +255,7 @@ Uniqueness follows from **[C\&K \S3.3, Thm 3.12]**.
 ## 7. P3 Cubic Basis Functions
 
 All element computations are performed on the **reference triangle**
-$\hat{T} = \{(\xi,\eta) : \xi \geq 0,\, \eta \geq 0,\, \xi+\eta \leq 1\}$. Points on $\hat{T}$ are parameterised by
+$\hat{T} = \{(\xi,\eta) : \xi \geq 0, \eta \geq 0, \xi+\eta \leq 1\}$. Points on $\hat{T}$ are parameterised by
 barycentric coordinates:
 
 $$\lambda_1 = 1 - \xi - \eta, \quad \lambda_2 = \xi, \quad \lambda_3 = \eta$$
@@ -303,7 +303,7 @@ FEMMI uses a **subparametric** formulation: the geometry is mapped by only the
 3 vertex nodes (affine/linear map). For an element with vertices
 $(x_0,y_0)$, $(x_1,y_1)$, $(x_2,y_2)$:
 
-$$\mathbf{x}(\xi,\eta) = \mathbf{x}_0 + J\begin{pmatrix}\xi\\\eta\end{pmatrix}, \qquad J = \begin{pmatrix}x_1-x_0 & y_1-y_0\\ x_2-x_0 & y_2-y_0\end{pmatrix}$$
+$$\mathbf{x}(\xi,\eta) = \mathbf{x}_0 + J\begin{pmatrix}\xi\\\ \eta\end{pmatrix}, \qquad J = \begin{pmatrix}x_1-x_0 & y_1-y_0\\\ x_2-x_0 & y_2-y_0\end{pmatrix}$$
 
 Because the map is affine, $J$ is **constant over each element**.
 
@@ -315,7 +315,7 @@ $$K^e_{ij} = \int_T \nabla N_i \cdot \nabla N_j\,dA = |T|\sum_q w_q(\nabla_{\mat
 
 Gradient transformation: $\nabla_x N = J^{-T} \nabla_\xi N$. $K$ is assembled **without
 modifying boundary rows** (Neumann stiffness). The previous Dirichlet BC
-approach --- zeroing boundary rows and setting the diagonal to 1 --- is not
+approach (zeroing boundary rows and setting the diagonal to 1) is not
 applied; that null space is removed by the BEM coupling and gauge fix.
 
 Assembled in `operators.py`, `_assemble_operators_from_mesh`.
@@ -324,26 +324,11 @@ Assembled in `operators.py`, `_assemble_operators_from_mesh`.
 
 The element mass matrix:
 
-$$M^e_{ij} = \int_T N_i N_j\,dA = |T|\sum_q w_q N_i(\xi_q) N_j(\xi_q)$$
+$$M^e_{ij} = \int_T N_i N_j dA = |T|\sum_q w_q N_i(\xi_q) N_j(\xi_q)$$
 
 The load integrand $N_i N_j$ has degree 6 (cubic $\times$ cubic), requiring a
-degree-6-exact quadrature rule --- hence the **13-point Dunavant degree-7 rule**
+degree-6-exact quadrature rule, hence the **13-point Dunavant degree-7 rule**
 in `assembly.py`, `get_gauss_quadrature_triangle(order=5)`.
-
-**Bug fix (2026-03-01):** The S111 orbit parameters in the Dunavant rule
-previously used $(c, d) = (0.260\ldots, 0.479\ldots)$ satisfying $1-c-d = c$, causing
-the 6-point orbit to degenerate to 3 distinct points. The correct parameters:
-
-```python
-r4 = 0.048690315425316  # genuinely distinct
-s4 = 0.312865496004875
-t4 = 1.0 - r4 - s4     # = 0.638444188569809, not equal to r4 or s4
-```
-
-Weight sum verification: $w_0 + 3w_1 + 3w_2 + 6w_3 = 1.000$ confirmed.
-
-The negative centroid weight $w_0 = -0.14957$ is mathematically correct for
-high-order Gauss rules on triangles (Stroud 1971).
 
 ---
 
@@ -403,10 +388,10 @@ Both implemented in `operators.py`, `_assemble_shear_ops` and
 
 The complete map from $\kappa$ to $(\gamma_1, \gamma_2)$ is:
 
-$$\kappa \;\xrightarrow{-2M}\; \mathbf{f} \;\xrightarrow{A_{\rm coupled}^{-1}}\; \psi \;\xrightarrow{S}\; (\gamma_1, \gamma_2)$$
+$$\kappa \xrightarrow{-2M} \mathbf{f} \xrightarrow{A_{\rm coupled}^{-1}} \psi \xrightarrow{S} (\gamma_1, \gamma_2)$$
 
 Writing this as a single operator: $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$, where
-$S = (S_1;\, S_2)$ stacks the two shear operators.
+$S = (S_1; S_2)$ stacks the two shear operators.
 
 In `operators.py`: `FEMOperators.psi_from_kappa` solves $A_{\rm coupled}\,\psi = -2M\kappa$
 (with gauge fix); `FEMOperators.shear_from_psi` applies $S_1$ and $S_2$.
@@ -430,7 +415,7 @@ The FEM-BEM system has trivial null space. The boundary condition $\psi \to 0$
 at infinity (encoded by the BEM) fixes the absolute normalization of $\psi$,
 resolving the **mass sheet degeneracy**. Adding a uniform sheet $\kappa \to \kappa + c$
 changes $\mathbf{f} \to \mathbf{f} - 2Mc$, which changes $\psi$, which changes $\gamma$. The map $F$
-is injective --- in contrast to Kaiser-Squires, where the Fourier kernel
+is injective in contrast to Kaiser-Squires, where the Fourier kernel
 vanishes at $\mathbf{k} = \mathbf{0}$.
 
 ---
@@ -441,7 +426,7 @@ vanishes at $\mathbf{k} = \mathbf{0}$.
 
 Tikhonov regularization replaces the ill-posed problem $F\kappa = \gamma_{\rm obs}$ with:
 
-$$\kappa_\lambda = \operatorname*{argmin}_\kappa \left\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\,\kappa^\top R\,\kappa \right\}$$
+$$\kappa_\lambda = \underset{\kappa}{\text{argmin}} \left\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \right\}$$
 
 This is exactly the **MAP estimator** with Gaussian likelihood and Gaussian
 prior. Existence, uniqueness, and convergence are established in
@@ -453,7 +438,7 @@ prior. Existence, uniqueness, and convergence are established in
 - **Matern-Wiener ($R = M + \ell^2 K$):** Penalizes $\|\kappa\|^2 + \ell^2\|\nabla\kappa\|^2$. **Recommended.**
 
 The **Matern-Wiener prior** $R = M + \ell^2 K$ has Green's function
-$G(r) \approx e^{-r/\ell}$, a Matern-$\tfrac{1}{2}$ covariance with correlation length $\ell$.
+$G(r) \approx e^{-r/\ell}$, a Matern-$\frac{1}{2}$ covariance with correlation length $\ell$.
 Setting $\ell = \sigma_{\rm lens}$ matches the prior to the expected spatial scale of $\kappa$.
 
 Assembled in `operators.py`, `build_wiener_regularizer`. Selected by
@@ -475,25 +460,25 @@ suppressed). This filter interpretation is discussed in **[C\&K \S10.2]**.
 Recall $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$. Using the symmetry of $M$ and $A_{\rm coupled}$,
 the $L^2$ adjoint is:
 
-$$F^* = (-2M)\,A_{\rm coupled}^{-T}\,S^\top$$
+$$F^* = (-2M)A_{\rm coupled}^{-T}S^\top$$
 
 ### 12.2 The gradient of the MAP loss
 
 Define residuals $r_a = S_a\psi - \gamma_{a,\rm obs}$. The gradient of
-$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\,\kappa^\top R\kappa$ is:
+$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa$ is:
 
-$$\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4M\,A_{\rm coupled}^{-T}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\kappa$$
+$$\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4MA_{\rm coupled}^{-T}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\kappa$$
 
 The term $A_{\rm coupled}^{-T}(S_1^\top r_1 + S_2^\top r_2)$ is the **adjoint solve** using
 `trans='T'` in the SuperLU factorisation.
 
 Per-iteration algorithm in `inverse.py`, `MAPReconstructor._make_obj_and_grad`:
 
-1. Forward: $\mathbf{f} = -2M\kappa$ (gauge fix applied), solve $A_{\rm coupled}\,\psi = \mathbf{f}$, compute $\gamma_a = S_a\psi$
+1. Forward: $\mathbf{f} = -2M\kappa$ (gauge fix applied), solve $A_{\rm coupled}\psi = \mathbf{f}$, compute $\gamma_a = S_a\psi$
 2. Residuals: $r_a = \gamma_a - \gamma_{a,\rm obs}$
-3. Loss: $\mathcal{L} = \sum_a\|r_a\|^2 + \lambda\,\kappa^\top R\kappa$
+3. Loss: $\mathcal{L} = \sum_a\|r_a\|^2 + \lambda\kappa^\top R\kappa$
 4. Adjoint RHS: $\mathbf{q} = S_1^\top r_1 + S_2^\top r_2$ (gauge fix applied)
-5. Adjoint solve: $A_{\rm coupled}^{-T}\,\phi = \mathbf{q}$ via `A_lu.solve(..., trans='T')`
+5. Adjoint solve: $A_{\rm coupled}^{-T}\phi = \mathbf{q}$ via `A_lu.solve(..., trans='T')`
 6. Gradient: $\partial\mathcal{L}/\partial\kappa = -4M\phi + 2\lambda R\kappa$
 
 Total cost per iteration: **two $A_{\rm coupled}$ solves** (forward + adjoint),
@@ -508,7 +493,7 @@ reusing the factored SuperLU object.
 Let $\delta$ denote the noise level. The **Morozov discrepancy principle** selects $\lambda$
 such that the reconstruction residual matches the noise level:
 
-$$\|F\kappa_\lambda - \gamma_{\rm obs}\|_{\rm RMS} = c\,\delta \qquad (c \approx 1)$$
+$$\|F\kappa_\lambda - \gamma_{\rm obs}\|_{\rm RMS} = c\delta \qquad (c \approx 1)$$
 
 **Theorem (Morozov, 1966; [C\&K \S10.2, Thm 10.4]).** Let $\gamma_{\rm obs} = F\kappa_{\rm true} + \eta$
 with $\|\eta\| \leq \delta$. If $\lambda_M$ solves the above, then $\|\kappa_{\lambda_M} - \kappa_{\rm true}\| \to 0$ as $\delta \to 0$.
@@ -520,12 +505,12 @@ Root-finding uses Brent's method in `regularization.py`, `MorozovSelector.select
 
 The discrepancy uses an RMS norm:
 
-$$D(\lambda) = \sqrt{\frac{\|r_1\|^2 + \|r_2\|^2}{n_{\rm data}}} - c\,\delta, \qquad n_{\rm data} = |\gamma_1| + |\gamma_2|$$
+$$D(\lambda) = \sqrt{\frac{\|r_1\|^2 + \|r_2\|^2}{n_{\rm data}}} - c\delta, \qquad n_{\rm data} = |\gamma_1| + |\gamma_2|$$
 
 Noise level $\delta$ is estimated from the observed shear using the MAD estimator
 in `regularization.py`, `estimate_noise_level`:
 
-$$\delta = 1.4826 \cdot \mathrm{median}\!\left(|\gamma - \mathrm{median}(\gamma)|\right)$$
+$$\delta = 1.4826 \cdot \mathrm{median}\left(|\gamma - \mathrm{median}(\gamma)|\right)$$
 
 `MorozovSelector` also provides `lcurve` for diagnostic plotting.
 
@@ -564,7 +549,7 @@ Since $F$ is compact (**[C\&K \S10.1]**):
 
 Since $F$ is compact, it admits the singular value decomposition:
 
-$$F = \sum_i \sigma_i\, \mathbf{u}_i \otimes \mathbf{v}_i^*, \qquad \sigma_1 \geq \sigma_2 \geq \cdots \to 0$$
+$$F = \sum_i \sigma_i \mathbf{u}_i \otimes \mathbf{v}_i^*, \qquad \sigma_1 \geq \sigma_2 \geq \cdots \to 0$$
 
 The singular values accumulate only at zero (**[C\&K \S10.1, Thm 10.6]**).
 Computed in `svd_analysis.py`, `compute_svd` using randomised Lanczos on
@@ -573,7 +558,7 @@ the normal operator $F^*F$.
 ### 15.2 Noise amplification
 
 With $\gamma_{\rm obs} = \gamma_{\rm true} + \eta$ (noise), the formal inversion
-$\sum_i \sigma_i^{-1}\langle\eta, \mathbf{u}_i\rangle\,\mathbf{v}_i$
+$\sum_i \sigma_i^{-1}\langle\eta, \mathbf{u}_i\rangle\mathbf{v}_i$
 diverges since $\sigma_i^{-1} \to \infty$.
 
 ### 15.3 The Picard Condition
@@ -611,7 +596,7 @@ $$\boldsymbol{\Phi}_{\mathbf{z}} = F\delta_{\mathbf{z}} \qquad \text{(shear patt
 
 **Theorem (Kirsch, 1998; [C\&K \S6.2, Thm 6.15]).**
 
-$$\mathbf{z} \in \mathrm{supp}(\kappa) \iff \boldsymbol{\Phi}_{\mathbf{z}} \in \mathrm{Range}\!\left(|F|^{1/2}\right)$$
+$$\mathbf{z} \in \mathrm{supp}(\kappa) \iff \boldsymbol{\Phi}_{\mathbf{z}} \in \mathrm{Range}\left(|F|^{1/2}\right)$$
 
 ### 16.3 Numerical Implementation
 
