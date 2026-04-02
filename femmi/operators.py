@@ -129,7 +129,7 @@ class FEMOperators:
         return -2.0 * self.M.T @ self.A_coupled_lu.solve(rhs, trans='T')
 
 
-def _assemble_operators_from_mesh(mesh, verbose=True, t0=None):
+def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extractor=None):
     """Assemble K, M, S1, S2, BEM matrices, and A_coupled for any P3 mesh."""
     if t0 is None:
         t0 = time.perf_counter()
@@ -218,7 +218,9 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None):
     if verbose:
         print("  assembling BEM matrices...")
     t_bem    = time.perf_counter()
-    bnd_mesh = extract_boundary_edges(mesh)
+    if boundary_extractor is None:
+        boundary_extractor = extract_boundary_edges
+    bnd_mesh = boundary_extractor(mesh)
     N_b      = bnd_mesh.n_boundary_dofs
     V_h, K_h, M_b = assemble_bem_matrices(bnd_mesh, n_quad_sl=25, n_quad_dl=8)
     if verbose:
@@ -300,3 +302,13 @@ def build_wiener_regularizer(ops, wiener_length):
     Setting l = sigma_lens matches the prior to the expected lens scale.
     """
     return (ops.M + wiener_length**2 * ops.K).tocsr()
+
+def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.0, 0.0), verbose=True):
+    from .mesh import generate_p3_circular_mesh
+    from .bem  import extract_boundary_edges_circular
+    t0 = time.perf_counter()
+    if verbose:
+        print(f"Building circular P3 mesh: R={radius:.2f}  n_boundary={n_boundary}...")
+    mesh = generate_p3_circular_mesh(radius=radius, n_boundary=n_boundary, n_rings=n_rings, center=center, verbose=verbose)
+    return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0,
+                                         boundary_extractor=lambda m: extract_boundary_edges_circular(m, center=center, radius=radius))

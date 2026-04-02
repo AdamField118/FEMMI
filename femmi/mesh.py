@@ -198,6 +198,90 @@ def generate_p3_adaptive_mesh(nx, ny, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
 
     return mesh
 
+def _elevate_to_p3_circular(vertices, p1_elements, is_bnd_vertex):
+    nodes_list = list(vertices)
+    next_idx   = len(vertices)
+    edge_dict  = {}
+    bnd_set    = set(int(i) for i in np.where(is_bnd_vertex)[0])
+
+    def get_edge_nodes(va, vb):
+        nonlocal next_idx
+        key = (min(va, vb), max(va, vb))
+        if key not in edge_dict:
+            pi, pj = vertices[key[0]], vertices[key[1]]
+            i0, i1 = next_idx, next_idx + 1
+            nodes_list.append((2.0 * pi + pj) / 3.0)
+            nodes_list.append((pi + 2.0 * pj) / 3.0)
+            edge_dict[key] = (i0, i1)
+            next_idx += 2
+            if is_bnd_vertex[key[0]] and is_bnd_vertex[key[1]]:
+                bnd_set.add(i0)
+                bnd_set.add(i1)
+        i0, i1 = edge_dict[key]
+        return (i0, i1) if va < vb else (i1, i0)
+
+    p3_elements = []
+    for v0, v1, v2 in p1_elements:
+        n3, n4 = get_edge_nodes(v0, v1)
+        n5, n6 = get_edge_nodes(v1, v2)
+        n7, n8 = get_edge_nodes(v2, v0)
+        n9 = next_idx
+        nodes_list.append((vertices[v0] + vertices[v1] + vertices[v2]) / 3.0)
+        next_idx += 1
+        p3_elements.append([v0, v1, v2, n3, n4, n5, n6, n7, n8, n9])
+
+    nodes_arr = np.array(nodes_list, dtype=np.float64)
+    bnd       = np.array(sorted(bnd_set), dtype=np.int32)
+    return Mesh(nodes=nodes_arr, elements=np.array(p3_elements, dtype=np.int32), boundary=bnd)
+
+
+def generate_p3_circular_mesh(radius=2.5, n_boundary=60, n_rings=None, center=(0.0, 0.0), verbose=True):
+    cx, cy = center
+    if n_rings is None:
+        n_rings = max(3, n_boundary // 6)
+
+    bnd_angles = np.linspace(0.0, 2.0 * np.pi, n_boundary, endpoint=False)
+    bnd_pts    = np.column_stack([cx + radius * np.cos(bnd_angles), cy + radius * np.sin(bnd_angles)])
+
+    int_pts = [[cx, cy]]
+    for k in range(1, n_rings):
+        r_k = radius * k / n_rings
+        n_k = max(6, round(n_boundary * k / n_rings))
+        ang_k = np.linspace(0.0, 2.0 * np.pi, n_k, endpoint=False)
+        for a in ang_k:
+            int_pts.append([cx + r_k * np.cos(a), cy + r_k * np.sin(a)])
+
+    int_pts = np.array(int_pts, dtype=np.float64)
+    n_int   = len(int_pts)
+    all_pts = np.vstack([int_pts, bnd_pts])
+
+    is_bnd_vertex = np.zeros(len(all_pts), dtype=bool)
+    is_bnd_vertex[n_int:] = True
+
+    tri       = Delaunay(all_pts)
+    simplices = tri.simplices.copy()
+
+    cents   = all_pts[simplices].mean(axis=1) - np.array([cx, cy])
+    in_disk = (cents ** 2).sum(axis=1) <= (radius * 1.001) ** 2
+    simplices = simplices[in_disk]
+
+    v0p   = all_pts[simplices[:, 0]]
+    v1p   = all_pts[simplices[:, 1]]
+    v2p   = all_pts[simplices[:, 2]]
+    cross = (v1p[:, 0] - v0p[:, 0]) * (v2p[:, 1] - v0p[:, 1]) - (v1p[:, 1] - v0p[:, 1]) * (v2p[:, 0] - v0p[:, 0])
+    simplices[cross < 0] = simplices[cross < 0][:, [0, 2, 1]]
+    simplices = simplices[np.abs(cross) > 1e-15]
+
+    if verbose:
+        print(f"  Circular mesh: R={radius:.2f}  n_bnd={n_boundary}  n_rings={n_rings}  {len(all_pts)} vertices")
+
+    mesh = _elevate_to_p3_circular(all_pts, simplices, is_bnd_vertex)
+
+    if verbose:
+        nd, el, bnd = np.array(mesh.nodes), np.array(mesh.elements), np.array(mesh.boundary)
+        print(f"  P3: {len(nd)} nodes  {len(el)} elements  {len(bnd)} boundary DOFs")
+
+    return mesh
 
 def visualize_p3_mesh(mesh, filename='p3_mesh_structure.png', show_nodes=True):
     """Save a plot of the mesh showing vertex, edge, and interior nodes."""

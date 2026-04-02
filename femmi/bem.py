@@ -330,3 +330,53 @@ def assemble_bem_matrices(bnd, n_quad_sl=25, n_quad_dl=8):
     K_h = assemble_double_layer(bnd, n_quad=n_quad_dl)
     M_b = assemble_boundary_mass(bnd)
     return V_h, K_h, M_b
+    
+def extract_boundary_edges_circular(mesh, center=(0.0, 0.0), radius=None):
+    nodes_all  = np.array(mesh.nodes,    dtype=np.float64)
+    bnd_idx    = np.array(mesh.boundary, dtype=np.int64)
+    bnd_coords = nodes_all[bnd_idx]
+    cx, cy     = center
+
+    N_b = len(bnd_idx)
+    if N_b % 3 != 0:
+        raise ValueError(f"N_b={N_b} is not divisible by 3.")
+
+    angles = np.arctan2(bnd_coords[:, 1] - cy, bnd_coords[:, 0] - cx)
+    order  = np.argsort(angles)
+    ordered        = bnd_idx[order]
+    ordered_coords = nodes_all[ordered]
+
+    edge_lengths = np.empty(N_b)
+    normals      = np.empty((N_b, 2))
+    for i in range(N_b):
+        j  = (i + 1) % N_b
+        dx = ordered_coords[j, 0] - ordered_coords[i, 0]
+        dy = ordered_coords[j, 1] - ordered_coords[i, 1]
+        L  = np.hypot(dx, dy)
+        if L < 1e-15:
+            raise ValueError(f"Degenerate boundary segment at position {i}.")
+        edge_lengths[i] = L
+        normals[i]      = np.array([dy, -dx]) / L
+
+    N_elem          = N_b // 3
+    elements        = np.empty((N_elem, 4), dtype=np.int64)
+    element_lengths = np.empty(N_elem)
+    element_normals = np.empty((N_elem, 2))
+
+    for e in range(N_elem):
+        i0 = 3 * e
+        i3 = (3 * e + 3) % N_b
+        elements[e] = [i0, i0 + 1, i0 + 2, i3]
+        p0, p3 = ordered_coords[i0], ordered_coords[i3]
+        dx, dy = p3[0] - p0[0], p3[1] - p0[1]
+        L      = np.hypot(dx, dy)
+        element_lengths[e] = L
+        element_normals[e] = np.array([dy, -dx]) / L
+
+    return BoundaryMesh(
+        node_indices=ordered, nodes=ordered_coords,
+        edge_lengths=edge_lengths, normals=normals,
+        n_boundary_dofs=N_b, elements=elements,
+        element_lengths=element_lengths, element_normals=element_normals,
+        n_elements=N_elem,
+    )
