@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import griddata
-from femmi.operators import build_operators
+from femmi.operators import build_operators_circular
 
-ops   = build_operators(80, 80)
+ops   = build_operators_circular(radius=2.5, n_boundary=252)
 nodes = np.array(ops.mesh.nodes)
 kappa = np.exp(-(nodes[:,0]**2 + nodes[:,1]**2) / (2*0.5**2))
 psi   = ops.psi_from_kappa(kappa)
