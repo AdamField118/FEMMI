@@ -14,9 +14,10 @@ gmag  = np.sqrt(g1**2 + g2**2)
 xi = np.linspace(-2.5, 2.5, 128)
 XX, YY = np.meshgrid(xi, xi)
 
+interior = np.array(ops.interior)
 def to_grid(v):
-    g = griddata(nodes, v, (XX, YY), method='linear')
-    return np.where(np.isfinite(g), g, 0)
+    g = griddata(nodes[interior], v[interior], (XX, YY), method='linear')
+    return np.where(np.isfinite(g), g, np.nan)
 
 psi_g = to_grid(psi)
 dx    = xi[1] - xi[0]
@@ -24,7 +25,7 @@ dpsi_x, dpsi_y = np.gradient(psi_g, dx)
 grad_mag = np.sqrt(dpsi_x**2 + dpsi_y**2)
 
 panels = [
-    (to_grid(kappa), "femmi_kappa", "hot",    False),
+    (to_grid(kappa), "femmi_kappa", "hot",     False),
     (psi_g,          "femmi_psi",   "viridis", False),
     (grad_mag,       "femmi_grad",  "plasma",  False),
     (to_grid(g1),    "femmi_g1",    "RdBu_r",  True),
