@@ -75,16 +75,15 @@ record("ops.C_dense matches recomputed C", diff_C < 1e-10, f"diff={diff_C:.2e}")
 # A_coupled
 rng   = np.random.default_rng(0)
 x_ref = rng.standard_normal(ops.n_nodes)
-b_ref = ops.A_coupled @ x_ref
-x_sol = ops.A_coupled_lu.solve(b_ref)
+rhs_b = np.append(ops.A_coupled @ x_ref, 0.0)
+x_sol = ops.A_bordered_lu.solve(rhs_b)[:ops.n_nodes]
 resid = np.linalg.norm(x_sol - x_ref) / np.linalg.norm(x_ref)
-record("A_coupled round-trip solve", resid < 1e-10, f"rel_resid={resid:.2e}")
+record("A_bordered round-trip solve", resid < 1e-10, f"rel_resid={resid:.2e}")
 
-idx_g   = int(ops.bnd_mesh.node_indices[0])
-row_g   = np.array(ops.A_coupled[idx_g, :].todense()).ravel()
-diag_ok = abs(row_g[idx_g] - 1.0) < 1e-14
-offdiag_ok = np.abs(np.delete(row_g, idx_g)).max() < 1e-14
-record("Gauge row is identity", diag_ok and offdiag_ok)
+psi_test = ops.psi_from_kappa(kappa_g)
+mean_psi = float(np.mean(psi_test))
+record("Mean gauge: mean(psi) ~ 0", abs(mean_psi) < 1e-8,
+       f"mean(psi)={mean_psi:.2e}")
 
 # Zero kappa
 psi_0       = ops.psi_from_kappa(kappa_0)
@@ -101,8 +100,7 @@ record("Interior Poisson residual < 1% of RHS", rel_int < 0.01,
        f"rel_int={rel_int:.2e}")
 
 # Gauge node
-record("psi[gauge_node] = 0", abs(float(psi_g[idx_g])) < 1e-12,
-       f"psi[gauge]={psi_g[idx_g]:.2e}")
+record("psi has finite nonzero values", np.all(np.isfinite(psi_g)) and np.abs(psi_g).max() > 1e-6)
 
 # Order of magnitude
 max_psi_g = np.abs(psi_g).max()

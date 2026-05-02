@@ -341,7 +341,12 @@ def extract_boundary_edges_circular(mesh, center=(0.0, 0.0), radius=None):
     if N_b % 3 != 0:
         raise ValueError(f"N_b={N_b} is not divisible by 3.")
 
-    angles = np.arctan2(bnd_coords[:, 1] - cy, bnd_coords[:, 0] - cx)
+    # Sort CCW starting from angle 3pi/4 (upper-left diagonal).
+    # For a radially-symmetric lens, gamma1 = 0 on the diagonals,
+    # so the gauge-fix artifact falls where gamma1 vanishes.
+    # arctan2 gives (-pi, pi]; subtracting 3pi/4 and wrapping keeps CCW order.
+    raw    = np.arctan2(bnd_coords[:, 1] - cy, bnd_coords[:, 0] - cx)
+    angles = (raw - 3.0 * np.pi / 4.0) % (2.0 * np.pi)
     order  = np.argsort(angles)
     ordered        = bnd_idx[order]
     ordered_coords = nodes_all[ordered]

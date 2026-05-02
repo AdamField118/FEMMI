@@ -34,20 +34,14 @@ def compute_svd(ops, n_singular=40, method='lanczos', tol=1e-10, maxiter=None):
     M    = ops.M
     S1   = ops.S1
     S2   = ops.S2
-    A_lu = ops.A_coupled_lu
-    idx_gauge = int(ops.bnd_mesh.node_indices[0])
 
     def _forward(kappa):
-        rhs = -2.0 * M @ kappa
-        rhs[idx_gauge] = 0.0
-        psi = A_lu.solve(rhs)
+        psi = ops._solve_psi(-2.0 * M @ kappa)
         return np.concatenate([S1 @ psi, S2 @ psi])
 
     def _adjoint(g):
         g1, g2 = g[:n], g[n:]
-        rhs = S1.T @ g1 + S2.T @ g2
-        rhs[idx_gauge] = 0.0
-        phi = A_lu.solve(rhs)
+        phi = ops._solve_adjoint(S1.T @ g1 + S2.T @ g2)
         return -2.0 * (M.T @ phi)
 
     if method == 'dense':
@@ -176,18 +170,8 @@ def _probe_function(ops, z):
     nodes     = np.array(ops.mesh.nodes)
     n         = ops.n_nodes
     M, S1, S2 = ops.M, ops.S1, ops.S2
-    A_lu      = ops.A_coupled_lu
-    idx_gauge = int(ops.bnd_mesh.node_indices[0])
 
-    j   = int(np.argmin(np.sum((nodes - np.asarray(z)[None, :2])**2, axis=1)))
-    m_jj = float(M[j, j])
-
-    kappa_delta    = np.zeros(n)
-    kappa_delta[j] = 1.0 / m_jj if m_jj > 1e-20 else 1.0
-
-    rhs = -2.0 * M @ kappa_delta
-    rhs[idx_gauge] = 0.0
-    psi = A_lu.solve(rhs)
+    psi = ops._solve_psi(-2.0 * M @ kappa_delta)
     return np.concatenate([S1 @ psi, S2 @ psi])
 
 

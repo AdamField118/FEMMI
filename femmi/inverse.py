@@ -78,32 +78,26 @@ class MAPReconstructor:
         M    = ops.M
         S1   = ops.S1
         S2   = ops.S2
-        A_lu = ops.A_coupled_lu
         lam  = self.fwd.lam_reg
         R    = self._R
 
         loss_history = []
-        idx_gauge    = int(ops.bnd_mesh.node_indices[0])
 
         def obj_grad(kappa_flat):
             kappa = kappa_flat.reshape(-1)
 
-            rhs = -2.0 * M @ kappa
-            rhs[idx_gauge] = 0.0
-            psi = A_lu.solve(rhs)
+            psi = ops._solve_psi(-2.0 * M @ kappa)
             g1  = S1 @ psi
             g2  = S2 @ psi
 
             r1 = g1 - gamma1_obs
             r2 = g2 - gamma2_obs
 
-            Rk       = R @ kappa
-            loss     = float(np.dot(r1, r1) + np.dot(r2, r2)) + float(lam * np.dot(kappa, Rk))
+            Rk   = R @ kappa
+            loss = float(np.dot(r1, r1) + np.dot(r2, r2)) + float(lam * np.dot(kappa, Rk))
             loss_history.append(loss)
 
-            rhs_adj          = S1.T @ r1 + S2.T @ r2
-            rhs_adj[idx_gauge] = 0.0
-            adj  = A_lu.solve(rhs_adj, trans='T')
+            adj  = ops._solve_adjoint(S1.T @ r1 + S2.T @ r2)
             grad = -4.0 * (M.T @ adj) + 2.0 * lam * Rk
 
             return loss, grad.astype(np.float64)

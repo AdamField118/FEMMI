@@ -88,30 +88,32 @@ def _precompute_reference_data(quad_pts_np, quad_wts_np):
 
 @dataclass
 class FEMOperators:
-    """
-    All precomputed FEM-BEM operators for a fixed mesh.
-
-    A_coupled = K_neumann + P^T C P where C = V_h^{-1}(0.5*M_b + K_h).
-    K has no Dirichlet row modifications; its constant null space is
-    removed by the BEM coupling and gauge fix.
-    """
     mesh         : object
     K            : sp.csr_matrix
     M            : sp.csr_matrix
     S1           : sp.csr_matrix
     S2           : sp.csr_matrix
     A_coupled    : sp.csr_matrix
-    A_coupled_lu : object
+    A_bordered_lu: object          # ← renamed; factors the (n+1)×(n+1) bordered system
     bnd_mesh     : object
     C_dense      : np.ndarray
     n_nodes      : int
     boundary     : np.ndarray
     interior     : np.ndarray
 
+    # ── mean-gauge solvers ────────────────────────────────────────────────────
+    def _solve_psi(self, rhs: np.ndarray) -> np.ndarray:
+        """Forward solve with mean(ψ)=0 constraint via bordered system."""
+        rhs_b = np.append(rhs, 0.0)
+        return self.A_bordered_lu.solve(rhs_b)[:self.n_nodes]
+
+    def _solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
+        """Adjoint solve with mean constraint."""
+        rhs_b = np.append(rhs, 0.0)
+        return self.A_bordered_lu.solve(rhs_b, trans='T')[:self.n_nodes]
+
     def psi_from_kappa(self, kappa):
-        rhs = -2.0 * self.M @ kappa
-        rhs[int(self.bnd_mesh.node_indices[0])] = 0.0
-        return self.A_coupled_lu.solve(rhs)
+        return self._solve_psi(-2.0 * self.M @ kappa)
 
     def shear_from_psi(self, psi):
         return self.S1 @ psi, self.S2 @ psi
@@ -125,9 +127,7 @@ class FEMOperators:
 
     def adjoint_rhs(self, dL_dg1, dL_dg2):
         rhs = self.S1.T @ dL_dg1 + self.S2.T @ dL_dg2
-        rhs[int(self.bnd_mesh.node_indices[0])] = 0.0
-        return -2.0 * self.M.T @ self.A_coupled_lu.solve(rhs, trans='T')
-
+        return -2.0 * self.M.T @ self._solve_adjoint(rhs)
 
 def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extractor=None):
     """Assemble K, M, S1, S2, BEM matrices, and A_coupled for any P3 mesh."""
@@ -209,9 +209,6 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
         print("  assembling S1, S2...")
     t4      = time.perf_counter()
     S1, S2  = _assemble_shear_ops(nodes, elements, H_ref)
-    # Zero shear at boundary nodes - P3 nodal averaging is unreliable there
-    S1_lil  = S1.tolil(); S1_lil[boundary, :] = 0; S1 = S1_lil.tocsr()
-    S2_lil  = S2.tolil(); S2_lil[boundary, :] = 0; S2 = S2_lil.tocsr()
     if verbose:
         print(f"  S1, S2 done  ({time.perf_counter()-t4:.1f}s)")
 
@@ -234,18 +231,25 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
     bnd_idx  = bnd_mesh.node_indices
     A_lil    = K.tolil()
     A_lil[np.ix_(bnd_idx, bnd_idx)] += C_dense
-    # Gauge fix: pin one boundary node to remove the constant null space
-    idx_gauge = int(bnd_idx[0])
-    A_lil[idx_gauge, :] = 0.0
-    A_lil[idx_gauge, idx_gauge] = 1.0
     A_coupled = A_lil.tocsr()
     if verbose:
         print(f"  A_coupled: {A_coupled.shape}  ({time.perf_counter()-t_ac:.1f}s)")
 
+    # Mean gauge condition: enforce mean(psi) = 0 via a bordered system
+    #   [A   1] [psi]   [f]
+    #   [1^T 0] [ mu] = [0]
+    # This distributes the null-space constraint uniformly — no node is
+    # pinned, so there is no localized psi=0 artifact propagating into shear.
     if verbose:
-        print("  factorizing A_coupled (SuperLU)...")
-    t5           = time.perf_counter()
-    A_coupled_lu = spla.splu(A_coupled.tocsc())
+        print("  building bordered system (mean gauge)...")
+    t5 = time.perf_counter()
+    ones_col    = sp.csr_matrix(np.ones((n_nodes, 1)))
+    ones_row    = sp.csr_matrix(np.ones((1, n_nodes)))
+    zero_blk    = sp.csr_matrix((1, 1))
+    A_bordered  = sp.bmat(
+        [[A_coupled, ones_col], [ones_row, zero_blk]], format='csc'
+    )
+    A_bordered_lu = spla.splu(A_bordered)
     if verbose:
         print(f"  LU done  ({time.perf_counter()-t5:.1f}s)")
         print(f"  total: {time.perf_counter()-t0:.1f}s\n")
@@ -253,7 +257,7 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
     return FEMOperators(
         mesh=mesh, K=K, M=M, S1=S1, S2=S2,
         A_coupled=A_coupled,
-        A_coupled_lu=A_coupled_lu,
+        A_bordered_lu=A_bordered_lu,
         bnd_mesh=bnd_mesh,
         C_dense=C_dense,
         n_nodes=n_nodes,
@@ -261,15 +265,29 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
         interior=interior,
     )
 
+def build_operators(nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
+                    verbose=True, geometry='square',
+                    radius=2.5, n_boundary=252):
+    """Build FEM operators on a square or circular P3 mesh.
 
-def build_operators(nx, ny, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5, verbose=True):
-    """Build FEM operators on a uniform P3 structured mesh."""
+    Parameters
+    ----------
+    geometry : 'square' (default) or 'circular'
+        Domain shape.  'square' uses nx, ny, xmin, xmax, ymin, ymax.
+        'circular' uses radius and n_boundary; nx/ny are ignored.
+    radius : float
+        Radius of the circular domain (only used when geometry='circular').
+    n_boundary : int
+        Number of boundary nodes for the circular domain.
+    """
+    if geometry == 'circular':
+        return build_operators_circular(
+            radius=radius, n_boundary=n_boundary, verbose=verbose)
     t0 = time.perf_counter()
     if verbose:
         print(f"Building P3 mesh: {nx}x{ny} cells...")
     mesh = generate_p3_structured_mesh(nx, ny, xmin, xmax, ymin, ymax)
     return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0)
-
 
 def build_operators_adaptive(nx, ny, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
                               mask_center=(0.0, 0.0), mask_radius=0.5,

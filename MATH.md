@@ -234,19 +234,52 @@ Implemented in `operators.py`, function `_assemble_operators_from_mesh`.
 The dense Calderon matrix $C = V_h^{-1}(\tfrac{1}{2}M_b + K_h)$ is stored in
 `FEMOperators.C_dense` (shape $N_b \times N_b$); the boundary-block update
 `K[bnd_idx, bnd_idx] += C_dense` produces $A_{\rm coupled}$ as a sparse CSR matrix.
-A gauge fix pins one boundary DOF to remove the constant null space.
 
-$A_{\rm coupled}$ is then factorised once by SuperLU and stored in
-`FEMOperators.A_coupled_lu`. All forward and adjoint solves reuse this
-factorisation.
+By the Calderon identity, $({\tfrac{1}{2}M_b + K_h})\mathbf{1} \approx 0$, so
+$C_{\rm dense}\,\mathbf{1} \approx 0$ and $A_{\rm coupled}$ retains
+$\mathrm{span}\{\mathbf{1}\}$ as its null space. One scalar gauge condition is
+therefore required.
 
-### 6.3 Guarantees
+### 6.3 Gauge Choice: The Mean (Monopole) Condition
 
-Solving $A_{\rm coupled}\,\psi = -2M\kappa$ gives $\psi$ satisfying:
+The null space of $A_{\rm coupled}$ is exactly $\mathrm{span}\{\mathbf{1}\}$: adding any
+constant to $\psi$ leaves all shear components unchanged (second derivatives
+annihilate constants). This one-dimensional degeneracy is the discrete counterpart
+of the **mass-sheet degeneracy** — the physical freedom to add a uniform
+$\kappa_0$ to the convergence field.
+
+One might hope that the B-mode constraint $\gamma_B = 0$ could fix this
+degeneracy. It cannot. For any $\psi$, the B-mode curl condition
+$\partial_x\gamma_2 - \partial_y\gamma_1 = 0$ reduces to an identity via commutativity
+of mixed partial derivatives. Adding a constant to $\psi$ changes neither
+$\gamma_1$ nor $\gamma_2$, so the B-mode condition carries no information about
+the additive constant.
+
+FEMMI instead enforces the **mean gauge condition** $\int_\Omega \psi\,dA = 0$,
+discretized as $\mathbf{1}^\top\boldsymbol{\psi} = 0$, via a **bordered linear system**:
+
+$$\begin{pmatrix} A_{\rm coupled} & \mathbf{1} \\\ \mathbf{1}^\top & 0 \end{pmatrix} \begin{pmatrix} \boldsymbol{\psi} \\ \mu \end{pmatrix} = \begin{pmatrix} -2M\kappa \\ 0 \end{pmatrix}$$
+
+where $\mu$ is a Lagrange multiplier. This distributes the normalization
+constraint uniformly: no single node is pinned to an artificial value, so there
+is no localized $\psi$ error propagating into shear for neighboring nodes.
+Geometrically, this is a **monopole gauge** — it fixes the zeroth multipole
+moment of $\psi$ over $\Omega$ while leaving all higher moments free.
+
+The bordered system is factorized once by SuperLU and stored in
+`FEMOperators.A_bordered_lu` (shape $(n+1)\times(n+1)$). All forward and adjoint
+solves append a zero to the RHS and truncate the last component of the result:
+
+$$\boldsymbol{\psi} = \left[A_{\rm bordered}^{-1}\begin{pmatrix}-2M\kappa \\ 0\end{pmatrix}\right]_{1:n}$$
+
+### 6.4 Guarantees
+
+Solving the bordered system gives $\psi$ satisfying:
 1. $\nabla^2\psi = 2\kappa$ in $\Omega$
 2. $\nabla^2\psi = 0$ in $\Omega_{\rm ext}$ (encoded in the BEM Green's representation)
 3. $\psi \to 0$ as $|\mathbf{x}| \to \infty$ (the logarithmic representation decays correctly)
 4. $\psi$ and $\partial\psi/\partial n$ continuous across $\partial\Omega$
+5. $\int_\Omega \psi\,dA = 0$ (mean gauge, no localized pinning artifact)
 
 Uniqueness follows from **[C\&K \S3.3, Thm 3.12]**.
 
@@ -388,13 +421,13 @@ Both implemented in `operators.py`, `_assemble_shear_ops` and
 
 The complete map from $\kappa$ to $(\gamma_1, \gamma_2)$ is:
 
-$$\kappa \xrightarrow{-2M} \mathbf{f} \xrightarrow{A_{\rm coupled}^{-1}} \psi \xrightarrow{S} (\gamma_1, \gamma_2)$$
+$$\kappa \xrightarrow{-2M} \mathbf{f} \xrightarrow{A_{\rm bordered}^{-1}} \psi \xrightarrow{S} (\gamma_1, \gamma_2)$$
 
-Writing this as a single operator: $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$, where
+Writing this as a single operator: $F = S \cdot A_{\rm bordered}^{-1} \cdot (-2M)$, where
 $S = (S_1; S_2)$ stacks the two shear operators.
 
-In `operators.py`: `FEMOperators.psi_from_kappa` solves $A_{\rm coupled}\,\psi = -2M\kappa$
-(with gauge fix); `FEMOperators.shear_from_psi` applies $S_1$ and $S_2$.
+In `operators.py`: `FEMOperators.psi_from_kappa` solves the bordered system;
+`FEMOperators.shear_from_psi` applies $S_1$ and $S_2$.
 `FEMOperators.forward` chains both. The JAX-differentiable wrapper lives
 in `forward.py`, `DifferentiableForward`.
 
@@ -402,7 +435,7 @@ in `forward.py`, `DifferentiableForward`.
 
 $F$ is a compact operator from $L^2(\Omega)$ to $L^2(\Omega)^2$:
 - $-2M$ maps $L^2 \to H^1$ (integration gains smoothness)
-- $A_{\rm coupled}^{-1}$ maps $H^{-1} \to H^1$ (elliptic solve gains two derivatives)
+- $A_{\rm bordered}^{-1}$ maps $H^{-1} \to H^1$ (elliptic solve gains two derivatives)
 - $S$ maps $H^1 \to L^2$ (Hessian)
 - The embedding $H^1 \hookrightarrow L^2$ is compact by Rellich's theorem
 
@@ -411,12 +444,13 @@ Compactness is the mathematical reason the inverse problem is ill-posed
 
 ### 10.3 Injectivity and null space
 
-The FEM-BEM system has trivial null space. The boundary condition $\psi \to 0$
-at infinity (encoded by the BEM) fixes the absolute normalization of $\psi$,
-resolving the **mass sheet degeneracy**. Adding a uniform sheet $\kappa \to \kappa + c$
-changes $\mathbf{f} \to \mathbf{f} - 2Mc$, which changes $\psi$, which changes $\gamma$. The map $F$
-is injective in contrast to Kaiser-Squires, where the Fourier kernel
-vanishes at $\mathbf{k} = \mathbf{0}$.
+The FEM-BEM system with the mean gauge condition has trivial null space. The
+boundary condition $\psi \to 0$ at infinity (encoded by the BEM) fixes the
+far-field normalization of $\psi$, and the mean gauge $\int_\Omega\psi\,dA = 0$
+fixes the remaining additive constant. Adding a uniform sheet
+$\kappa \to \kappa + c$ changes $\mathbf{f} \to \mathbf{f} - 2Mc$, which changes $\psi$, which
+changes $\gamma$. The map $F$ is injective in contrast to Kaiser-Squires, where
+the Fourier kernel vanishes at $\mathbf{k} = \mathbf{0}$.
 
 ---
 
@@ -457,31 +491,31 @@ suppressed). This filter interpretation is discussed in **[C\&K \S10.2]**.
 
 ### 12.1 The adjoint of $F$
 
-Recall $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$. Using the symmetry of $M$ and $A_{\rm coupled}$,
-the $L^2$ adjoint is:
+Recall $F = S \cdot A_{\rm bordered}^{-1} \cdot (-2M)$. The $L^2$ adjoint is:
 
-$$F^* = (-2M)A_{\rm coupled}^{-T}S^\top$$
+$$F^* = (-2M)A_{\rm bordered}^{-T}S^\top$$
 
 ### 12.2 The gradient of the MAP loss
 
 Define residuals $r_a = S_a\psi - \gamma_{a,\rm obs}$. The gradient of
 $\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa$ is:
 
-$$\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4MA_{\rm coupled}^{-T}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\kappa$$
+$$\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4MA_{\rm bordered}^{-T}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\kappa$$
 
-The term $A_{\rm coupled}^{-T}(S_1^\top r_1 + S_2^\top r_2)$ is the **adjoint solve** using
-`trans='T'` in the SuperLU factorisation.
+The term $A_{\rm bordered}^{-T}(S_1^\top r_1 + S_2^\top r_2)$ is the **adjoint solve**
+using `trans='T'` on the bordered SuperLU factorization, with a zero appended
+to the RHS.
 
 Per-iteration algorithm in `inverse.py`, `MAPReconstructor._make_obj_and_grad`:
 
-1. Forward: $\mathbf{f} = -2M\kappa$ (gauge fix applied), solve $A_{\rm coupled}\psi = \mathbf{f}$, compute $\gamma_a = S_a\psi$
+1. Forward: $\mathbf{f} = -2M\kappa$, solve bordered system for $\psi$, compute $\gamma_a = S_a\psi$
 2. Residuals: $r_a = \gamma_a - \gamma_{a,\rm obs}$
 3. Loss: $\mathcal{L} = \sum_a\|r_a\|^2 + \lambda\kappa^\top R\kappa$
-4. Adjoint RHS: $\mathbf{q} = S_1^\top r_1 + S_2^\top r_2$ (gauge fix applied)
-5. Adjoint solve: $A_{\rm coupled}^{-T}\phi = \mathbf{q}$ via `A_lu.solve(..., trans='T')`
+4. Adjoint RHS: $\mathbf{q} = S_1^\top r_1 + S_2^\top r_2$
+5. Adjoint solve: $A_{\rm bordered}^{-T}\phi = (\mathbf{q}; 0)$ via bordered SuperLU with `trans='T'`
 6. Gradient: $\partial\mathcal{L}/\partial\kappa = -4M\phi + 2\lambda R\kappa$
 
-Total cost per iteration: **two $A_{\rm coupled}$ solves** (forward + adjoint),
+Total cost per iteration: **two bordered solves** (forward + adjoint),
 reusing the factored SuperLU object.
 
 ---
@@ -663,16 +697,26 @@ Shear involves $\nabla^2\psi$; the error in the piecewise Hessian is $O(h^{k-1})
 $O(h^4)$ $L^2$ convergence validated in `tests/test_convergence_p3.py`.
 $O(h^2)$ shear convergence (deep interior) validated in `tests/test_convergence.py`.
 
-### 18.3 $\psi$ convergence and BEM corner singularities
+### 18.3 $\psi$ convergence and domain geometry
 
-The $\psi$ (lensing potential) convergence rate is limited by the BEM treatment
-of the square domain corners. The logarithmic capacity of the unit square is
-approximately 0.59 (less than 1), making $V_h$ negative-definite on this domain ---
-mathematically correct and handled correctly by the current implementation.
-Square corners introduce reentrant singularities in the exterior solution with
-exponent $\pi/(2\pi - \pi/2) = 2/3$, capping the effective $\psi$ convergence at $O(h^{5/3})$
-regardless of P3 interior accuracy. Since $\psi$ is never directly observed (only
-the shear $\gamma = \partial^2\psi$ is), this is acceptable.
+The $\psi$ convergence rate depends critically on the geometry of $\partial\Omega$.
+
+**Square domain.** Square corners introduce reentrant singularities in the
+exterior solution with exponent $\pi/(2\pi - \pi/2) = 2/3$, capping the effective
+$\psi$ convergence at $O(h^{5/3})$ regardless of P3 interior accuracy. The
+logarithmic capacity of the unit square ($\approx 0.59 < 1$) makes $V_h$
+negative-definite on this domain — mathematically correct and handled correctly
+by the implementation.
+
+**Circular domain.** A circular $\partial\Omega$ has no corners and a smooth exterior
+solution, so no singularity exponent caps the convergence. The full P3 rate
+$O(h^4)$ in $L^2(\Omega)$ is recovered for $\psi$ as well. FEMMI supports both
+geometries via `build_operators(geometry='square')` (default) and
+`build_operators(geometry='circular', radius=R, n_boundary=N_b)`. Since $\psi$
+is never directly observed — only the shear $\gamma = \partial^2\psi$ enters the
+data — the $O(h^{5/3})$ cap on the square domain is acceptable for the
+inverse problem, but the circular domain is preferred when forward model
+fidelity matters.
 
 ### 18.4 The 64-bit requirement
 
