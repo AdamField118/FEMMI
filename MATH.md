@@ -597,9 +597,9 @@ coefficients plateau at the noise floor while $\sigma_i$ continues to decay.
 
 ### 15.4 The Picard Plot
 
-Plot $\log\sigma_i$, $\log|\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle|$, and
-$\log(|\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle|/\sigma_i)$ versus mode index $i$.
-If $\log|\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle|$ decays faster than $\log\sigma_i$, the Picard
+Plot $\log\sigma_i$, $\log\lvert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert$, and
+$\log(\vert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert / \sigma_i)$ versus mode index $i$.
+If $\log\lvert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert$ decays faster than $\log\sigma_i$, the Picard
 condition is satisfied. The crossover gives the effective noise cutoff.
 
 Implemented in `svd_analysis.py`, `picard_plot`.
