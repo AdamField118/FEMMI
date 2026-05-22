@@ -248,8 +248,10 @@ of mixed partial derivatives. Adding a constant to $\psi$ changes neither
 $\gamma_1$ nor $\gamma_2$, so the B-mode condition carries no information about
 the additive constant.
 
-A mean gauge condition $\mathbf{1}^\top\boldsymbol{\psi} = 0$ via a bordered system
+A mean gauge condition $\mathbf{1}^\top\boldsymbol{\psi} = 0$ via a bordered system 
+
 $$\begin{pmatrix}A & \mathbf{1}\\\mathbf{1}^\top & 0\end{pmatrix}$$ 
+
 is the mathematically cleanest fix, but fails in practice because $A_{\rm coupled}$ is
 **not symmetric** ($K_h$ is asymmetric). The Fredholm consistency condition
 requires the RHS to be orthogonal to the left null vector of $A_{\rm coupled}$,
@@ -257,8 +259,8 @@ which is not $\mathbf{1}$ when $A_{\rm coupled} \neq A_{\rm coupled}^\top$. The
 Lagrange multiplier $\mu$ then modifies the PDE rather than purely fixing the
 gauge, producing a 3.5% interior Poisson residual in tests.
 
-FEMMI instead uses a **single-node pin**: one boundary node $j^{*}$ has its
-row replaced by an identity row, forcing $\psi_{j^{*}} = 0$. The factored system
+FEMMI instead uses a **single-node pin**: one boundary node $j^{\ast}$ has its
+row replaced by an identity row, forcing $\psi_{j^{\ast}} = 0$. The factored system
 is stored in `FEMOperators.A_coupled_lu`. To prevent the artificially pinned
 value from contaminating shear at adjacent interior nodes (via the columns of
 $S_1$, $S_2$), those columns are zeroed after assembly:
@@ -321,7 +323,10 @@ Remaining edges follow by cyclic permutation of $\lambda_1, \lambda_2, \lambda_3
 
 Interior bubble: $N_9 = 27\lambda_1\lambda_2\lambda_3$.
 
-The basis satisfies $\sum_i N_i = 1$ (partition of unity) and $N_i(\mathbf{x}_{j}) = \delta_{ij}$
+The basis satisfies $\sum_i N_i = 1$ (partition of unity) and 
+
+$$N_i(\mathbf{x}_{j}) = \delta_{ij}$$ 
+
 (Kronecker delta). Validated in `tests/test_convergence_p3.py`.
 
 
@@ -466,7 +471,7 @@ prior. Existence, uniqueness, and convergence are established in
 - **Matern-Wiener ($R = M + \ell^2 K$):** Penalizes $\|\kappa\|^2 + \ell^2\|\nabla\kappa\|^2$. **Recommended.**
 
 The **Matern-Wiener prior** $R = M + \ell^2 K$ has Green's function
-$G(r) \approx e^{-r/\ell}$, a Matern- $ \frac{1}{2} $ covariance with correlation length $\ell$.
+$G(r) \approx e^{-r/\ell}$, a Matern-1/2 covariance with correlation length $\ell$.
 Setting $\ell = \sigma_{\rm lens}$ matches the prior to the expected spatial scale of $\kappa$.
 
 Assembled in `operators.py`, `build_wiener_regularizer`. Selected by
