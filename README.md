@@ -46,9 +46,9 @@ $$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\kappa^\t
 
 $\lambda$ is selected automatically by Brent's method on the discrepancy functional 
 
-$$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta \quad (\mathrm{Morozov\ 1966;\ C\&K\ Thm\ 10.4})$$ 
+$$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$$
 
-using 15–25 MAP solves. The gradient is computed via the adjoint: 
+(Morozov 1966; C&L Thm 10.4), using 15-25 MAP solves. The gradient is computed via the adjoint: 
 
 $$\partial\mathcal{L} / \partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
 
