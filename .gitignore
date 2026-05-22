@@ -1,5 +1,9 @@
 # Generated plots
 *.png
+!outputs/
+!outputs/fig_reconstruction.png
+!outputs/fig_masked.png
+!outputs/fig_convergence.png
 
 # Python build artifacts
 *.egg-info/

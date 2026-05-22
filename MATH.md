@@ -717,12 +717,9 @@ by the implementation.
 
 **Circular domain.** A circular $\partial\Omega$ has no corners and a smooth exterior
 solution, so no singularity exponent caps the convergence. The full P3 rate
-$O(h^4)$ in $L^2(\Omega)$ is recovered for $\psi$ as well. FEMMI supports both
-geometries via `build_operators(geometry='square')` (default) and
-`build_operators(geometry='circular', radius=R, n_boundary=N_b)`. Since $\psi$
-is never directly observed — only the shear $\gamma = \partial^2\psi$ enters the
-data — the $O(h^{5/3})$ cap on the square domain is acceptable for the
-inverse problem, but the circular domain is preferred when forward model
+$O(h^4)$ in $L^2(\Omega)$ is recovered for $\psi$ as well. The circular domain is the preferred geometry for production runs; a complete
+implementation is in progress. Since $\psi$ is never directly observed — only the shear $\gamma = \partial^2\psi$ enters the
+data — the $O(h^{5/3})$ cap on the square domain is acceptable for the inverse problem, but the circular domain is preferred when forward model
 fidelity matters.
 
 ### 18.4 The 64-bit requirement
