@@ -454,7 +454,7 @@ the Fourier kernel vanishes at $\mathbf{k} = \mathbf{0}$.
 
 Tikhonov regularization replaces the ill-posed problem $F\kappa = \gamma_{\rm obs}$ with:
 
-$$\kappa_\lambda = \arg\min_{\kappa} \lbraces\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \rbraces\}$$
+$$\kappa_\lambda = \arg\min_{\kappa} \lbrace\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \rbrace\}$$
 
 This is exactly the **MAP estimator** with Gaussian likelihood and Gaussian
 prior. Existence, uniqueness, and convergence are established in
