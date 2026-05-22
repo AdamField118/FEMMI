@@ -10,7 +10,6 @@ each formula.
 > Colton, D. & Kress, R. (2013). *Inverse Acoustic and Electromagnetic
 > Scattering Theory*, 3rd ed. Springer.
 
----
 
 ## Table of Contents
 
@@ -33,7 +32,6 @@ each formula.
 17. [The Linear Sampling Method](#17-the-linear-sampling-method)
 18. [Convergence Theory](#18-convergence-theory)
 
----
 
 ## 1. Weak Lensing Forward Physics
 
@@ -58,7 +56,7 @@ $$\gamma_1 = \frac{1}{2}\left(\frac{\partial^2\psi}{\partial x^2} - \frac{\parti
 This is the **fundamental reason P3 elements are necessary**: computing $\gamma$
 requires second derivatives of $\psi$. P1 (linear) elements have identically zero
 second derivatives. P2 (quadratic) elements have piecewise-constant second
-derivatives --- no convergence with refinement. P3 (cubic) elements have
+derivatives, giving no convergence with refinement. P3 (cubic) elements have
 piecewise-linear second derivatives, giving $O(h^2)$ convergence for $\gamma$.
 
 ### 1.3 The Green's Function and Exact Solution
@@ -69,13 +67,12 @@ $$G(\mathbf{x}, \mathbf{y}) = \frac{1}{2\pi} \ln|\mathbf{x} - \mathbf{y}|$$
 
 The exact solution on $\mathbb{R}^2$ satisfying $\psi \to 0$ at infinity is the volume potential:
 
-$$\psi(\mathbf{x}) = \frac{1}{\pi}\int_{\mathbb{R}^2} \ln|\mathbf{x} - \mathbf{y}|\,\kappa(\mathbf{y})\,d^2y$$
+$$\psi(\mathbf{x}) = \frac{1}{\pi}\int_{\mathbb{R}^2} \ln|\mathbf{x} - \mathbf{y}|\kappa(\mathbf{y})d^2y$$
 
 The properties of such fundamental solutions are developed in **[C\&K \S2.1]**.
 Under the **compact support assumption** ($\kappa = 0$ outside bounded $\Omega$), this is
 equivalent to the FEM-BEM formulation derived in Sections 3--6.
 
----
 
 ## 2. Why Naive Dirichlet Boundary Conditions Fail
 
@@ -105,7 +102,6 @@ is therefore violated. FEMMI's FEM-BEM coupling enforces this condition exactly
 by retaining the Neumann stiffness (no boundary row modification) and coupling
 to the exterior via BEM.
 
----
 
 ## 3. Domain Decomposition and Transmission Conditions
 
@@ -132,7 +128,6 @@ $$\left[\frac{\partial\psi}{\partial n}\right]_{\partial\Omega} = 0 \qquad \text
 
 where $\mathbf{n}$ is the outward unit normal to $\Omega$.
 
----
 
 ## 4. FEM Interior: The Weak Form with Boundary Flux Terms
 
@@ -156,14 +151,13 @@ boundary basis $\{M_k\}$:
 
 $$K\boldsymbol{\psi} = -2M\boldsymbol{\kappa} + Bt$$
 
-where $K_{ij} = \int \nabla N_i \cdot \nabla N_j\,dA$ (stiffness), $M_{ij} = \int N_i N_j\,dA$ (mass),
-$B_{ik} = \oint N_i M_k\,ds$ (boundary coupling). The **Neumann stiffness matrix**
+where $K_{ij} = \int \nabla N_i \cdot \nabla N_jdA$ (stiffness), $M_{ij} = \int N_i N_jdA$ (mass),
+$B_{ik} = \oint N_i M_kds$ (boundary coupling). The **Neumann stiffness matrix**
 $K$ is assembled **without modifying boundary rows**. Its null space is
 $\mathrm{span}\{\mathbf{1}\}$ (constant functions); the BEM coupling and gauge fix remove this.
 
 Assembled in `operators.py`, function `_assemble_operators_from_mesh`.
 
----
 
 ## 5. BEM Exterior: The Boundary Integral Equation
 
@@ -209,7 +203,6 @@ Diagonal blocks of $V_h$ require logarithmic-singular integrals; FEMMI uses
 Gauss-Jacobi quadrature with weight $w(t) = -\ln(t)$ via `log_gauss_jacobi_points`
 in `bem.py` (25 points, relative error $< 10^{-12}$).
 
----
 
 ## 6. FEM-BEM Coupling: The Correct System
 
@@ -236,7 +229,7 @@ The dense Calderon matrix $C = V_h^{-1}(\tfrac{1}{2}M_b + K_h)$ is stored in
 `K[bnd_idx, bnd_idx] += C_dense` produces $A_{\rm coupled}$ as a sparse CSR matrix.
 
 By the Calderon identity, $({\tfrac{1}{2}M_b + K_h})\mathbf{1} \approx 0$, so
-$C_{\rm dense}\,\mathbf{1} \approx 0$ and $A_{\rm coupled}$ retains
+$C_{\rm dense}\mathbf{1} \approx 0$ and $A_{\rm coupled}$ retains
 $\mathrm{span}\{\mathbf{1}\}$ as its null space. One scalar gauge condition is
 therefore required.
 
@@ -289,7 +282,6 @@ Solving the gauged system gives $\psi$ satisfying:
 
 Uniqueness follows from **[C\&K \S3.3, Thm 3.12]**.
 
----
 
 ## 7. P3 Cubic Basis Functions
 
@@ -332,7 +324,6 @@ Interior bubble: $N_9 = 27\lambda_1\lambda_2\lambda_3$.
 The basis satisfies $\sum_i N_i = 1$ (partition of unity) and $N_i(\mathbf{x}_j) = \delta_{ij}$
 (Kronecker delta). Validated in `tests/test_convergence_p3.py`.
 
----
 
 ## 8. Element Matrix Assembly
 
@@ -350,7 +341,7 @@ Because the map is affine, $J$ is **constant over each element**.
 
 The element stiffness matrix:
 
-$$K^e_{ij} = \int_T \nabla N_i \cdot \nabla N_j\,dA = |T|\sum_q w_q(\nabla_{\mathbf{x}}N_i)_q \cdot (\nabla_{\mathbf{x}}N_j)_q$$
+$$K^e_{ij} = \int_T \nabla N_i \cdot \nabla N_jdA = |T|\sum_q w_q(\nabla_{\mathbf{x}}N_i)_q \cdot (\nabla_{\mathbf{x}}N_j)_q$$
 
 Gradient transformation: $\nabla_x N = J^{-T} \nabla_\xi N$. $K$ is assembled **without
 modifying boundary rows** (Neumann stiffness). The previous Dirichlet BC
@@ -369,7 +360,6 @@ The load integrand $N_i N_j$ has degree 6 (cubic $\times$ cubic), requiring a
 degree-6-exact quadrature rule, hence the **13-point Dunavant degree-7 rule**
 in `assembly.py`, `get_gauss_quadrature_triangle(order=5)`.
 
----
 
 ## 9. Shear Operators $S_1$ and $S_2$
 
@@ -419,7 +409,6 @@ S1_lil[boundary, :] = 0;  S2_lil[boundary, :] = 0
 Both implemented in `operators.py`, `_assemble_shear_ops` and
 `_assemble_operators_from_mesh`.
 
----
 
 ## 10. The Complete Forward Operator $F$
 
@@ -458,7 +447,6 @@ $\kappa \to \kappa + c$ changes $\mathbf{f} \to \mathbf{f} - 2Mc$, which changes
 changes $\gamma$. The map $F$ is injective in contrast to Kaiser-Squires, where
 the Fourier kernel vanishes at $\mathbf{k} = \mathbf{0}$.
 
----
 
 ## 11. MAP Reconstruction and Tikhonov Regularization
 
@@ -466,7 +454,7 @@ the Fourier kernel vanishes at $\mathbf{k} = \mathbf{0}$.
 
 Tikhonov regularization replaces the ill-posed problem $F\kappa = \gamma_{\rm obs}$ with:
 
-$$\kappa_\lambda = \underset{\kappa}{\text{argmin}} \left\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \right\}$$
+$$\kappa_\lambda = \arg\min_{\kappa} \Bigl\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \Bigr\}$$
 
 This is exactly the **MAP estimator** with Gaussian likelihood and Gaussian
 prior. Existence, uniqueness, and convergence are established in
@@ -491,7 +479,6 @@ $\approx 1/\sigma$ for $\sigma \gg \sqrt{\lambda}$
 (large modes recovered accurately) and $\approx \sigma/\lambda$ for $\sigma \ll \sqrt{\lambda}$ (small modes
 suppressed). This filter interpretation is discussed in **[C\&K \S10.2]**.
 
----
 
 ## 12. The Adjoint Gradient
 
@@ -525,7 +512,6 @@ Per-iteration algorithm in `inverse.py`, `MAPReconstructor._make_obj_and_grad`:
 Total cost per iteration: **two $A_{\rm coupled}$ solves** (forward + adjoint),
 reusing the factored SuperLU object.
 
----
 
 ## 13. Regularization Parameter Selection: Morozov's Principle
 
@@ -555,7 +541,6 @@ $$\delta = 1.4826 \cdot \mathrm{median}\left(|\gamma - \mathrm{median}(\gamma)|\
 
 `MorozovSelector` also provides `lcurve` for diagnostic plotting.
 
----
 
 ## 14. The Inverse Scattering Connection
 
@@ -582,7 +567,6 @@ Since $F$ is compact (**[C\&K \S10.1]**):
 2. **Range condition.** $F\kappa = \gamma_{\rm obs}$ has a solution only if $\gamma_{\rm obs}$ satisfies the Picard condition (Section 15.3).
 3. **Regularization is necessary.** No bounded linear inversion can recover $\kappa$ stably for all right-hand sides.
 
----
 
 ## 15. SVD, Ill-Posedness, and the Picard Condition
 
@@ -620,7 +604,6 @@ condition is satisfied. The crossover gives the effective noise cutoff.
 
 Implemented in `svd_analysis.py`, `picard_plot`.
 
----
 
 ## 16. The Factorization Method for Support Recovery
 
@@ -652,7 +635,6 @@ Indicator evaluated in `FactorizationIndicator.indicator_map`.
 The probe function approximates $\Phi_\mathbf{z}$ by concentrating a unit mass at the
 nearest mesh node, weighted by the diagonal mass matrix entry $M_{jj}$.
 
----
 
 ## 17. The Linear Sampling Method
 
@@ -672,7 +654,6 @@ The support indicator is $\mathcal{I}(\mathbf{z}) = 1/\|g_\mathbf{z}^\alpha\|$, 
 
 Implemented in `svd_analysis.py`, `LinearSamplingIndicator.indicator_map`.
 
----
 
 ## 18. Convergence Theory
 
@@ -726,11 +707,10 @@ fidelity matters.
 
 The condition number of $A_{\rm coupled}$ satisfies $\kappa(A_{\rm coupled}) = O(h^{-2})$. For a
 $20 \times 20$ mesh, $\kappa \approx O(1600)$. In 32-bit arithmetic ($\varepsilon_{32} \approx 6 \times 10^{-8}$), solve
-errors are $O(\kappa\,\varepsilon_{32}) \approx 2 \times 10^{-5}$, dominating the discretization error $h^4 \approx
+errors are $O(\kappa\varepsilon_{32}) \approx 2 \times 10^{-5}$, dominating the discretization error $h^4 \approx
 6 \times 10^{-6}$ for P3 elements. All FEMMI modules enforce 64-bit via
 `jax.config.update("jax_enable_x64", True)` at import in `femmi/__init__.py`.
 
----
 
 ## References
 

@@ -1,4 +1,4 @@
-# FEMMI — Finite Element Mass Map Inversion
+# FEMMI , Finite Element Mass Map Inversion
 
 Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and inverse-scattering support recovery.
 
@@ -12,7 +12,7 @@ $$\nabla^2\psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi(\boldsymbol{
 
 with shear components
 
-$$\gamma_1 = \tfrac{1}{2}\!\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \,\partial\theta_2}.$$
+$$\gamma_1 = \tfrac{1}{2}\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \partial\theta_2}.$$
 
 The central methodological claim is that the standard practice of truncating this problem to a finite domain with Dirichlet boundary conditions ($\psi = 0$ on $\partial\Omega$) encodes the wrong continuous operator: the true $\psi$ decays only logarithmically and is nonzero at any finite boundary. The resulting systematic error propagates throughout the interior by the maximum principle. FEMMI replaces this with an exact exterior representation via boundary elements, enforcing the correct far-field condition without approximation.
 
@@ -34,15 +34,15 @@ Full derivations are in [`MATH.md`](MATH.md). The key ideas:
 
 **FEM-BEM coupling.** A P3 FEM interior solves $\nabla^2\psi = 2\kappa$ in $\Omega$ while a boundary element method encodes $\nabla^2\psi = 0$ in the exterior and $\psi \to 0$ at infinity. The coupled stiffness matrix is assembled via Schur complement reduction:
 
-$$A_{\mathrm{coupled}} = K + P^\top C\, P, \qquad C = V_h^{-1}\!\left(\tfrac{1}{2}M_b + K_h\right),$$
+$$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = V_h^{-1}\left(\tfrac{1}{2}M_b + K_h\right),$$
 
 where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, and $P$ the DOF restriction to $\partial\Omega$. This is the Johnson-Nédélec monolithic coupling. The Calderon preconditioner $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
 
-**Why P3 elements.** Shear is the Hessian of $\psi$: $\gamma_1 = \frac{1}{2}(\partial^2\psi/\partial x^2 - \partial^2\psi/\partial y^2)$, $\gamma_2 = \partial^2\psi/\partial x\,\partial y$. P1 elements give identically zero second derivatives; P2 gives piecewise-constant second derivatives with no convergence. P3 gives piecewise-linear second derivatives and $O(h^2)$ shear convergence. The 10-node P3 Lagrange element used here achieves $O(h^4)$ in $L^2$ for the Poisson solve.
+**Why P3 elements.** Shear is the Hessian of $\psi$: $\gamma_1 = \frac{1}{2}(\partial^2\psi/\partial x^2 - \partial^2\psi/\partial y^2)$, $\gamma_2 = \partial^2\psi/\partial x\partial y$. P1 elements give identically zero second derivatives; P2 gives piecewise-constant second derivatives with no convergence. P3 gives piecewise-linear second derivatives and $O(h^2)$ shear convergence. The 10-node P3 Lagrange element used here achieves $O(h^4)$ in $L^2$ for the Poisson solve.
 
 **MAP reconstruction.** The estimate minimises
 
-$$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\,\kappa^\top R\,\kappa, \qquad R = M + \ell^2 K \;\text{(Matérn-}\tfrac{1}{2}\text{ prior)}.$$
+$$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\kappa^\top R\kappa, \qquad R = M + \ell^2 K \text{(Matérn-}\tfrac{1}{2}\text{ prior)}.$$
 
 $\lambda$ is selected automatically by Brent's method on the discrepancy functional $D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$ (Morozov 1966; C&K Thm 10.4), using 15–25 MAP solves. The gradient is computed via the adjoint: $\partial\mathcal{L}/\partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa$.
 
@@ -122,7 +122,7 @@ pip install -e ".[dev]"
 
 **Requirements:** Python 3.10+, JAX >= 0.4, SciPy >= 1.11, NumPy >= 1.25, matplotlib.
 
-**64-bit arithmetic is mandatory.** FEMMI enforces this at import time via `jax.config.update("jax_enable_x64", True)`. For a $20\times20$ mesh, $\kappa(A_{\mathrm{coupled}}) = O(1600)$; in 32-bit the solve error $O(\kappa\,\varepsilon_{32}) \approx 2\times10^{-5}$ dominates the P3 discretisation error $h^4 \approx 6\times10^{-6}$.
+**64-bit arithmetic is mandatory.** FEMMI enforces this at import time via `jax.config.update("jax_enable_x64", True)`. For a $20\times20$ mesh, $\kappa(A_{\mathrm{coupled}}) = O(1600)$; in 32-bit the solve error $O(\kappa\varepsilon_{32}) \approx 2\times10^{-5}$ dominates the P3 discretisation error $h^4 \approx 6\times10^{-6}$.
 
 ---
 
@@ -184,11 +184,11 @@ W         = fi.indicator_map(test_pts).reshape(64, 64)  # large inside supp(kapp
 
 **Forward solve** (two SuperLU solves per MAP iteration):
 
-$$\mathbf{f} = -2M\kappa, \qquad A_{\mathrm{coupled}}\,\psi = \mathbf{f}, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
+$$\mathbf{f} = -2M\kappa, \qquad A_{\mathrm{coupled}}\psi = \mathbf{f}, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
 
 **Adjoint gradient** (for L-BFGS):
 
-$$\mathbf{r} = (\gamma_1 - \gamma_{1,\mathrm{obs}},\; \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
+$$\mathbf{r} = (\gamma_1 - \gamma_{1,\mathrm{obs}}, \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
 
 **Morozov $\lambda$ selection:** Brent root-finding on $D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$, typically 15–25 forward solves.
 
@@ -213,7 +213,7 @@ $$\mathbf{r} = (\gamma_1 - \gamma_{1,\mathrm{obs}},\; \gamma_2 - \gamma_{2,\math
 | $8 \to 14$ | $\approx 2.0$ | $O(h^2)$ |
 | $14 \to 32$ | $\approx 2.0$ | $O(h^2)$ |
 
-The $\psi$ convergence rate is capped at $O(h^{5/3})$ on square domains due to reentrant corner singularities in the exterior BEM solution (singularity exponent $2/3$ from the $270^\circ$ exterior angle). Since $\psi$ is never directly observed — only the shear $\gamma = \nabla^2\psi$ enters the data — this cap does not degrade reconstruction quality.
+The $\psi$ convergence rate is capped at $O(h^{5/3})$ on square domains due to reentrant corner singularities in the exterior BEM solution (singularity exponent $2/3$ from the $270^\circ$ exterior angle). Since $\psi$ is never directly observed (only the shear $\gamma = \nabla^2\psi$ enters the data), this cap does not degrade reconstruction quality.
 
 ---
 
