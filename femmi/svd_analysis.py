@@ -171,6 +171,12 @@ def _probe_function(ops, z):
     n         = ops.n_nodes
     M, S1, S2 = ops.M, ops.S1, ops.S2
 
+    j    = int(np.argmin(np.sum((nodes - np.asarray(z)[None, :2])**2, axis=1)))
+    m_jj = float(M[j, j])
+
+    kappa_delta    = np.zeros(n)
+    kappa_delta[j] = 1.0 / m_jj if m_jj > 1e-20 else 1.0
+
     psi = ops._solve_psi(-2.0 * M @ kappa_delta)
     return np.concatenate([S1 @ psi, S2 @ psi])
 

@@ -14,17 +14,15 @@ from typing import Tuple
 from .operators import FEMOperators, build_operators, build_laplacian
 
 
-def _make_fem_solve(A_bordered_lu, n_nodes):
-    """Return a JAX-traceable bordered solve with custom VJP."""
+def _make_fem_solve(K_lu, boundary, n_nodes):
+    """Return a JAX-traceable solve for K x = b with custom VJP."""
     shape_struct = jax.ShapeDtypeStruct((n_nodes,), jnp.float64)
 
     def _solve_np(b):
-        rhs_b = np.append(np.array(b, dtype=np.float64), 0.0)
-        return A_bordered_lu.solve(rhs_b)[:n_nodes]
+        return K_lu.solve(np.array(b, dtype=np.float64))
 
     def _solve_np_T(b):
-        rhs_b = np.append(np.array(b, dtype=np.float64), 0.0)
-        return A_bordered_lu.solve(rhs_b, trans='T')[:n_nodes]
+        return K_lu.solve(np.array(b, dtype=np.float64), trans='T')
 
     @jax.custom_vjp
     def fem_solve(b):
@@ -40,6 +38,7 @@ def _make_fem_solve(A_bordered_lu, n_nodes):
 
     fem_solve.defvjp(fem_solve_fwd, fem_solve_bwd)
     return fem_solve
+
 
 def _make_matvec(A_np, n_nodes):
     """Return a JAX-traceable y = A x with custom VJP."""
@@ -82,14 +81,16 @@ class DifferentiableForward:
         L = build_laplacian(ops)
         n = ops.n_nodes
 
-        self._fem_solve = _make_fem_solve(ops.A_bordered_lu, n)
+        self._fem_solve = _make_fem_solve(ops.A_coupled_lu, ops.boundary, n)
         self._M_mv      = _make_matvec(ops.M,  n)
         self._S1_mv     = _make_matvec(ops.S1, n)
         self._S2_mv     = _make_matvec(ops.S2, n)
         self._L_mv      = _make_matvec(L,       n)
 
     def rhs_from_kappa(self, kappa):
-        return -2.0 * self._M_mv(kappa)
+        rhs = -2.0 * self._M_mv(kappa)
+        idx = int(self.ops.bnd_mesh.node_indices[0])
+        return rhs.at[idx].set(0.0)
 
     def psi_from_kappa(self, kappa):
         return self._fem_solve(self.rhs_from_kappa(kappa))
