@@ -1,4 +1,4 @@
-# FEMMI , Finite Element Mass Map Inversion
+# FEMMI: Finite Element Mass Map Inversion
 
 Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and inverse-scattering support recovery.
 
