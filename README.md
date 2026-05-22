@@ -44,7 +44,13 @@ where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the si
 
 $$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\kappa^\top R\kappa, \qquad R = M + \ell^2 K \text{(Matérn-}\tfrac{1}{2}\text{ prior)}.$$
 
-$\lambda$ is selected automatically by Brent's method on the discrepancy functional $D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$ (Morozov 1966; C&K Thm 10.4), using 15–25 MAP solves. The gradient is computed via the adjoint: $\partial\mathcal{L}/\partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa$.
+$\lambda$ is selected automatically by Brent's method on the discrepancy functional 
+
+$$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta \quad \text{(Morozov 1966; C&K Thm 10.4),}$$ 
+
+using 15–25 MAP solves. The gradient is computed via the adjoint: 
+
+$$\partial\mathcal{L} / \partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
 
 **Injectivity and the mass-sheet degeneracy.** The BEM far-field normalization fixes the $\kappa \to \kappa + c$ degeneracy present in all FFT-based methods: the forward operator $F$ is injective, so the MAP problem has a unique solution. A single-node gauge condition removes the remaining scalar null space (the additive constant in $\psi$).
 
