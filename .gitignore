@@ -5,6 +5,15 @@
 !outputs/fig_masked.png
 !outputs/fig_convergence.png
 
+# Paper
+*.log
+*.aux
+*.out
+*.tex
+*.cls
+*.bst
+*.bib
+
 # Python build artifacts
 *.egg-info/
 __pycache__/
