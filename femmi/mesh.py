@@ -19,8 +19,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from scipy.spatial import Delaunay
-from .types import Mesh
+from scipy.spatial import Delaunay, cKDTree
+from .types import Mesh, CatalogMesh
 
 
 def _elevate_to_p3(vertices, p1_elements, xmin, xmax, ymin, ymax):
@@ -318,3 +318,129 @@ def visualize_p3_mesh(mesh, filename='p3_mesh_structure.png', show_nodes=True):
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches='tight')
     plt.close()
+    
+def _dedup_indices(xy, radius):
+    """Indices of points kept after merging any pair closer than `radius`."""
+    if radius is None or radius <= 0 or len(xy) < 2:
+        return np.arange(len(xy))
+    pairs = cKDTree(xy).query_pairs(radius, output_type='ndarray')
+    if len(pairs) == 0:
+        return np.arange(len(xy))
+    remove = set(int(j) for j in pairs[:, 1])
+    return np.array([i for i in range(len(xy)) if i not in remove], dtype=int)
+
+
+def min_triangle_angle(mesh):
+    """
+    Smallest interior angle (degrees) over all triangles, from the vertex nodes.
+
+    A mesh-quality diagnostic. Raw galaxy positions give slivers (small angles),
+    which degrade the P3 nodal-Hessian shear operator. Use to decide dedup_radius
+    or to flag a problematic field.
+    """
+    nd = np.array(mesh.nodes)
+    el = np.array(mesh.elements)
+    p0, p1, p2 = nd[el[:, 0]], nd[el[:, 1]], nd[el[:, 2]]
+    out = np.inf
+    for a, b, c in ((p0, p1, p2), (p1, p2, p0), (p2, p0, p1)):
+        u = b - a
+        v = c - a
+        cos = np.sum(u * v, axis=1) / (np.linalg.norm(u, axis=1) *
+                                       np.linalg.norm(v, axis=1) + 1e-30)
+        out = min(out, float(np.degrees(np.arccos(np.clip(cos, -1, 1))).min()))
+    return out
+
+
+def generate_p3_catalog_mesh(x, y, center=None, radius=None, pad=0.15,
+                             n_boundary=96, dedup_radius=None,
+                             guard_ring=True, verbose=True):
+    """
+    Build a P3 mesh with FEM nodes at galaxy positions (catalog-native),
+    enclosed by a clean circular boundary ring for the BEM coupling.
+
+    Galaxies become interior vertices. A regularly spaced outer ring of
+    n_boundary vertices (forced to a multiple of 3, so the P3 boundary has
+    3*n_boundary DOFs) supplies the far-field boundary. The ring is the convex
+    hull, so Delaunay includes every consecutive ring edge; an optional guard
+    ring fills near-boundary voids so no chord between ring vertices can become
+    a Delaunay edge (which would break the divisible-by-3 boundary).
+
+    Parameters
+    ----------
+    x, y         : galaxy positions in the flat (x, y) frame (e.g. arcmin).
+    center       : ring centre. Default: galaxy centroid. For a FlatCatalog,
+                   pass center=(0.0, 0.0) (the tangent point is the origin).
+    radius       : ring radius. Default: max galaxy radius * (1 + pad).
+    n_boundary   : ring vertex count (forced down to a multiple of 3).
+    dedup_radius : merge galaxies closer than this. Default: 1/4 median NN spacing.
+    guard_ring   : add interior guard points in near-boundary voids (recommended).
+
+    Returns
+    -------
+    CatalogMesh
+    """
+    xy = np.column_stack([np.asarray(x, np.float64), np.asarray(y, np.float64)])
+    n_in = len(xy)
+    if center is None:
+        center = (float(xy[:, 0].mean()), float(xy[:, 1].mean()))
+    cx, cy = center
+
+    if dedup_radius is None:
+        d, _ = cKDTree(xy).query(xy, k=2)
+        dedup_radius = 0.25 * float(np.median(d[:, 1]))
+    keep = _dedup_indices(xy, dedup_radius)
+    xy_k = xy[keep]
+
+    r = np.hypot(xy_k[:, 0] - cx, xy_k[:, 1] - cy)
+    rmax = float(r.max())
+    if radius is None:
+        radius = rmax * (1.0 + pad)
+    inside = r < radius * (1.0 - 1e-9)
+    keep = keep[inside]
+    xy_k = xy_k[inside]
+    n_gal = len(xy_k)
+
+    nb = max(12, int(n_boundary) - int(n_boundary) % 3)
+    ang = np.linspace(0.0, 2.0 * np.pi, nb, endpoint=False)
+    ring = np.column_stack([cx + radius * np.cos(ang), cy + radius * np.sin(ang)])
+    seg = 2.0 * np.pi * radius / nb
+
+    guard = np.empty((0, 2))
+    if guard_ring:
+        gr = radius - seg
+        ga = np.linspace(0.0, 2.0 * np.pi, nb, endpoint=False) + np.pi / nb
+        gpts = np.column_stack([cx + gr * np.cos(ga), cy + gr * np.sin(ga)])
+        if n_gal > 0:
+            dmin, _ = cKDTree(xy_k).query(gpts, k=1)
+            gpts = gpts[dmin > 0.5 * seg]
+        guard = gpts
+    n_guard = len(guard)
+
+    all_pts = np.vstack([xy_k, guard, ring])
+    is_bnd = np.zeros(len(all_pts), dtype=bool)
+    is_bnd[n_gal + n_guard:] = True
+
+    tri = Delaunay(all_pts)
+    simp = tri.simplices.copy()
+    v0, v1, v2 = all_pts[simp[:, 0]], all_pts[simp[:, 1]], all_pts[simp[:, 2]]
+    cross = ((v1[:, 0] - v0[:, 0]) * (v2[:, 1] - v0[:, 1]) -
+             (v1[:, 1] - v0[:, 1]) * (v2[:, 0] - v0[:, 0]))
+    simp[cross < 0] = simp[cross < 0][:, [0, 2, 1]]
+    simp = simp[np.abs(cross) > 1e-15]
+
+    mesh = _elevate_to_p3_circular(all_pts, simp, is_bnd)
+    nbd = len(np.array(mesh.boundary))
+    if nbd % 3 != 0:
+        raise ValueError(
+            f"catalog mesh boundary N_b={nbd} not divisible by 3; a near-"
+            f"boundary void likely produced a chord between ring vertices. "
+            f"Increase n_boundary or keep guard_ring=True.")
+
+    if verbose:
+        print(f"  catalog mesh: {n_in} in -> {n_gal} galaxy nodes "
+              f"({n_in - n_gal} deduped/outside), {n_guard} guard, "
+              f"ring={nb}, N_b={nbd}, {len(np.array(mesh.nodes))} total nodes")
+
+    return CatalogMesh(mesh=mesh, galaxy_nodes=np.arange(n_gal, dtype=int),
+                       source_index=keep, center=center, radius=radius,
+                       n_guard=n_guard)

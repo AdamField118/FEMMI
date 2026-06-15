@@ -34,6 +34,19 @@ from .bem import (
     calderon_matrix,
 )
 
+from .io import (
+    ShearCatalog,
+    FlatCatalog,
+    read_fits_catalog,
+    apply_response,
+    clean_catalog,
+    gnomonic_project,
+    gnomonic_deproject,
+    projection_rotation,
+    rotate_shear,
+    tangential_cross_shear,
+)
+
 _JAX_AVAILABLE = False
 try:
     import jax as _jax
@@ -82,6 +95,16 @@ __all__ = [
     "assemble_boundary_mass",
     "assemble_bem_matrices",
     "calderon_matrix",
+    "ShearCatalog",
+    "FlatCatalog",
+    "read_fits_catalog",
+    "apply_response",
+    "clean_catalog",
+    "gnomonic_project",
+    "gnomonic_deproject",
+    "projection_rotation",
+    "rotate_shear",
+    "tangential_cross_shear",
 ]
 
 __version__ = "0.1.0"

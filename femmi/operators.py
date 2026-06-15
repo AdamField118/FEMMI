@@ -20,7 +20,9 @@ from .mesh import generate_p3_structured_mesh, generate_p3_adaptive_mesh
 from .basis import compute_p3_shape_functions, compute_p3_shape_gradients_reference
 from .assembly import get_gauss_quadrature_triangle
 from .types import Mesh
-from .bem import extract_boundary_edges, assemble_bem_matrices
+from .bem import (extract_boundary_edges,
+                  extract_boundary_edges_circular,
+                  assemble_bem_matrices)
 
 
 _P3_REF_NODES = np.array([
@@ -349,3 +351,27 @@ def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.
     mesh = generate_p3_circular_mesh(radius=radius, n_boundary=n_boundary, n_rings=n_rings, center=center, verbose=verbose)
     return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0,
                                          boundary_extractor=lambda m: extract_boundary_edges_circular(m, center=center, radius=radius))
+                                         
+def build_operators_catalog(x, y, center=None, radius=None, pad=0.15,
+                            n_boundary=96, dedup_radius=None, guard_ring=True,
+                            verbose=True):
+    """
+    Build FEM-BEM operators on a catalog-native P3 mesh (nodes at galaxy
+    positions, clean circular far-field boundary).
+
+    Returns (ops, catalog_mesh): FEMOperators plus the CatalogMesh carrying
+    galaxy_nodes / source_index so observed shear can be placed on the right
+    nodes. For a FlatCatalog `flat`, call with (flat.x, flat.y, center=(0., 0.)).
+    """
+    from .mesh import generate_p3_catalog_mesh
+
+    t0 = time.perf_counter()
+    cm = generate_p3_catalog_mesh(
+        x, y, center=center, radius=radius, pad=pad, n_boundary=n_boundary,
+        dedup_radius=dedup_radius, guard_ring=guard_ring, verbose=verbose)
+    ctr, rad = cm.center, cm.radius
+    ops = _assemble_operators_from_mesh(
+        cm.mesh, verbose=verbose, t0=t0,
+        boundary_extractor=lambda m: extract_boundary_edges_circular(
+            m, center=ctr, radius=rad))
+    return ops, cm
