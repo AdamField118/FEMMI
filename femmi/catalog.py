@@ -337,12 +337,21 @@ def load_frontier_model(data_dir, source="psi", pixscale_arcsec=None,
 
 
 def field_to_catalog(field, n_gal=3000, shape_noise=0.05, rmax_arcmin=None,
-                     seed=0):
+                     kappa_max=1.0, reduced_shear=False, seed=0):
     """
     Sample a gridded shear field (from load_frontier_model) at random points to
     emulate a galaxy catalog: irregular positions, interpolated shear, optional
     shape noise, and the local convergence truth. Returns a dict compatible with
     reconstruct_catalog / run_head_to_head (x, y, g1, g2, weight, kappa_true).
+
+    kappa_max     : drop galaxies where the model kappa exceeds this (the
+        strong-lensing / multiple-image core, where the weak-shear approximation
+        that both FEMMI and KS assume is invalid). None keeps everything.
+        Real background sources are also not observed through the cluster core.
+    reduced_shear : emit the observable reduced shear g = gamma / (1 - kappa)
+        instead of gamma. More physical, but only meaningful once the kappa>~1
+        core is excluded (it diverges at kappa = 1).
+    rmax_arcmin   : also restrict to a central radius.
     """
     rng = np.random.default_rng(seed)
     X, Y = field["X"].ravel(), field["Y"].ravel()
@@ -350,6 +359,9 @@ def field_to_catalog(field, n_gal=3000, shape_noise=0.05, rmax_arcmin=None,
     kap = field["kappa_true"].ravel()
 
     keep = np.isfinite(g1) & np.isfinite(g2) & np.isfinite(kap)
+
+    if kappa_max is not None:
+        keep &= kap < kappa_max
     if rmax_arcmin is not None:
         keep &= np.hypot(X, Y) <= rmax_arcmin
     idx_pool = np.where(keep)[0]
@@ -357,12 +369,17 @@ def field_to_catalog(field, n_gal=3000, shape_noise=0.05, rmax_arcmin=None,
 
     x, y = X[take], Y[take]
     e1, e2 = g1[take].copy(), g2[take].copy()
+
+    kt = kap[take]
+    if reduced_shear:
+        denom = np.clip(1.0 - kt, 1e-3, None)
+        e1, e2 = e1 / denom, e2 / denom
     if shape_noise > 0:
         e1 += rng.normal(0, shape_noise, x.size)
         e2 += rng.normal(0, shape_noise, x.size)
 
     return dict(x=x, y=y, g1=e1, g2=e2, weight=np.ones(x.size),
-                kappa_true=kap[take], center=(0.0, 0.0),
+                kappa_true=kt, center=(0.0, 0.0),
                 field_radius=float(np.hypot(x, y).max()))
 
 

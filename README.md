@@ -199,9 +199,17 @@ kappa_ks = kaiser_squires_binned(flat.x, flat.y, flat.g1, flat.g2,
 # catalog, and compare reconstructions to the known kappa ground truth.
 from femmi.catalog import load_frontier_model, field_to_catalog
 field = load_frontier_model("data/abell2744/cats_v4.1", source="psi", downsample=6)
-cat   = field_to_catalog(field, n_gal=3000, shape_noise=0.05)
+cat   = field_to_catalog(field, n_gal=3000, shape_noise=0.05, kappa_max=1.0)
 # examples/catalog_comparison.py --frontier data/abell2744/cats_v4.1
 ```
+
+Notes for the cluster maps: (1) use `source="psi"` -- `source="kappa"` synthesises
+shear by FFT and imposes *periodic* boundaries, KS's own assumption, which
+unfairly favours KS; (2) `kappa_max` drops the strong-lensing core (kappa >~ 1),
+where weak-shear reconstruction is invalid and both methods are out of scope;
+(3) prefer `--noise-source bmode` -- MAD on the raw shear is biased high by the
+huge cluster signal and pushes Morozov to over-smooth (lambda saturates), which
+crushes the recovered amplitude.
 
 ```python
 # Locally refined mesh near a circular mask (e.g. bright cluster core)

@@ -59,7 +59,8 @@ def _rms(a):
 
 
 def run_head_to_head(cat, wiener_length=None, grid_size=64, ks_smoothing_px=2.0,
-                     n_boundary=96, use_morozov=True, lam_reg=1e-2, maxiter=400):
+                     n_boundary=96, use_morozov=True, lam_reg=1e-2, maxiter=400,
+                     noise_source='mad'):
     x, y, g1, g2 = cat['x'], cat['y'], cat['g1'], cat['g2']
     weight = cat.get('weight')
     truth  = cat.get('kappa_true')
@@ -69,10 +70,11 @@ def run_head_to_head(cat, wiener_length=None, grid_size=64, ks_smoothing_px=2.0,
         wiener_length = 0.2 * R
 
     # ---- FEMMI catalog-native (E-mode), plus its B-mode null (rotated shear) --
-    print("\n[FEMMI] catalog-native FEM-BEM MAP ...")
+    print(f"\n[FEMMI] catalog-native FEM-BEM MAP (noise_source={noise_source}) ...")
     fem = reconstruct_catalog(x, y, g1, g2, weight=weight, center=center,
                               n_boundary=n_boundary, wiener_length=wiener_length,
                               use_morozov=use_morozov, lam_reg=lam_reg,
+                              noise_source=noise_source,
                               maxiter=maxiter, verbose=True)
     print("[FEMMI] B-mode null (45-deg-rotated shear) ...")
     femB = reconstruct_catalog(x, y, g2, -np.asarray(g1), weight=weight, center=center,
@@ -100,8 +102,10 @@ def run_head_to_head(cat, wiener_length=None, grid_size=64, ks_smoothing_px=2.0,
             cc = np.corrcoef(k[m], truth[m])[0, 1]
             return l2, cc
         l2f, ccf = score(kfem); l2k, cck = score(kks)
-        print(f"  FEMMI : L2={l2f:.3f}  corr={ccf:+.3f}")
-        print(f"  KS    : L2={l2k:.3f}  corr={cck:+.3f}")
+        kt_peak = float(np.nanmax(truth[both]))
+        print(f"  region: {int(both.sum())} galaxies, kappa_true peak={kt_peak:.2f}")
+        print(f"  FEMMI : L2={l2f:.3f}  corr={ccf:+.3f}  peak_rec={np.nanmax(kfem[both]):.2f}")
+        print(f"  KS    : L2={l2k:.3f}  corr={cck:+.3f}  peak_rec={np.nanmax(kks[both]):.2f}")
         winner = "FEMMI" if l2f < l2k else "KS"
         print(f"  -> lower-L2 winner: {winner}")
     agree = np.corrcoef(kfem[both], kks[both])[0, 1]
@@ -118,28 +122,34 @@ def run_head_to_head(cat, wiener_length=None, grid_size=64, ks_smoothing_px=2.0,
 def make_figure(res, path):
     x, y = res['x'], res['y']
     tri  = mtri.Triangulation(x, y)
-    panels = [("FEMMI E (catalog-native)", res['kfem'], "hot"),
-              ("KS E (Fourier grid)",      res['kks'], "hot"),
-              ("FEMMI B (null)",           res['kfemB'], "RdBu_r"),
-              ("KS B (null)",              res['kksB'], "RdBu_r")]
+    e_panels = [("FEMMI E (catalog-native)", res['kfem']),
+                ("KS E (Fourier grid)",      res['kks'])]
     if res['truth'] is not None:
-        panels.insert(0, ("truth kappa", res['truth'], "hot"))
+        e_panels.insert(0, ("truth kappa", res['truth']))
+    b_panels = [("FEMMI B (null)", res['kfemB']), ("KS B (null)", res['kksB'])]
+
+    # Shared scales so amplitude is comparable across panels. The E scale is
+    # driven by the truth (or reconstructions) at the 98th percentile, so a
+    # residual strong-lensing cusp does not wash out the whole colour range.
+    e_ref = res['truth'] if res['truth'] is not None else res['kfem']
+    e_vmax = float(np.nanpercentile(np.abs(e_ref), 98)) or 1.0
+    b_vmax = float(np.nanpercentile(np.abs(np.concatenate(
+        [np.nan_to_num(res['kfemB']), np.nan_to_num(res['kksB'])])), 98)) or 1.0
+
+    panels = ([(t, d, "hot", 0.0, e_vmax) for t, d in e_panels] +
+              [(t, d, "RdBu_r", -b_vmax, b_vmax) for t, d in b_panels])
 
     n = len(panels)
     fig, axes = plt.subplots(1, n, figsize=(4.6 * n, 4.4), facecolor="#1a1a1a")
-    for ax, (title, data, cmap) in zip(axes, panels):
+    for ax, (title, data, cmap, vmin, vmax) in zip(axes, panels):
         ax.set_facecolor("#1a1a1a")
         d = np.nan_to_num(np.asarray(data))
-        if cmap == "RdBu_r":
-            v = np.percentile(np.abs(d), 99); vmin, vmax = -v, v
-        else:
-            vmax = np.percentile(d, 99); vmin = 0.0
         tc = ax.tripcolor(tri, d, cmap=cmap, vmin=vmin, vmax=vmax, shading="gouraud")
         plt.colorbar(tc, ax=ax, fraction=0.046, pad=0.04)
         ax.set_title(title, color="white", fontsize=10)
         ax.set_aspect("equal"); ax.tick_params(colors="#888", labelsize=7)
-    fig.suptitle("Catalog-native FEMMI  vs  Fourier-grid Kaiser-Squires",
-                 color="white", fontsize=13, y=1.03)
+    fig.suptitle("Catalog-native FEMMI  vs  Fourier-grid Kaiser-Squires "
+                 "(shared kappa scale)", color="white", fontsize=13, y=1.03)
     plt.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
     plt.close(fig)
@@ -163,6 +173,16 @@ def main():
     ap.add_argument("--shape-noise", type=float, default=0.10)
     ap.add_argument("--grid-size", type=int, default=64)
     ap.add_argument("--no-morozov", action="store_true")
+    ap.add_argument("--noise-source", choices=["mad", "bmode"], default="bmode",
+                    help="Morozov noise level: MAD (biased high by the signal) "
+                         "or the B-mode floor (recommended, less over-smoothing)")
+    ap.add_argument("--kappa-max", type=float, default=1.0,
+                    help="frontier: drop sources where model kappa exceeds this "
+                         "(the strong-lensing core, invalid for weak shear)")
+    ap.add_argument("--reduced-shear", action="store_true",
+                    help="frontier: emit observable reduced shear g=gamma/(1-kappa)")
+    ap.add_argument("--rmax", type=float, default=None,
+                    help="frontier: restrict sources to this radius (arcmin)")
     args = ap.parse_args()
 
     if args.frontier:
@@ -170,9 +190,13 @@ def main():
                                     pixscale_arcsec=args.pixscale,
                                     downsample=args.downsample)
         cat = field_to_catalog(field, n_gal=args.n_gal,
-                               shape_noise=args.shape_noise, seed=1)
+                               shape_noise=args.shape_noise,
+                               kappa_max=args.kappa_max,
+                               reduced_shear=args.reduced_shear,
+                               rmax_arcmin=args.rmax, seed=1)
         print(f"  sampled {len(cat['x'])} galaxies from the model field "
-              f"(shape_noise={args.shape_noise})")
+              f"(shape_noise={args.shape_noise}, kappa_max={args.kappa_max}, "
+              f"reduced_shear={args.reduced_shear})")
     elif args.fits:
         cat = _load_fits(args.fits, hdu=args.hdu, flip_g2=args.flip_g2)
     else:
@@ -182,7 +206,8 @@ def main():
                                         shape_noise=args.shape_noise, seed=1)
 
     res = run_head_to_head(cat, grid_size=args.grid_size,
-                           use_morozov=not args.no_morozov)
+                           use_morozov=not args.no_morozov,
+                           noise_source=args.noise_source)
     out = os.path.join(os.path.dirname(__file__), "..", "outputs",
                        "fig_catalog_comparison.png")
     make_figure(res, out)
