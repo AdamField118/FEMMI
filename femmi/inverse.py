@@ -182,9 +182,73 @@ class MAPReconstructor:
         )
         return kappa_map, result
 
+    def reconstruct_eb(self, gamma1_obs, gamma2_obs, kappa_init=None,
+                       mask=None, verbose=True, shared_lambda=True):
+        """
+        Reconstruct both the E-mode (physical convergence) and the B-mode
+        (systematics null-test) convergence maps.
 
-def kaiser_squires(gamma1, gamma2, nodes, grid_size=64):
-    """FFT-based Kaiser-Squires convergence reconstruction on FEM nodes."""
+        A real lensing potential produces only E-mode shear, so the forward
+        operator F reconstructs the E-mode convergence directly. The B-mode is
+        the same estimator applied to the shear rotated by 45 degrees,
+        (g1, g2) -> (g2, -g1): the spin-2 rotation g -> g*exp(-2i*pi/4) = -i*g
+        maps E onto B. For a pure gravitational-lensing signal kappa_B is
+        consistent with zero; spatially coherent kappa_B flags residual
+        systematics (PSF leakage, intrinsic alignments, additive shear bias).
+
+        Parameters
+        ----------
+        shared_lambda : if True (default), the B-mode solve reuses the
+            regularisation strength selected for the E-mode solve, so the two
+            maps are directly comparable at matched smoothing. If False, lambda
+            is selected independently for each mode.
+
+        Returns
+        -------
+        (kappa_E, kappa_B, result_E, result_B)
+        """
+        if verbose:
+            print("=== E-mode reconstruction ===")
+        kappa_E, result_E = self.reconstruct(
+            gamma1_obs, gamma2_obs, kappa_init=kappa_init,
+            mask=mask, verbose=verbose,
+        )
+
+        # 45-degree spin-2 rotation: g -> -i*g  =>  (g1, g2) -> (g2, -g1)
+        g1_b =  np.asarray(gamma2_obs, dtype=np.float64)
+        g2_b = -np.asarray(gamma1_obs, dtype=np.float64)
+
+        saved_noise = self.noise_std
+        if shared_lambda:
+            self.noise_std = None  # reuse lam_reg fixed by the E-mode solve
+        try:
+            if verbose:
+                print("=== B-mode reconstruction (45-deg rotated shear) ===")
+            kappa_B, result_B = self.reconstruct(
+                g1_b, g2_b, kappa_init=kappa_init,
+                mask=mask, verbose=verbose,
+            )
+        finally:
+            self.noise_std = saved_noise
+
+        if verbose:
+            e_rms = float(np.sqrt(np.mean(kappa_E**2)))
+            b_rms = float(np.sqrt(np.mean(kappa_B**2)))
+            ratio = b_rms / (e_rms + 1e-30)
+            print(f"E-mode RMS={e_rms:.4e}  B-mode RMS={b_rms:.4e}  "
+                  f"B/E={ratio:.3f}  (small B/E => clean null test)")
+
+        return kappa_E, kappa_B, result_E, result_B
+
+
+def kaiser_squires(gamma1, gamma2, nodes, grid_size=64, return_bmode=False):
+    """
+    FFT-based Kaiser-Squires convergence reconstruction on FEM nodes.
+
+    If return_bmode is True, returns (kappa_E, kappa_B) where kappa_B is the
+    B-mode map (the estimator applied to the 45-deg-rotated shear); otherwise
+    returns kappa_E only.
+    """
     from scipy.interpolate import griddata
 
     xmin, xmax = nodes[:, 0].min(), nodes[:, 0].max()
@@ -206,14 +270,20 @@ def kaiser_squires(gamma1, gamma2, nodes, grid_size=64):
     k2     = KX**2 + KY**2
     k2[0, 0] = 1.0
 
-    kappa_grid  = np.real(sfft.ifft2(
-        (KX**2 - KY**2) / k2 * G1k + 2.0 * KX * KY / k2 * G2k
-    ))
-    kappa_nodes = griddata(
-        np.column_stack([XX.ravel(), YY.ravel()]),
-        kappa_grid.ravel(), nodes, method='linear', fill_value=0.0,
-    )
-    return kappa_nodes
+    cos2 = (KX**2 - KY**2) / k2
+    sin2 = 2.0 * KX * KY / k2
+
+    kappa_grid   = np.real(sfft.ifft2(cos2 * G1k + sin2 * G2k))  # E-mode
+    kappa_pts    = np.column_stack([XX.ravel(), YY.ravel()])
+    kappa_E_nodes = griddata(kappa_pts, kappa_grid.ravel(), nodes,
+                             method='linear', fill_value=0.0)
+    if not return_bmode:
+        return kappa_E_nodes
+
+    kappa_b_grid  = np.real(sfft.ifft2(cos2 * G2k - sin2 * G1k))  # B-mode
+    kappa_B_nodes = griddata(kappa_pts, kappa_b_grid.ravel(), nodes,
+                             method='linear', fill_value=0.0)
+    return kappa_E_nodes, kappa_B_nodes
 
 
 def run_comparison(nx=20, noise_level=0.10, lam_reg=1e-2, use_morozov=False,

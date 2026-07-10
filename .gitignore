@@ -4,6 +4,7 @@
 !outputs/fig_reconstruction.png
 !outputs/fig_masked.png
 !outputs/fig_convergence.png
+!outputs/fig_eb_modes.png
 
 # Paper
 *.log

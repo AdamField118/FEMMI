@@ -23,6 +23,7 @@ The central methodological claim is that the standard practice of truncating thi
 | Mass-sheet degeneracy | Present in $F$ | Resolved ($F$ injective) |
 | Inverse method | Direct FFT | MAP + L-BFGS, Matérn prior |
 | Masked / missing data | Unreliable near mask | Inpainting via prior covariance |
+| E/B-mode null test | 45-deg rotation | 45-deg rotation (same solver) |
 | Source positions | Binned grid | Catalog-native (raw galaxy positions) |
 | Element order | N/A | P3 cubic (required for $\nabla^2\psi$) |
 
@@ -108,10 +109,12 @@ tests/
 ├── test_factorization.py       # SVD, Picard, support recovery
 ├── test_convergence_p3.py      # O(h^4) L2 Poisson convergence
 ├── test_convergence.py         # Forward operator gamma convergence
+├── test_eb_modes.py            # E/B decomposition, rotation identity, null test
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
 ├── generate_figures.py         # Preliminary results figures (self-contained)
+├── eb_modes_demo.py            # E/B-mode decomposition figure
 ├── smpy_comparison.py          # Full Monte Carlo benchmark vs SMPy KS
 └── visualize_results.py        # SVD modes, Picard, convergence diagnostics
 ```
@@ -169,6 +172,16 @@ ops = build_operators_adaptive(
     nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
     mask_center=(0., 0.), mask_radius=0.6, refine_factor=3,
 )
+```
+
+```python
+# E/B-mode decomposition (systematics null test)
+# The physical lensing signal is pure E-mode; the B-mode is the same estimator
+# on the 45-deg-rotated shear and should carry no coherent structure.
+kappa_E, kappa_B, res_E, res_B = rec.reconstruct_eb(g1_obs, g2_obs)
+
+from femmi.inverse import kaiser_squires
+kappa_E_ks, kappa_B_ks = kaiser_squires(g1_obs, g2_obs, nodes, return_bmode=True)
 ```
 
 ```python
