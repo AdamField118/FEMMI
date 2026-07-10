@@ -44,6 +44,58 @@ class ReconstructionResult:
     time_s       : float
 
 
+@dataclass
+class BModeDiagnostics:
+    """
+    Quality diagnostics derived from the B-mode channel.
+
+    A real lensing signal has zero B-mode, so the B-mode is used two ways:
+    (1) as an independent noise-level estimate to cross-check the MAD delta fed
+    to Morozov, and (2) as a systematics flag via the coherent (reconstructable)
+    B-mode shear power, which should sit at or below the noise floor.
+
+    Fields (all shear quantities are per-component RMS, matching Morozov's
+    delta convention):
+      flag              : 'clean' | 'marginal' | 'contaminated'
+      emode_shear_rms   : RMS of the fitted E-mode shear  F @ kappa_E
+      bmode_shear_rms   : RMS of the coherent B-mode shear F @ kappa_B (~0 ideal)
+      bmode_to_emode    : bmode_shear_rms / emode_shear_rms  (contamination)
+      bmode_snr         : bmode_shear_rms / delta_noise  (drives the flag)
+      delta_mad         : per-component noise from MAD on the raw shear (biased
+                          high by the E-mode signal it contains)
+      delta_noise       : per-component noise from the doubly-reduced residual
+                          RMS(gamma_obs - F@kappa_E - rot^-1(F@kappa_B)), i.e.
+                          the data with BOTH coherent modes removed. This is the
+                          clean, signal- and systematics-free noise floor, and
+                          the delta to feed back to Morozov.
+      delta_consistency : delta_noise / delta_mad  (<< 1 confirms MAD's signal
+                          bias; a good MAD estimate on signal-free data -> ~1)
+      kappa_e_rms       : RMS of kappa_E over the reported region
+      kappa_b_rms       : RMS of kappa_B over the reported region
+    """
+    flag              : str
+    emode_shear_rms   : float
+    bmode_shear_rms   : float
+    bmode_to_emode    : float
+    bmode_snr         : float
+    delta_mad         : float
+    delta_noise       : float
+    delta_consistency : float
+    kappa_e_rms       : float
+    kappa_b_rms       : float
+
+    def summary(self) -> str:
+        return (
+            f"B-mode diagnostics: [{self.flag.upper()}]\n"
+            f"  coherent B/E shear   = {self.bmode_to_emode:.3f}\n"
+            f"  B-mode SNR (B/noise) = {self.bmode_snr:.2f}\n"
+            f"  delta (MAD)          = {self.delta_mad:.4e}\n"
+            f"  delta (noise floor)  = {self.delta_noise:.4e}  "
+            f"(ratio {self.delta_consistency:.2f})\n"
+            f"  kappa RMS  E={self.kappa_e_rms:.4e}  B={self.kappa_b_rms:.4e}"
+        )
+
+
 class MAPReconstructor:
     """
     MAP mass reconstruction using L-BFGS with numpy adjoint.
@@ -239,6 +291,94 @@ class MAPReconstructor:
                   f"B/E={ratio:.3f}  (small B/E => clean null test)")
 
         return kappa_E, kappa_B, result_E, result_B
+
+    def bmode_diagnostics(self, gamma1_obs, gamma2_obs, mask=None,
+                          region=None, clean_snr=1.0, contam_snr=2.0,
+                          verbose=True):
+        """
+        Reconstruct E/B and return B-mode-based quality diagnostics.
+
+        Since a real lensing signal is pure E-mode, the B-mode channel gives an
+        independent handle on both the noise level and residual systematics:
+
+          * delta_noise = RMS of the data with BOTH coherent modes removed,
+            gamma_obs - F@kappa_E - rot^-1(F@kappa_B), estimates the
+            per-component shear noise free of the E signal AND of any coherent
+            B systematics, and can be fed back to Morozov as noise_std or used
+            to cross-check the MAD estimate (which is biased high by the signal).
+          * bmode_shear_rms = RMS(F @ kappa_B) is the coherent, reconstructable
+            B-mode power. Theory says it is zero; a value rising above the noise
+            floor (bmode_snr = bmode_shear_rms / delta_noise) flags systematics
+            (PSF leakage, intrinsic alignments, additive shear bias).
+
+        Why not the naive residuals: RMS(rotated_shear - F@kappa_B) and even
+        RMS(gamma_obs - F@kappa_E) are both inflated by coherent B-mode shear,
+        which F cannot fit and which therefore leaks into any single-mode
+        residual. Removing both fits isolates the incoherent noise.
+
+        NOTE: this is a *diagnostic only*. Do not add the B-mode to the loss --
+        nulling it by construction destroys its value as an independent test.
+
+        Parameters
+        ----------
+        region    : optional boolean node mask over which kappa RMS is reported
+                    (e.g. a signal-free annulus); defaults to all nodes.
+        clean_snr : bmode_snr below this => 'clean'.
+        contam_snr: bmode_snr above this => 'contaminated'; between the two
+                    thresholds => 'marginal'.
+
+        Returns
+        -------
+        (BModeDiagnostics, kappa_E, kappa_B)
+        """
+        kappa_E, kappa_B, _, _ = self.reconstruct_eb(
+            gamma1_obs, gamma2_obs, mask=mask, verbose=verbose)
+
+        g1 = np.asarray(gamma1_obs, dtype=np.float64)
+        g2 = np.asarray(gamma2_obs, dtype=np.float64)
+        n2 = g1.size + g2.size
+
+        def _rms2(a, b):
+            return float(np.sqrt((np.dot(a, a) + np.dot(b, b)) / n2))
+
+        # Fitted shear for each mode.
+        e1, e2 = (np.asarray(a, dtype=np.float64) for a in self.ops.forward(kappa_E))
+        b1, b2 = (np.asarray(a, dtype=np.float64) for a in self.ops.forward(kappa_B))
+
+        emode_shear_rms = _rms2(e1, e2)
+        bmode_shear_rms = _rms2(b1, b2)
+
+        # Noise floor: remove BOTH coherent modes. The B-mode fit F@kappa_B lives
+        # in the 45-deg-rotated frame; rotate it back (rot^-1: (a,b)->(-b,a)) to
+        # subtract it in the original frame. What remains is incoherent noise.
+        delta_noise = _rms2(g1 - e1 - (-b2), g2 - e2 - b1)
+        from .regularization import estimate_noise_level
+        delta_mad = estimate_noise_level(np.concatenate([g1, g2]), method='mad')
+
+        bmode_snr = bmode_shear_rms / (delta_noise + 1e-30)
+        if bmode_snr < clean_snr:
+            flag = 'clean'
+        elif bmode_snr < contam_snr:
+            flag = 'marginal'
+        else:
+            flag = 'contaminated'
+
+        sel = slice(None) if region is None else region
+        diag = BModeDiagnostics(
+            flag=flag,
+            emode_shear_rms=emode_shear_rms,
+            bmode_shear_rms=bmode_shear_rms,
+            bmode_to_emode=bmode_shear_rms / (emode_shear_rms + 1e-30),
+            bmode_snr=bmode_snr,
+            delta_mad=delta_mad,
+            delta_noise=delta_noise,
+            delta_consistency=delta_noise / (delta_mad + 1e-30),
+            kappa_e_rms=float(np.sqrt(np.mean(np.asarray(kappa_E)[sel]**2))),
+            kappa_b_rms=float(np.sqrt(np.mean(np.asarray(kappa_B)[sel]**2))),
+        )
+        if verbose:
+            print(diag.summary())
+        return diag, kappa_E, kappa_B
 
 
 def kaiser_squires(gamma1, gamma2, nodes, grid_size=64, return_bmode=False):

@@ -43,8 +43,11 @@ def main(nx=20, noise_level=0.10, seed=42):
     fwd = DifferentiableForward(ops, lam_reg=1e-3)
     rec = MAPReconstructor(fwd, maxiter=400, wiener_length=0.5, noise_std=ns)
 
-    kE, kB, _, _ = rec.reconstruct_eb(g1o, g2o, verbose=True)
+    diag, kE, kB = rec.bmode_diagnostics(g1o, g2o, verbose=True)
     _, ksB       = kaiser_squires(g1o, g2o, nodes, return_bmode=True)
+    print("\n" + diag.summary())
+    print(f"\nMorozov delta fed in (MAD)={ns:.4e};  B-channel noise floor="
+          f"{diag.delta_noise:.4e}  -> cross-check ratio {diag.delta_consistency:.2f}")
 
     interior = np.hypot(nodes[:, 0], nodes[:, 1]) < 1.5
     corr_E = np.corrcoef(kE[interior], kappa_true[interior])[0, 1]

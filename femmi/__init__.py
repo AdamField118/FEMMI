@@ -66,6 +66,7 @@ if _JAX_AVAILABLE:
     from .inverse import (
         MAPReconstructor,
         ReconstructionResult,
+        BModeDiagnostics,
         kaiser_squires,
         run_comparison,
     )

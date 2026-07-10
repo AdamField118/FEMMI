@@ -98,7 +98,7 @@ femmi/
 ├── bem.py               # BEM: V_h, K_h, M_b, Calderon operator
 ├── operators.py         # K, M, S1, S2, A_coupled; FEMOperators dataclass
 ├── forward.py           # DifferentiableForward (JAX custom_vjp)
-├── inverse.py           # MAPReconstructor, kaiser_squires
+├── inverse.py           # MAPReconstructor (E/B + bmode_diagnostics), kaiser_squires
 ├── regularization.py    # MorozovSelector, estimate_noise_level
 └── svd_analysis.py      # SVD of F, Picard diagnostic, FactorizationIndicator, LSM
 
@@ -110,6 +110,7 @@ tests/
 ├── test_convergence_p3.py      # O(h^4) L2 Poisson convergence
 ├── test_convergence.py         # Forward operator gamma convergence
 ├── test_eb_modes.py            # E/B decomposition, rotation identity, null test
+├── test_bmode_diagnostics.py   # B-mode quality flag + noise-floor cross-check
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
@@ -182,6 +183,13 @@ kappa_E, kappa_B, res_E, res_B = rec.reconstruct_eb(g1_obs, g2_obs)
 
 from femmi.inverse import kaiser_squires
 kappa_E_ks, kappa_B_ks = kaiser_squires(g1_obs, g2_obs, nodes, return_bmode=True)
+
+# B-mode quality flag + independent noise-level cross-check.
+# The coherent B-mode power should sit at the noise floor (flag 'clean');
+# delta_noise is a signal-free estimate of the per-component shear noise that
+# can be fed back to Morozov (MAD on the raw shear is biased high by the signal).
+diag, kappa_E, kappa_B = rec.bmode_diagnostics(g1_obs, g2_obs)
+print(diag.summary())            # flag, coherent B/E, B-mode SNR, delta cross-check
 ```
 
 ```python
