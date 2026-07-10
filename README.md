@@ -98,7 +98,9 @@ femmi/
 ├── bem.py               # BEM: V_h, K_h, M_b, Calderon operator
 ├── operators.py         # K, M, S1, S2, A_coupled; FEMOperators dataclass
 ├── forward.py           # DifferentiableForward (JAX custom_vjp)
-├── inverse.py           # MAPReconstructor (E/B + bmode_diagnostics), kaiser_squires
+├── inverse.py           # MAPReconstructor (E/B + bmode_diagnostics, data_weight), kaiser_squires
+├── catalog.py           # reconstruct_catalog, kaiser_squires_binned, synthetic catalog
+├── io.py                # FITS shear catalog -> tangent plane (ShearCatalog/FlatCatalog)
 ├── regularization.py    # MorozovSelector, estimate_noise_level
 └── svd_analysis.py      # SVD of F, Picard diagnostic, FactorizationIndicator, LSM
 
@@ -111,11 +113,13 @@ tests/
 ├── test_convergence.py         # Forward operator gamma convergence
 ├── test_eb_modes.py            # E/B decomposition, rotation identity, null test
 ├── test_bmode_diagnostics.py   # B-mode quality flag + noise-floor cross-check
+├── test_catalog_pipeline.py    # Catalog-native reconstruction + binned KS
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
 ├── generate_figures.py         # Preliminary results figures (self-contained)
 ├── eb_modes_demo.py            # E/B-mode decomposition figure
+├── catalog_comparison.py       # Catalog-native FEMMI vs Fourier-grid KS head-to-head
 ├── smpy_comparison.py          # Full Monte Carlo benchmark vs SMPy KS
 └── visualize_results.py        # SVD modes, Picard, convergence diagnostics
 ```
@@ -164,6 +168,39 @@ noise_std = estimate_noise_level(np.concatenate([g1_obs, g2_obs]), method='mad')
 fwd = DifferentiableForward(ops, lam_reg=1e-3)
 rec = MAPReconstructor(fwd, noise_std=noise_std, wiener_length=0.5)
 kappa_map, result = rec.reconstruct(g1_obs, g2_obs)
+```
+
+```python
+# Catalog-native reconstruction, straight from a galaxy shear catalog
+# (FEM nodes placed AT galaxy positions; data term restricted to those nodes).
+from femmi.io      import read_fits_catalog
+from femmi.catalog import reconstruct_catalog, kaiser_squires_binned
+
+flat = read_fits_catalog("shear_catalog.fits").to_tangent_plane(units="arcmin")
+rec  = reconstruct_catalog(flat.x, flat.y, flat.g1, flat.g2, weight=flat.weight,
+                           center=(0., 0.))
+kappa_at_galaxies = rec.kappa_gal          # kappa per input galaxy
+
+# Optional: take the Morozov noise level from the B-mode floor instead of MAD
+# (MAD on the raw shear is biased high by the signal, over-smoothing the map).
+rec = reconstruct_catalog(flat.x, flat.y, flat.g1, flat.g2, center=(0., 0.),
+                          noise_source="bmode")
+
+# Apples-to-apples: same catalog, Fourier-grid Kaiser-Squires (SMPy-style)
+eval_pts = np.column_stack([flat.x, flat.y])
+kappa_ks = kaiser_squires_binned(flat.x, flat.y, flat.g1, flat.g2,
+                                 weight=flat.weight, eval_pts=eval_pts)
+# full head-to-head + figure: examples/catalog_comparison.py
+```
+
+```python
+# Real-data test on Frontier Fields / CATS lens-MODEL maps (kappa, psi images,
+# NOT a galaxy catalog): derive shear from the psi Hessian, sample it as a
+# catalog, and compare reconstructions to the known kappa ground truth.
+from femmi.catalog import load_frontier_model, field_to_catalog
+field = load_frontier_model("data/abell2744/cats_v4.1", source="psi", downsample=6)
+cat   = field_to_catalog(field, n_gal=3000, shape_noise=0.05)
+# examples/catalog_comparison.py --frontier data/abell2744/cats_v4.1
 ```
 
 ```python

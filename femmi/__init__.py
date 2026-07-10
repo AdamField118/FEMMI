@@ -74,6 +74,15 @@ if _JAX_AVAILABLE:
         generate_p3_structured_mesh,
         generate_p3_adaptive_mesh,
     )
+    from .catalog import (
+        CatalogReconstruction,
+        reconstruct_catalog,
+        bin_shear_to_grid,
+        kaiser_squires_binned,
+        analytic_gaussian_catalog,
+        load_frontier_model,
+        field_to_catalog,
+    )
 
 __all__ = [
     "FEMOperators",

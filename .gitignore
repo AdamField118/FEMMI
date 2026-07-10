@@ -5,6 +5,7 @@
 !outputs/fig_masked.png
 !outputs/fig_convergence.png
 !outputs/fig_eb_modes.png
+!outputs/fig_catalog_comparison.png
 
 # Paper
 *.log

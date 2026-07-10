@@ -31,6 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.4.0", "jupyter>=1.0.0"]
 mesh = ["triangle>=20200424"]
+io = ["astropy>=5.0"]        # FITS shear catalogs and Frontier Fields model maps
 
 [project.urls]
 Repository = "https://github.com/AdamField118/FEMMI"

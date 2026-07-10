@@ -108,16 +108,23 @@ class MAPReconstructor:
     callback_every: print progress every N calls (0 = silent)
     wiener_length : if > 0, use R = M + l^2*K instead of R = K
     noise_std     : if set, auto-select lambda via Morozov's principle
+    data_weight   : optional per-node weight (length n_nodes) on the data term.
+                    Use for catalog-native reconstruction: 1 at nodes carrying an
+                    observed shear (galaxy nodes), 0 at guard/boundary nodes that
+                    carry none, so those nodes impose no spurious gamma=0 data
+                    constraint. Defaults to uniform weight (all nodes count).
     """
 
     def __init__(self, fwd, maxiter=500, gtol=1e-9, callback_every=50,
-                 wiener_length=0.0, noise_std=None):
+                 wiener_length=0.0, noise_std=None, data_weight=None):
         self.fwd            = fwd
         self.maxiter        = maxiter
         self.gtol           = gtol
         self.callback_every = callback_every
         self.wiener_length  = wiener_length
         self.noise_std      = noise_std
+        self.data_weight    = (None if data_weight is None
+                               else np.asarray(data_weight, dtype=np.float64))
         self.ops            = fwd.ops
 
         if wiener_length > 0.0:
@@ -132,6 +139,7 @@ class MAPReconstructor:
         S2   = ops.S2
         lam  = self.fwd.lam_reg
         R    = self._R
+        w    = self.data_weight
 
         loss_history = []
 
@@ -144,12 +152,13 @@ class MAPReconstructor:
 
             r1 = g1 - gamma1_obs
             r2 = g2 - gamma2_obs
+            wr1, wr2 = (r1, r2) if w is None else (w * r1, w * r2)
 
             Rk   = R @ kappa
-            loss = float(np.dot(r1, r1) + np.dot(r2, r2)) + float(lam * np.dot(kappa, Rk))
+            loss = float(np.dot(wr1, r1) + np.dot(wr2, r2)) + float(lam * np.dot(kappa, Rk))
             loss_history.append(loss)
 
-            adj  = ops._solve_adjoint(S1.T @ r1 + S2.T @ r2)
+            adj  = ops._solve_adjoint(S1.T @ wr1 + S2.T @ wr2)
             grad = -4.0 * (M.T @ adj) + 2.0 * lam * Rk
 
             return loss, grad.astype(np.float64)
@@ -173,6 +182,7 @@ class MAPReconstructor:
                 wiener_length=self.wiener_length,
                 maxiter_inner=min(150, self.maxiter),
                 verbose=verbose,
+                data_weight=self.data_weight,
             )
             lam_star = selector.select(gamma1_obs, gamma2_obs)
             if verbose:
@@ -336,10 +346,19 @@ class MAPReconstructor:
 
         g1 = np.asarray(gamma1_obs, dtype=np.float64)
         g2 = np.asarray(gamma2_obs, dtype=np.float64)
-        n2 = g1.size + g2.size
+
+        # Restrict every shear-space statistic to the data-carrying nodes. On a
+        # catalog mesh the non-galaxy (guard/boundary) nodes hold no shear but a
+        # nonzero fitted shear, which would otherwise pollute the RMS estimates.
+        active = (slice(None) if self.data_weight is None
+                  else np.asarray(self.data_weight) > 0)
+        n_active = (g1.size if self.data_weight is None
+                    else int(np.count_nonzero(active)))
+        n2 = 2 * n_active
 
         def _rms2(a, b):
-            return float(np.sqrt((np.dot(a, a) + np.dot(b, b)) / n2))
+            aa, bb = a[active], b[active]
+            return float(np.sqrt((np.dot(aa, aa) + np.dot(bb, bb)) / max(n2, 1)))
 
         # Fitted shear for each mode.
         e1, e2 = (np.asarray(a, dtype=np.float64) for a in self.ops.forward(kappa_E))
@@ -353,7 +372,8 @@ class MAPReconstructor:
         # subtract it in the original frame. What remains is incoherent noise.
         delta_noise = _rms2(g1 - e1 - (-b2), g2 - e2 - b1)
         from .regularization import estimate_noise_level
-        delta_mad = estimate_noise_level(np.concatenate([g1, g2]), method='mad')
+        delta_mad = estimate_noise_level(
+            np.concatenate([g1[active], g2[active]]), method='mad')
 
         bmode_snr = bmode_shear_rms / (delta_noise + 1e-30)
         if bmode_snr < clean_snr:
@@ -379,6 +399,49 @@ class MAPReconstructor:
         if verbose:
             print(diag.summary())
         return diag, kappa_E, kappa_B
+
+    def estimate_noise_bmode(self, gamma1_obs, gamma2_obs, maxiter=None,
+                             mask=None, verbose=False):
+        """
+        Estimate the per-component shear noise from the B-mode channel, for use
+        as the Morozov delta.
+
+        MAD on the raw shear is biased high by the E-mode signal. This returns
+        BModeDiagnostics.delta_noise -- the RMS of the shear with both coherent
+        modes removed -- a signal- and systematics-free noise floor.
+
+        The measurement is self-consistent: delta_noise depends on the smoothing
+        used to form the E/B fits (an under-regularised fit overfits noise into a
+        spurious kappa_B and inflates the floor), so the fits here are made at a
+        MAD-Morozov lambda rather than a fixed one.
+
+        Feed the result back as noise_std for a properly scaled Morozov solve:
+
+            delta = rec.estimate_noise_bmode(g1, g2)
+            rec.noise_std = delta
+            kappa, res = rec.reconstruct(g1, g2)   # Morozov now targets delta
+        """
+        from .regularization import estimate_noise_level
+        saved_noise = self.noise_std
+        saved_iter  = self.maxiter
+        if maxiter is not None:
+            self.maxiter = maxiter
+
+        # active-node MAD -> a sensible lambda for the E/B fits
+        w = self.data_weight
+        if w is None:
+            g_active = np.concatenate([np.asarray(gamma1_obs), np.asarray(gamma2_obs)])
+        else:
+            a = np.asarray(w) > 0
+            g_active = np.concatenate([np.asarray(gamma1_obs)[a], np.asarray(gamma2_obs)[a]])
+        self.noise_std = estimate_noise_level(g_active, method='mad')
+        try:
+            diag, _, _ = self.bmode_diagnostics(
+                gamma1_obs, gamma2_obs, mask=mask, verbose=verbose)
+        finally:
+            self.noise_std = saved_noise
+            self.maxiter   = saved_iter
+        return diag.delta_noise
 
 
 def kaiser_squires(gamma1, gamma2, nodes, grid_size=64, return_bmode=False):

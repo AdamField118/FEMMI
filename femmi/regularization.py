@@ -34,7 +34,8 @@ def estimate_noise_level(gamma_obs, method='mad'):
 
 
 def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
-                maxiter_inner=150, wiener_length=0.5, gtol_inner=1e-6):
+                maxiter_inner=150, wiener_length=0.5, gtol_inner=1e-6,
+                data_weight=None):
     """
     Compute D(lambda) = ||F kappa_lambda - gamma_obs|| - c * delta.
 
@@ -43,20 +44,31 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
       - small lambda -> over-fitted   -> D < 0
 
     The Morozov parameter lambda* is the unique root D(lambda*) = 0.
+
+    data_weight : optional per-node weight; when given (e.g. a binary galaxy
+    selection for a catalog-native mesh), the residual RMS is taken over the
+    active (nonzero-weight) nodes only, so delta stays a per-component shear std.
     """
     from .inverse import MAPReconstructor
     from .forward import DifferentiableForward
 
     fwd = DifferentiableForward(ops, lam_reg=lam)
     rec = MAPReconstructor(fwd, maxiter=maxiter_inner, gtol=gtol_inner,
-                           callback_every=0, wiener_length=wiener_length)
+                           callback_every=0, wiener_length=wiener_length,
+                           data_weight=data_weight)
     kappa_lam, _ = rec.reconstruct(gamma1_obs, gamma2_obs, verbose=False)
 
     g1_pred, g2_pred = ops.forward(kappa_lam)
-    r1     = g1_pred - gamma1_obs
-    r2     = g2_pred - gamma2_obs
-    n_data = len(gamma1_obs) + len(gamma2_obs)
-    return float(np.sqrt((np.dot(r1, r1) + np.dot(r2, r2)) / n_data)) - c * delta
+    r1 = g1_pred - gamma1_obs
+    r2 = g2_pred - gamma2_obs
+    if data_weight is None:
+        num    = np.dot(r1, r1) + np.dot(r2, r2)
+        n_data = len(gamma1_obs) + len(gamma2_obs)
+    else:
+        w      = np.asarray(data_weight, dtype=np.float64)
+        num    = np.dot(w * r1, r1) + np.dot(w * r2, r2)
+        n_data = 2 * int(np.count_nonzero(w))
+    return float(np.sqrt(num / max(n_data, 1))) - c * delta
 
 
 class MorozovSelector:
@@ -71,7 +83,8 @@ class MorozovSelector:
     """
 
     def __init__(self, ops, noise_std=None, c=1.0, lam_min=1e-8, lam_max=10.0,
-                 wiener_length=0.5, maxiter_inner=150, verbose=True):
+                 wiener_length=0.5, maxiter_inner=150, verbose=True,
+                 data_weight=None):
         self.ops           = ops
         self.noise_std     = noise_std
         self.c             = c
@@ -80,13 +93,15 @@ class MorozovSelector:
         self.wiener_length = wiener_length
         self.maxiter_inner = maxiter_inner
         self.verbose       = verbose
+        self.data_weight   = data_weight
 
     def _D(self, lam, gamma1_obs, gamma2_obs, delta):
         t0  = time.perf_counter()
         val = discrepancy(lam, self.ops, gamma1_obs, gamma2_obs,
                           delta=delta, c=self.c,
                           maxiter_inner=self.maxiter_inner,
-                          wiener_length=self.wiener_length)
+                          wiener_length=self.wiener_length,
+                          data_weight=self.data_weight)
         if self.verbose:
             print(f"    lambda={lam:.3e}  D={val:+.4f}  ({time.perf_counter()-t0:.1f}s)")
         return val

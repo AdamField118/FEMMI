@@ -88,11 +88,31 @@ def test_injected_bmode_trips_flag():
     assert contam.flag != 'clean'
 
 
+def test_estimate_noise_bmode_recovers_true_noise():
+    """
+    estimate_noise_bmode (delta_noise at a self-consistent Morozov lambda) is a
+    far less biased noise estimate than MAD on the raw shear, which the E-mode
+    signal inflates. This is what makes it worth feeding back to Morozov.
+    """
+    ops, nodes, g1, g2, noise = _setup(nx=14, noise_level=0.10, seed=7)
+    from femmi.operators import build_operators  # noqa: F401 (kept for parity)
+    rec = _make_rec(ops, g1, g2)
+    rec.noise_std = None
+
+    mad = estimate_noise_level(np.concatenate([g1, g2]), method='mad')
+    dnb = rec.estimate_noise_bmode(g1, g2, maxiter=150)
+
+    assert dnb < mad, f"delta_noise={dnb:.3e} not below MAD={mad:.3e}"
+    assert abs(dnb - noise) < abs(mad - noise), \
+        f"delta_noise={dnb:.3e} not closer to true={noise:.3e} than MAD={mad:.3e}"
+
+
 if __name__ == "__main__":
     tests = [
         test_clean_signal_flags_clean,
         test_noise_floor_beats_mad,
         test_injected_bmode_trips_flag,
+        test_estimate_noise_bmode_recovers_true_noise,
     ]
     passed, failed = 0, []
     for fn in tests:
