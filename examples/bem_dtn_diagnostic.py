@@ -46,15 +46,17 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from femmi.operators import build_operators_circular
-from femmi.bem       import assemble_bem_matrices
+from femmi.bem import assemble_bem_matrices, circular_boundary_mesh
 
 
 def dtn_residuals(radius, n_boundary, modes, rhs_sign=+1):
-    ops = build_operators_circular(radius=radius, n_boundary=n_boundary, verbose=False)
-    V, K, M = assemble_bem_matrices(ops.bnd_mesh, n_quad_sl=25, n_quad_dl=8)
+    # Boundary-only: no interior FEM mesh. build_operators_circular would build a
+    # full volume mesh whose size grows with n_boundary and hang in the volume
+    # assembly; the DtN test only needs the boundary BEM matrices.
+    bnd = circular_boundary_mesh(radius=radius, n_boundary=n_boundary)
+    V, K, M = assemble_bem_matrices(bnd, n_quad_sl=25, n_quad_dl=8)
     C = np.linalg.solve(V, 0.5 * M + rhs_sign * K)
-    bn = ops.bnd_mesh.nodes
+    bn = bnd.nodes
     th = np.arctan2(bn[:, 1], bn[:, 0]); r = np.hypot(bn[:, 0], bn[:, 1])
     out = {}
     for n in modes:

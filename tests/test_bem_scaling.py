@@ -61,6 +61,19 @@ def test_coupling_norm_scales_as_inverse_L():
     assert 15.0 < ratio < 40.0, f"||C|| ratio {ratio:.1f} not ~ 1/L (expected ~25)"
 
 
+def test_circular_boundary_mesh_is_valid():
+    """Boundary-only circular mesh assembles consistent BEM matrices (no interior)."""
+    from femmi.bem import circular_boundary_mesh, assemble_bem_matrices
+    R = 2.0
+    bnd = circular_boundary_mesh(radius=R, n_boundary=120)
+    assert bnd.n_boundary_dofs % 3 == 0
+    V, K, M = assemble_bem_matrices(bnd, n_quad_sl=25, n_quad_dl=8)
+    one = np.ones(bnd.n_boundary_dofs)
+    # boundary mass integrates to the perimeter; Calderon identity (0.5M+K)1 ~ 0
+    assert abs(float((M @ one).sum()) - 2 * np.pi * R) < 0.05
+    assert np.linalg.norm((0.5 * M + K) @ one) / np.linalg.norm(M @ one) < 1e-2
+
+
 def test_couple_scale_auto_restores_invariance():
     """The experimental fix makes the BEM forward error scale-invariant."""
     e1 = _fwd_err(_ops(1.0, couple_scale='auto'), 1.0)
@@ -75,6 +88,7 @@ if __name__ == "__main__":
         test_dirichlet_is_scale_invariant,
         test_default_bem_is_scale_dependent,
         test_coupling_norm_scales_as_inverse_L,
+        test_circular_boundary_mesh_is_valid,
         test_couple_scale_auto_restores_invariance,
     ]
     passed, failed = 0, []

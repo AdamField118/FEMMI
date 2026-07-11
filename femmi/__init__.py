@@ -32,6 +32,7 @@ from .bem import (
     assemble_boundary_mass,
     assemble_bem_matrices,
     calderon_matrix,
+    circular_boundary_mesh,
 )
 
 from .io import (
@@ -108,6 +109,7 @@ __all__ = [
     "assemble_boundary_mass",
     "assemble_bem_matrices",
     "calderon_matrix",
+    "circular_boundary_mesh",
     "ShearCatalog",
     "FlatCatalog",
     "read_fits_catalog",
