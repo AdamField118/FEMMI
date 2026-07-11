@@ -116,6 +116,7 @@ tests/
 ├── test_catalog_pipeline.py    # Catalog-native reconstruction + binned KS + deflection
 ├── test_bc_ablation.py         # Boundary-condition machinery (Dirichlet operator)
 ├── test_bem_scaling.py         # BEM coupling scale-dependence (bug characterisation)
+├── test_steinbach_coupling.py  # Corrected coupling: sigma-scaling, scale/translation invariance
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
