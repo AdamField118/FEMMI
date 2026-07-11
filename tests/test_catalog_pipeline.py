@@ -97,7 +97,7 @@ def test_bin_shear_conserves_mean():
 
 
 def _write_synthetic_frontier(tmpdir, n=161, s=22.0, A=1000.0):
-    """Analytic Gaussian potential -> exact kappa/gamma; write kappa+psi FITS."""
+    """Analytic Gaussian potential -> exact kappa/gamma; write kappa+psi+deflect."""
     from astropy.io import fits
     yy, xx = np.mgrid[0:n, 0:n]
     x = xx - n // 2; y = yy - n // 2; r2 = x**2 + y**2
@@ -107,6 +107,8 @@ def _write_synthetic_frontier(tmpdir, n=161, s=22.0, A=1000.0):
     g2a = (x * y) / s**4 * psi
     fits.writeto(os.path.join(tmpdir, "hlsp_x_kappa.fits"), kap, overwrite=True)
     fits.writeto(os.path.join(tmpdir, "hlsp_x_psi.fits"), psi, overwrite=True)
+    fits.writeto(os.path.join(tmpdir, "hlsp_x_x-arcsec-deflect.fits"), -x / s**2 * psi, overwrite=True)
+    fits.writeto(os.path.join(tmpdir, "hlsp_x_y-arcsec-deflect.fits"), -y / s**2 * psi, overwrite=True)
     return x, y, r2, g1a, g2a
 
 
@@ -133,6 +135,27 @@ def test_frontier_loader_derives_correct_shear():
     assert np.isfinite(cat["g1"]).all() and np.isfinite(cat["kappa_true"]).all()
 
 
+def test_frontier_deflection_crosscheck():
+    """Deflection-derived shear matches the psi-Hessian shear (independent path)."""
+    import pytest
+    pytest.importorskip("astropy")
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    x, y, r2, g1a, g2a = _write_synthetic_frontier(tmp)
+
+    fp = load_frontier_model(tmp, source="psi", pixscale_arcsec=1.0,
+                             downsample=1, verbose=False)
+    fd = load_frontier_model(tmp, source="deflect", pixscale_arcsec=1.0,
+                             downsample=1, verbose=False)
+    interior = (np.abs(x) < 45) & (np.abs(y) < 45) & (r2 > 1)
+    # deflection shear reproduces the analytic gamma and agrees with psi
+    err = np.median(np.abs(fd["g1"][interior] - g1a[interior]) /
+                    (np.abs(g1a[interior]) + 1e-6))
+    assert err < 0.05, f"deflection g1 error {err:.3f}"
+    cc = np.corrcoef(fp["g1"][interior], fd["g1"][interior])[0, 1]
+    assert cc > 0.99, f"psi vs deflection shear agreement corr={cc:.3f}"
+
+
 if __name__ == "__main__":
     tests = [
         test_reconstruct_catalog_runs_and_maps,
@@ -141,6 +164,7 @@ if __name__ == "__main__":
         test_ks_binned_recovers_gaussian,
         test_bin_shear_conserves_mean,
         test_frontier_loader_derives_correct_shear,
+        test_frontier_deflection_crosscheck,
     ]
     passed, failed = 0, []
     for fn in tests:

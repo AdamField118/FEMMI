@@ -59,6 +59,8 @@ if _JAX_AVAILABLE:
         FEMOperators,
         build_operators,
         build_operators_adaptive,
+        build_operators_dirichlet,
+        dirichlet_from_operators,
         build_wiener_regularizer,
         build_laplacian,
     )
@@ -80,6 +82,7 @@ if _JAX_AVAILABLE:
         bin_shear_to_grid,
         kaiser_squires_binned,
         analytic_gaussian_catalog,
+        analytic_gaussian_shear,
         load_frontier_model,
         field_to_catalog,
     )

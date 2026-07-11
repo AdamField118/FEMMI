@@ -109,19 +109,26 @@ class FEMOperators:
     n_nodes      : int
     boundary     : np.ndarray
     interior     : np.ndarray
+    # When set (Dirichlet BC), the RHS is zeroed on ALL these nodes so the solve
+    # enforces psi=0 on the boundary. Default None -> BEM: zero only the single
+    # gauge node (the constant null space is otherwise removed by the coupling).
+    dirichlet_nodes : Optional[np.ndarray] = None
+
+    def _rhs_zero_nodes(self):
+        if self.dirichlet_nodes is not None:
+            return self.dirichlet_nodes
+        return np.array([int(self.bnd_mesh.node_indices[0])])
 
     def _solve_psi(self, rhs: np.ndarray) -> np.ndarray:
-        """Forward solve: zero gauge node in RHS, then apply A_coupled_lu."""
-        idx_gauge = int(self.bnd_mesh.node_indices[0])
+        """Forward solve: zero gauge/Dirichlet nodes in RHS, then apply A_lu."""
         rhs = rhs.copy()
-        rhs[idx_gauge] = 0.0
+        rhs[self._rhs_zero_nodes()] = 0.0
         return self.A_coupled_lu.solve(rhs)
 
     def _solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
-        """Adjoint solve: zero gauge node in RHS, then apply A_coupled_lu^T."""
-        idx_gauge = int(self.bnd_mesh.node_indices[0])
+        """Adjoint solve: zero gauge/Dirichlet nodes in RHS, then apply A_lu^T."""
         rhs = rhs.copy()
-        rhs[idx_gauge] = 0.0
+        rhs[self._rhs_zero_nodes()] = 0.0
         return self.A_coupled_lu.solve(rhs, trans='T')
 
     def psi_from_kappa(self, kappa):
@@ -142,8 +149,19 @@ class FEMOperators:
         return -2.0 * self.M.T @ self._solve_adjoint(rhs)
 
 
-def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extractor=None):
-    """Assemble K, M, S1, S2, BEM matrices, and A_coupled for any P3 mesh."""
+def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extractor=None,
+                                  couple_scale=None):
+    """Assemble K, M, S1, S2, BEM matrices, and A_coupled for any P3 mesh.
+
+    couple_scale (EXPERIMENTAL): length factor applied to the BEM coupling C.
+    The coupling C = V_h^{-1}(0.5 M_b + K_h) scales as 1/L with the domain size,
+    whereas the FEM stiffness K is scale-free, so on large domains the boundary
+    coupling is under-weighted and the far-field condition is effectively lost
+    (BEM forward error grows with the absolute coordinate scale; see
+    examples/bem_scaling_diagnostic.py). Passing a characteristic length here
+    multiplies C by it, restoring scale-invariance. 'auto' uses the boundary
+    diameter. Default None keeps the original (scale-dependent) behaviour.
+    """
     if t0 is None:
         t0 = time.perf_counter()
 
@@ -240,6 +258,16 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
         print(f"  BEM done: N_b={N_b}  ({time.perf_counter()-t_bem:.1f}s)")
 
     C_dense = np.linalg.solve(V_h, 0.5 * M_b + K_h)
+    if couple_scale is not None:
+        if couple_scale == 'auto':
+            bn = nodes[boundary]
+            ctr = bn.mean(axis=0)
+            couple_scale = 2.0 * float(np.max(np.hypot(bn[:, 0] - ctr[0],
+                                                       bn[:, 1] - ctr[1])))
+        C_dense = float(couple_scale) * C_dense
+        if verbose:
+            print(f"  coupling scaled by L={float(couple_scale):.3g} "
+                  f"(scale-invariance fix)")
 
     if verbose:
         print("  assembling A_coupled...")
@@ -287,7 +315,7 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
 
 def build_operators(nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
                     verbose=True, geometry='square',
-                    radius=2.5, n_boundary=252):
+                    radius=2.5, n_boundary=252, couple_scale=None):
     """Build FEM operators on a square or circular P3 mesh.
 
     Parameters
@@ -299,15 +327,55 @@ def build_operators(nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
         Radius of the circular domain (only used when geometry='circular').
     n_boundary : int
         Number of boundary nodes for the circular domain.
+    couple_scale : EXPERIMENTAL length factor on the BEM coupling; see
+        _assemble_operators_from_mesh. 'auto' restores scale-invariance.
+        Default None keeps the original behaviour.
     """
     if geometry == 'circular':
         return build_operators_circular(
-            radius=radius, n_boundary=n_boundary, verbose=verbose)
+            radius=radius, n_boundary=n_boundary, verbose=verbose,
+            couple_scale=couple_scale)
     t0 = time.perf_counter()
     if verbose:
         print(f"Building P3 mesh: {nx}x{ny} cells...")
     mesh = generate_p3_structured_mesh(nx, ny, xmin, xmax, ymin, ymax)
-    return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0)
+    return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0,
+                                         couple_scale=couple_scale)
+
+
+def dirichlet_from_operators(ops, verbose=False):
+    """
+    Build a Dirichlet-BC counterpart of an existing FEMOperators, reusing its
+    assembled K, M, S1, S2.
+
+    Replaces the BEM-coupled A with the truncated-domain operator that imposes
+    psi = 0 on the whole boundary (the standard, and per this project's thesis
+    *incorrect*, finite-domain treatment). The returned operator plugs into
+    MAPReconstructor exactly like the BEM one, so a reconstruction can be run
+    with only the boundary condition changed -- everything else held fixed.
+    """
+    bnd  = np.asarray(ops.boundary)
+    A    = ops.K.tolil()
+    A[bnd, :] = 0.0
+    A[bnd, bnd] = 1.0                      # psi_b = 0 rows
+    A_csr = A.tocsr()
+    if verbose:
+        print(f"  Dirichlet A: {A_csr.shape}, pinning {len(bnd)} boundary nodes")
+    A_lu = spla.splu(A_csr.tocsc())
+
+    return FEMOperators(
+        mesh=ops.mesh, K=ops.K, M=ops.M, S1=ops.S1, S2=ops.S2,
+        A_coupled=A_csr, A_coupled_lu=A_lu, bnd_mesh=ops.bnd_mesh,
+        C_dense=ops.C_dense, n_nodes=ops.n_nodes, boundary=ops.boundary,
+        interior=ops.interior, dirichlet_nodes=bnd,
+    )
+
+
+def build_operators_dirichlet(nx=20, ny=20, xmin=-2.5, xmax=2.5,
+                              ymin=-2.5, ymax=2.5, verbose=True):
+    """FEM operators on a square P3 mesh with psi=0 Dirichlet boundary."""
+    ops = build_operators(nx, ny, xmin, xmax, ymin, ymax, verbose=verbose)
+    return dirichlet_from_operators(ops, verbose=verbose)
 
 
 def build_operators_adaptive(nx, ny, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
@@ -342,7 +410,8 @@ def build_wiener_regularizer(ops, wiener_length):
     """
     return (ops.M + wiener_length**2 * ops.K).tocsr()
 
-def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.0, 0.0), verbose=True):
+def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.0, 0.0),
+                             verbose=True, couple_scale=None):
     from .mesh import generate_p3_circular_mesh
     from .bem  import extract_boundary_edges_circular
     t0 = time.perf_counter()
@@ -350,7 +419,8 @@ def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.
         print(f"Building circular P3 mesh: R={radius:.2f}  n_boundary={n_boundary}...")
     mesh = generate_p3_circular_mesh(radius=radius, n_boundary=n_boundary, n_rings=n_rings, center=center, verbose=verbose)
     return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0,
-                                         boundary_extractor=lambda m: extract_boundary_edges_circular(m, center=center, radius=radius))
+                                         boundary_extractor=lambda m: extract_boundary_edges_circular(m, center=center, radius=radius),
+                                         couple_scale=couple_scale)
                                          
 def build_operators_catalog(x, y, center=None, radius=None, pad=0.15,
                             n_boundary=96, dedup_radius=None, guard_ring=True,

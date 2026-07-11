@@ -113,12 +113,17 @@ tests/
 ├── test_convergence.py         # Forward operator gamma convergence
 ├── test_eb_modes.py            # E/B decomposition, rotation identity, null test
 ├── test_bmode_diagnostics.py   # B-mode quality flag + noise-floor cross-check
-├── test_catalog_pipeline.py    # Catalog-native reconstruction + binned KS
+├── test_catalog_pipeline.py    # Catalog-native reconstruction + binned KS + deflection
+├── test_bc_ablation.py         # Boundary-condition machinery (Dirichlet operator)
+├── test_bem_scaling.py         # BEM coupling scale-dependence (bug characterisation)
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
 ├── generate_figures.py         # Preliminary results figures (self-contained)
 ├── eb_modes_demo.py            # E/B-mode decomposition figure
+├── bc_ablation.py              # BEM vs Dirichlet vs Periodic boundary-condition study
+├── bem_scaling_diagnostic.py   # BEM coupling scale-dependence: diagnosis + fix
+├── bem_dtn_diagnostic.py       # Exterior-DtN test: scalar fix vs symmetric Steklov-Poincare
 ├── catalog_comparison.py       # Catalog-native FEMMI vs Fourier-grid KS head-to-head
 ├── smpy_comparison.py          # Full Monte Carlo benchmark vs SMPy KS
 └── visualize_results.py        # SVD modes, Picard, convergence diagnostics

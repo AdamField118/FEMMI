@@ -162,8 +162,9 @@ def main():
     ap.add_argument("--frontier", type=str, default=None,
                     help="Frontier Fields / CATS model-map directory "
                          "(e.g. data/abell2744/cats_v4.1)")
-    ap.add_argument("--source", choices=["psi", "kappa"], default="psi",
-                    help="frontier: derive shear from psi Hessian or kappa FFT")
+    ap.add_argument("--source", choices=["psi", "deflect", "kappa"], default="psi",
+                    help="frontier: derive shear from psi Hessian, the deflection "
+                         "field (independent cross-check), or kappa FFT")
     ap.add_argument("--downsample", type=int, default=6, help="frontier map stride")
     ap.add_argument("--pixscale", type=float, default=None,
                     help="frontier pixel scale (arcsec/pixel) override")

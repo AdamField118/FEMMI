@@ -272,13 +272,17 @@ def load_frontier_model(data_dir, source="psi", pixscale_arcsec=None,
     with a known convergence ground truth. These are FITS *images* (kappa, psi,
     gamma, ...), not a galaxy catalog.
 
-    source='psi'   : derive (g1, g2) from the lensing potential psi via its
-                     Hessian, self-calibrated to the provided kappa map (the
-                     unknown pixel-to-angle scale cancels in kappa/kappa_pix).
-    source='kappa' : synthesize the exact E-mode shear of the kappa map by FFT
-                     (use if psi is missing; imposes periodic boundaries).
+    source='psi'    : derive (g1, g2) from the lensing potential psi via its
+                      Hessian, self-calibrated to the provided kappa map (the
+                      unknown pixel-to-angle scale cancels in kappa/kappa_pix).
+    source='deflect': derive (g1, g2) from the deflection field alpha = grad psi
+                      (the *-arcsec-deflect maps) via first derivatives. This is
+                      an independent, less noise-amplifying cross-check on the
+                      psi-Hessian shear (one differentiation instead of two).
+    source='kappa'  : synthesize the exact E-mode shear of the kappa map by FFT
+                      (use if psi is missing; imposes periodic boundaries).
 
-    downsample     : integer stride to shrink the (often huge) native maps.
+    downsample      : integer stride to shrink the (often huge) native maps.
 
     Returns dict: X, Y (arcmin grids, centred), g1, g2, kappa_true, plus meta.
     """
@@ -302,20 +306,35 @@ def load_frontier_model(data_dir, source="psi", pixscale_arcsec=None,
     kappa = kappa[::d, ::d]
     pix_arcmin = pixscale_arcsec * d / 60.0
 
+    def _selfcal(kap_pix, g1_pix, g2_pix):
+        # unknown pixel-to-angle scale cancels via kappa/kappa_pix on the core
+        hi = kappa > np.percentile(kappa, 90)
+        scale = float(np.median(kappa[hi] / (kap_pix[hi] + 1e-30)))
+        return scale * g1_pix, scale * g2_pix, scale
+
     pfile = _find("psi")
+    ax_file = _find("x-arcsec-deflect")
+    ay_file = _find("y-arcsec-deflect")
+
     if source == "psi" and pfile is not None:
         psi = np.asarray(fits.getdata(pfile), dtype=np.float64)[::d, ::d]
         # Hessian in pixel units (array axis 0 = y/row, axis 1 = x/col)
         py, px   = np.gradient(psi)
         pyy, _   = np.gradient(py)
         pxy, pxx = np.gradient(px)
-        kap_pix  = 0.5 * (pxx + pyy)
-        g1_pix   = 0.5 * (pxx - pyy)
-        g2_pix   = pxy
-        hi = kappa > np.percentile(kappa, 90)          # calibrate on the core
-        scale = float(np.median(kappa[hi] / (kap_pix[hi] + 1e-30)))
-        g1, g2 = scale * g1_pix, scale * g2_pix
+        g1, g2, scale = _selfcal(0.5 * (pxx + pyy), 0.5 * (pxx - pyy), pxy)
         used = f"psi Hessian (kappa self-calibration scale={scale:.3g})"
+    elif source == "deflect" and ax_file is not None and ay_file is not None:
+        ax = np.asarray(fits.getdata(ax_file), dtype=np.float64)[::d, ::d]
+        ay = np.asarray(fits.getdata(ay_file), dtype=np.float64)[::d, ::d]
+        # alpha = grad psi; first derivatives give the Hessian components
+        axy, axx = np.gradient(ax)          # d alpha_x /dy, /dx
+        ayy, ayx = np.gradient(ay)          # d alpha_y /dy, /dx
+        kap_pix  = 0.5 * (axx + ayy)
+        g1_pix   = 0.5 * (axx - ayy)
+        g2_pix   = 0.5 * (axy + ayx)        # both approximate psi_xy; average
+        g1, g2, scale = _selfcal(kap_pix, g1_pix, g2_pix)
+        used = f"deflection grad (kappa self-calibration scale={scale:.3g})"
     else:
         g1, g2 = _shear_from_kappa_fft(kappa)
         used = "kappa FFT forward (periodic)"
@@ -381,6 +400,29 @@ def field_to_catalog(field, n_gal=3000, shape_noise=0.05, rmax_arcmin=None,
     return dict(x=x, y=y, g1=e1, g2=e2, weight=np.ones(x.size),
                 kappa_true=kt, center=(0.0, 0.0),
                 field_radius=float(np.hypot(x, y).max()))
+
+
+def analytic_gaussian_shear(points, sigma=0.4, amp=1.0, center=(0.0, 0.0)):
+    """
+    Exact convergence and (infinite-domain) shear of a Gaussian lens at the
+    given points. kappa(r) = amp*exp(-r^2/2sigma^2); the tangential shear is
+    gamma_t = kappabar(<r) - kappa(r) with the correct far-field decay, so this
+    is the right ground-truth input for comparing boundary conditions.
+
+    Returns (kappa, g1, g2) arrays aligned with `points`.
+    """
+    p  = np.asarray(points, np.float64)
+    dx = p[:, 0] - center[0]
+    dy = p[:, 1] - center[1]
+    r2 = dx**2 + dy**2
+    phi = np.arctan2(dy, dx)
+    kappa = amp * np.exp(-r2 / (2 * sigma**2))
+    kbar = np.where(r2 > 1e-12,
+                    2 * amp * sigma**2 / np.where(r2 > 1e-12, r2, 1.0)
+                    * (1 - np.exp(-r2 / (2 * sigma**2))),
+                    amp)
+    gamma_t = kbar - kappa
+    return kappa, -gamma_t * np.cos(2 * phi), -gamma_t * np.sin(2 * phi)
 
 
 def analytic_gaussian_catalog(n_gal=1500, sigma=0.5, amp=1.0, field_radius=2.5,

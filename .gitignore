@@ -6,6 +6,8 @@
 !outputs/fig_convergence.png
 !outputs/fig_eb_modes.png
 !outputs/fig_catalog_comparison.png
+!outputs/fig_bc_ablation.png
+!outputs/fig_bem_scaling.png
 
 # Paper
 *.log
