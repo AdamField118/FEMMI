@@ -35,9 +35,9 @@ Full derivations are in [`MATH.md`](MATH.md). The key ideas:
 
 **FEM-BEM coupling.** A P3 FEM interior solves $\nabla^2\psi = 2\kappa$ in $\Omega$ while a boundary element method encodes $\nabla^2\psi = 0$ in the exterior and $\psi \to 0$ at infinity. The coupled stiffness matrix is assembled via Schur complement reduction:
 
-$$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = V_h^{-1}\left(\tfrac{1}{2}M_b + K_h\right),$$
+$$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = -M_b\, V_\sigma^{-1}\left(\tfrac{1}{2}M_b - K_h\right),$$
 
-where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, and $P$ the DOF restriction to $\partial\Omega$. This is the Johnson-Nédélec monolithic coupling. The Calderon preconditioner $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
+where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, $P$ the DOF restriction to $\partial\Omega$, and $V_\sigma = V_h - \tfrac{\ln\sigma}{2\pi} \mathbf{w}\mathbf{w}^\top$ ($\mathbf{w}=M_b\mathbf{1}$, $\sigma=\mathrm{diam}(\partial\Omega)$) the $\sigma$-scaled single layer. This is the **symmetric Steinbach coupling**: the Galerkin $M_b$ pairing makes it scale-free and the rank-one $\sigma$-scaling repairs the 2D $n=0$ log-capacity mode, giving a scale- and translation-invariant far-field condition that beats a Dirichlet truncation near the mass (see [`MATH.md`](MATH.md) §6.5). The coupling $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
 
 **Why P3 elements.** Shear is the Hessian of $\psi$: $\gamma_1 = \frac{1}{2}(\partial^2\psi/\partial x^2 - \partial^2\psi/\partial y^2)$, $\gamma_2 = \partial^2\psi/\partial x\partial y$. P1 elements give identically zero second derivatives; P2 gives piecewise-constant second derivatives with no convergence. P3 gives piecewise-linear second derivatives and $O(h^2)$ shear convergence. The 10-node P3 Lagrange element used here achieves $O(h^4)$ in $L^2$ for the Poisson solve.
 
@@ -115,15 +115,15 @@ tests/
 ├── test_bmode_diagnostics.py   # B-mode quality flag + noise-floor cross-check
 ├── test_catalog_pipeline.py    # Catalog-native reconstruction + binned KS + deflection
 ├── test_bc_ablation.py         # Boundary-condition machinery (Dirichlet operator)
-├── test_bem_scaling.py         # BEM coupling scale-dependence (bug characterisation)
-├── test_steinbach_coupling.py  # Corrected coupling: sigma-scaling, scale/translation invariance
+├── test_bem_scaling.py         # Steinbach coupling scale-invariance vs Dirichlet
+├── test_steinbach_coupling.py  # Steinbach coupling: sigma-scaling, scale/translation invariance
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
 ├── generate_figures.py         # Preliminary results figures (self-contained)
 ├── eb_modes_demo.py            # E/B-mode decomposition figure
 ├── bc_ablation.py              # BEM vs Dirichlet vs Periodic boundary-condition study
-├── bem_scaling_diagnostic.py   # BEM coupling scale-dependence: diagnosis + fix
+├── bem_scaling_diagnostic.py   # BEM coupling scale-invariance: diagnosis + resolution
 ├── bem_dtn_diagnostic.py       # Exterior-DtN test: scalar fix vs symmetric Steklov-Poincare
 ├── catalog_comparison.py       # Catalog-native FEMMI vs Fourier-grid KS head-to-head
 ├── smpy_comparison.py          # Full Monte Carlo benchmark vs SMPy KS

@@ -208,27 +208,36 @@ in `bem.py` (25 points, relative error $< 10^{-12}$).
 
 ### 6.1 Assembling the Coupled System
 
-Let $P$ be the restriction operator extracting boundary entries: $P\psi = \psi_b$.
-The full coupled system for unknowns $(\psi, t)$ is:
+Let $P$ be the restriction operator extracting boundary entries: $P\psi = \psi_b$,
+and let $t = \partial\psi/\partial n$ be the boundary flux. The FEM weak form
+contributes a boundary term $\oint_{\partial\Omega} v\,t\,ds = (Pv)^\top M_b\,t$, so
+the flux enters the interior equation **tested against the trace basis through the
+boundary Gram matrix $M_b$** (the Galerkin pairing). The exterior harmonic
+extension supplies the discrete Dirichlet-to-Neumann relation
+$V_\sigma\,t = (\tfrac12 M_b - K_h)P\psi$, with the $\sigma$-scaled single layer
+$V_\sigma$ defined in \S6.5. The full coupled system for unknowns $(\psi, t)$ is:
 
-$$\begin{pmatrix} K & -B \\\ \left(\tfrac{1}{2}M_b + K_h\right)P & -V_h \end{pmatrix} \begin{pmatrix} \psi \\ t \end{pmatrix} = \begin{pmatrix} -2M\kappa \\\ 0 \end{pmatrix}$$
+$$\begin{pmatrix} K & -P^\top M_b \\\ \left(\tfrac{1}{2}M_b - K_h\right)P & -V_\sigma \end{pmatrix} \begin{pmatrix} \psi \\ t \end{pmatrix} = \begin{pmatrix} -2M\kappa \\\ 0 \end{pmatrix}$$
 
 ### 6.2 Schur Complement Reduction
 
-From the BEM equation: $t = V_h^{-1} (\tfrac{1}{2}M_b + K_h) P \psi$. Substituting yields:
+From the BEM equation: $t = V_\sigma^{-1} (\tfrac{1}{2}M_b - K_h) P \psi$.
+Substituting yields:
 
 $$A_{\rm coupled}\psi = -2M\kappa$$
 
 where:
 
-$$A_{\rm coupled} = K + P^\top V_h^{-1}\left(\tfrac{1}{2}M_b + K_h\right)P$$
+$$A_{\rm coupled} = K - P^\top M_b\, V_\sigma^{-1}\left(\tfrac{1}{2}M_b - K_h\right)P$$
 
-Implemented in `operators.py`, function `_assemble_operators_from_mesh`.
-The dense Calderon matrix $C = V_h^{-1}(\tfrac{1}{2}M_b + K_h)$ is stored in
+Implemented in `operators.py`, function `_assemble_operators_from_mesh`
+(`coupling='steinbach'`, the default). The dense coupling matrix
+$C = -M_b\,V_\sigma^{-1}(\tfrac{1}{2}M_b - K_h)$ is stored in
 `FEMOperators.C_dense` (shape $N_b \times N_b$); the boundary-block update
 `K[bnd_idx, bnd_idx] += C_dense` produces $A_{\rm coupled}$ as a sparse CSR matrix.
+The symmetric Steinbach coupling and its $\sigma$-scaling are derived in \S6.5.
 
-By the Calderon identity, $({\tfrac{1}{2}M_b + K_h})\mathbf{1} \approx 0$, so
+By the Calderon identity, $({\tfrac{1}{2}M_b - K_h})\mathbf{1} \approx 0$, so
 $C_{\rm dense}\mathbf{1} \approx 0$ and $A_{\rm coupled}$ retains
 $\mathrm{span}\{\mathbf{1}\}$ as its null space. One scalar gauge condition is
 therefore required.
@@ -284,30 +293,33 @@ Solving the gauged system gives $\psi$ satisfying:
 
 Uniqueness follows from **[C\&K \S3.3, Thm 3.12]**.
 
-### 6.5 Corrected Coupling: Galerkin Pairing and $\sigma$-Scaling
+### 6.5 Derivation of the Coupling: Galerkin Pairing and $\sigma$-Scaling
 
-The coupling $A_{\rm coupled} = K + P^\top V_h^{-1}(\tfrac12 M_b + K_h)P$ of \S6.2 (now
-`coupling='legacy'`) has two defects, isolated by direct spectral testing of the
-discrete exterior Dirichlet-to-Neumann (DtN) map on a disk:
+The coupling matrix of \S6.2 is fixed by two requirements, both isolated by direct
+spectral testing of the discrete exterior Dirichlet-to-Neumann (DtN) map on a disk.
+(A naive *nodal* coupling $V_h^{-1}(\tfrac12 M_b + K_h)$ — used in early versions of
+this code — violates both and is neither scale- nor translation-invariant; it has
+been removed.)
 
-1. **Missing Galerkin pairing.** The FEM boundary term is $\oint_{\partial\Omega} v\,t\,ds
+1. **Galerkin pairing.** The FEM boundary term is $\oint_{\partial\Omega} v\,t\,ds
    = P^\top M_b\,t$, so the flux must be tested against the trace basis through the
-   boundary Gram matrix $M_b$. Using $V_h^{-1}(\tfrac12 M_b + K_h)$ directly (a
-   *nodal* DtN) omits this outer $M_b$. Dimensionally $V_h\sim L^2$, $M_b,K_h\sim L$,
-   so the nodal coupling scales as $1/L$ while $K$ is scale-free: the far-field
-   condition is progressively lost as the domain grows, and the forward shear error
-   grows with the absolute coordinate scale (measured: $\|C\|\propto 1/L$; error
-   $0.11\to1.7$ over $\times100$).
+   boundary Gram matrix $M_b$. Dropping this outer $M_b$ gives a *nodal* DtN whose
+   dimensions do not match $K$: with $V_h\sim L^2$, $M_b,K_h\sim L$, the nodal
+   coupling scales as $1/L$ while $K$ is scale-free, so the far-field condition is
+   progressively lost as the domain grows and the forward shear error grows with the
+   absolute coordinate scale (measured for the nodal form: $\|C\|\propto 1/L$; error
+   $0.11\to1.7$ over $\times100$). Retaining the outer $M_b$ — as in \S6.2 — makes
+   the coupling scale-free.
 
-2. **Untreated $n=0$ log-capacity mode.** In 2D the single layer is elliptic only
-   when the logarithmic capacity $\mathrm{cap}(\partial\Omega)<1$. Per-mode testing
-   shows the discrete DtN eigenvalues are **exact for every $n\ge1$**
-   ($\lambda_n=-n/R$ to 4–5 digits), while the $n=0$ (constant / mass-sheet) mode is
-   singular at $\mathrm{cap}=R=1$ and uncontrolled otherwise. Only this mode breaks
-   dilation invariance, since $V_1 = -R\ln R$ carries a non-homogeneous $\ln R$.
+2. **$n=0$ log-capacity mode.** In 2D the single layer is elliptic only when the
+   logarithmic capacity $\mathrm{cap}(\partial\Omega)<1$. Per-mode testing shows the
+   discrete DtN eigenvalues are **exact for every $n\ge1$** ($\lambda_n=-n/R$ to 4–5
+   digits), while the $n=0$ (constant / mass-sheet) mode is singular at
+   $\mathrm{cap}=R=1$ and uncontrolled otherwise. Only this mode breaks dilation
+   invariance, since $V_1 = -R\ln R$ carries a non-homogeneous $\ln R$.
 
-The corrected coupling (`coupling='steinbach'`) repairs exactly these two defects,
-with the physically correct exterior sign $\tfrac12 M_b - K_h$:
+The symmetric Steinbach coupling addresses both, using the physically correct
+exterior sign $\tfrac12 M_b - K_h$:
 
 $$A_{\rm coupled} = K \;-\; P^\top\, M_b\, V_\sigma^{-1}\!\left(\tfrac12 M_b - K_h\right)P,
 \qquad V_\sigma = V_h - \frac{\ln\sigma}{2\pi}\,\mathbf{w}\mathbf{w}^\top,\quad
@@ -318,15 +330,15 @@ solution** $-\tfrac1{2\pi}\ln(|x-y|/\sigma)$ (**[Steinbach 2008, \S6.6]**); with
 $\sigma=\mathrm{diam}$ it non-dimensionalizes the kernel, so it shifts **only** the
 $n=0$ eigenvalue (every $n\ge1$ frozen to machine precision — the primary regression
 test) and, being $\propto\mathrm{diam}$, restores scale- and translation-invariance.
-No hypersingular operator is required: the $n\ge1$ spectrum was already exact.
+No hypersingular operator is required: the $n\ge1$ spectrum is already exact.
 
-On the analytic Gaussian lens the corrected coupling is scale-invariant (forward
-error $0.033$ at every scale) and, unlike the legacy coupling, **more accurate than a
-Dirichlet truncation** when the boundary approaches the mass ($3.5\times$ lower error
-at $\kappa(\partial\Omega)\approx0.14$), converging to Dirichlet as the boundary
-recedes — the quantitative statement of the far-field claim in \S2. Regression tests
-in `tests/test_steinbach_coupling.py`; the investigation is reproduced by
-`examples/bem_scaling_diagnostic.py` and `examples/bem_dtn_diagnostic.py`.
+On the analytic Gaussian lens the coupling is scale-invariant (forward error $0.033$
+at every scale) and **more accurate than a Dirichlet truncation** when the boundary
+approaches the mass ($3.5\times$ lower error at $\kappa(\partial\Omega)\approx0.14$),
+converging to Dirichlet as the boundary recedes — the quantitative statement of the
+far-field claim in \S2. Regression tests in `tests/test_steinbach_coupling.py`; the
+scale/DtN diagnostics are reproduced by `examples/bem_scaling_diagnostic.py` and
+`examples/bem_dtn_diagnostic.py`.
 
 
 ## 7. P3 Cubic Basis Functions

@@ -1,7 +1,9 @@
 """
 examples/bem_dtn_diagnostic.py
-Decides whether the scalar length-factor coupling fix (couple_scale) is
-SUFFICIENT, or whether the symmetric Steklov-Poincare operator must be derived.
+Diagnostic (historical) that decided whether a scalar length-factor patch of the
+legacy coupling was SUFFICIENT, or whether the symmetric Steklov-Poincare
+structure had to be restored. The verdict below (a mode-dependent residual
+plateau) is what motivated the shipped Steinbach coupling; kept for the record.
 
 This is a boundary-only test (no volume mesh, no reconstruction), so it is cheap
 even at high boundary resolution -- push n_boundary and the mode count on an HPC
@@ -20,7 +22,7 @@ overall constant) and report the RESIDUAL that remains after that best scalar.
 Verdict
 -------
   * If the residual -> 0 as n_boundary grows (for every mode), a single scalar
-    length factor reproduces the true DtN and couple_scale is provably
+    length factor reproduces the true DtN and a scalar patch is provably
     sufficient. (The best-fit s itself is not the constant to copy -- it absorbs
     an M_b normalisation that scales with resolution -- so calibrate the constant
     separately, e.g. by matching a reference solution, not from s directly.)

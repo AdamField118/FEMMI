@@ -150,26 +150,20 @@ class FEMOperators:
 
 
 def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extractor=None,
-                                  couple_scale=None, coupling='legacy', sigma_scale=1.0):
+                                  coupling='steinbach', sigma_scale=1.0):
     """Assemble K, M, S1, S2, BEM matrices, and A_coupled for any P3 mesh.
 
     coupling : selects the FEM-BEM boundary coupling C added to the stiffness
         boundary block (A_coupled = K + P^T C P):
 
-        'legacy'   (default) : C = V_h^{-1}(0.5 M_b + K_h). This is the original
-            coupling. It has two known defects (see examples/bem_scaling_diagnostic.py
-            and the investigation notes): the Galerkin M_b pairing is missing, so
-            C scales as 1/L and the forward error grows with the absolute
-            coordinate scale; and the n=0 logarithmic-capacity mode of V_h is
-            untreated. couple_scale (below) is a partial patch for the first.
-
-        'steinbach' : C = -M_b V_sigma^{-1}(0.5 M_b - K_h), the corrected coupling.
-            It uses the physically correct exterior sign (0.5 M_b - K_h), the
-            Galerkin M_b pairing, and a sigma-scaled single layer
+        'steinbach' (default) : C = -M_b V_sigma^{-1}(0.5 M_b - K_h), the
+            symmetric Steinbach coupling. It uses the physically correct
+            exterior sign (0.5 M_b - K_h), the Galerkin M_b pairing, and a
+            sigma-scaled single layer
             V_sigma = V_h - (ln sigma / 2pi) w w^T,  w = M_b 1,  sigma = diam(Gamma),
-            which repairs ONLY the n=0 mode (Steinbach 2008). The result is
-            scale- and translation-invariant and more accurate than a Dirichlet
-            truncation when the boundary is near the mass.
+            which repairs the n=0 logarithmic-capacity mode (Steinbach 2008).
+            The result is scale- and translation-invariant and more accurate
+            than a Dirichlet truncation when the boundary is near the mass.
 
         'deflation' : EXPERIMENTAL, undocumented. Same coupling but the n=0 mode
             is removed by explicit constant-mode deflation of V_h instead of
@@ -177,10 +171,6 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
 
     sigma_scale : multiplies the characteristic length sigma = diam(Gamma) used by
         the 'steinbach' coupling (sigma -> sigma_scale * diam). Default 1.0.
-
-    couple_scale : legacy-only. Length factor multiplying the legacy coupling C
-        ('auto' uses the boundary diameter). Superseded by coupling='steinbach';
-        ignored unless coupling='legacy'.
     """
     if t0 is None:
         t0 = time.perf_counter()
@@ -277,21 +267,9 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
     if verbose:
         print(f"  BEM done: N_b={N_b}  ({time.perf_counter()-t_bem:.1f}s)")
 
-    if coupling == 'legacy':
-        C_dense = np.linalg.solve(V_h, 0.5 * M_b + K_h)
-        if couple_scale is not None:
-            if couple_scale == 'auto':
-                bn = nodes[boundary]
-                ctr = bn.mean(axis=0)
-                couple_scale = 2.0 * float(np.max(np.hypot(bn[:, 0] - ctr[0],
-                                                           bn[:, 1] - ctr[1])))
-            C_dense = float(couple_scale) * C_dense
-            if verbose:
-                print(f"  coupling scaled by L={float(couple_scale):.3g} "
-                      f"(legacy scale patch)")
-    elif coupling in ('steinbach', 'deflation'):
-        # Corrected coupling: physically correct exterior sign (0.5 M_b - K_h),
-        # Galerkin M_b pairing, n=0 log-capacity mode repaired.
+    if coupling in ('steinbach', 'deflation'):
+        # Symmetric Steinbach coupling: physically correct exterior sign
+        # (0.5 M_b - K_h), Galerkin M_b pairing, n=0 log-capacity mode repaired.
         w  = M_b @ np.ones(N_b)
         Xm = 0.5 * M_b - K_h
         if coupling == 'steinbach':
@@ -308,7 +286,7 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
             C_dense = -(M_b @ ((I - P0) @ np.linalg.solve(V_eff, (I - P0) @ Xm)))
     else:
         raise ValueError(f"unknown coupling={coupling!r}; "
-                         "use 'legacy', 'steinbach', or 'deflation'")
+                         "use 'steinbach' (default) or 'deflation'")
 
     if verbose:
         print("  assembling A_coupled...")
@@ -356,8 +334,8 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
 
 def build_operators(nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
                     verbose=True, geometry='square',
-                    radius=2.5, n_boundary=252, couple_scale=None,
-                    coupling='legacy', sigma_scale=1.0):
+                    radius=2.5, n_boundary=252,
+                    coupling='steinbach', sigma_scale=1.0):
     """Build FEM operators on a square or circular P3 mesh.
 
     Parameters
@@ -369,21 +347,19 @@ def build_operators(nx=20, ny=20, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
         Radius of the circular domain (only used when geometry='circular').
     n_boundary : int
         Number of boundary nodes for the circular domain.
-    coupling : 'legacy' (default) or 'steinbach'; see _assemble_operators_from_mesh.
-        'steinbach' is the corrected, scale-invariant BEM coupling.
+    coupling : 'steinbach' (default); see _assemble_operators_from_mesh. The
+        symmetric, scale- and translation-invariant BEM coupling.
     sigma_scale : length scale multiplier for the 'steinbach' coupling (default 1.0).
-    couple_scale : legacy-only scale patch; superseded by coupling='steinbach'.
     """
     if geometry == 'circular':
         return build_operators_circular(
             radius=radius, n_boundary=n_boundary, verbose=verbose,
-            couple_scale=couple_scale, coupling=coupling, sigma_scale=sigma_scale)
+            coupling=coupling, sigma_scale=sigma_scale)
     t0 = time.perf_counter()
     if verbose:
         print(f"Building P3 mesh: {nx}x{ny} cells...")
     mesh = generate_p3_structured_mesh(nx, ny, xmin, xmax, ymin, ymax)
     return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0,
-                                         couple_scale=couple_scale,
                                          coupling=coupling, sigma_scale=sigma_scale)
 
 
@@ -425,7 +401,7 @@ def build_operators_dirichlet(nx=20, ny=20, xmin=-2.5, xmax=2.5,
 def build_operators_adaptive(nx, ny, xmin=-2.5, xmax=2.5, ymin=-2.5, ymax=2.5,
                               mask_center=(0.0, 0.0), mask_radius=0.5,
                               refine_factor=3, verbose=True,
-                              coupling='legacy', sigma_scale=1.0):
+                              coupling='steinbach', sigma_scale=1.0):
     """Build FEM operators on a locally refined P3 mesh near a circular mask."""
     t0 = time.perf_counter()
     if verbose:
@@ -457,8 +433,8 @@ def build_wiener_regularizer(ops, wiener_length):
     return (ops.M + wiener_length**2 * ops.K).tocsr()
 
 def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.0, 0.0),
-                             verbose=True, couple_scale=None,
-                             coupling='legacy', sigma_scale=1.0):
+                             verbose=True,
+                             coupling='steinbach', sigma_scale=1.0):
     from .mesh import generate_p3_circular_mesh
     from .bem  import extract_boundary_edges_circular
     t0 = time.perf_counter()
@@ -467,12 +443,11 @@ def build_operators_circular(radius=2.5, n_boundary=60, n_rings=None, center=(0.
     mesh = generate_p3_circular_mesh(radius=radius, n_boundary=n_boundary, n_rings=n_rings, center=center, verbose=verbose)
     return _assemble_operators_from_mesh(mesh, verbose=verbose, t0=t0,
                                          boundary_extractor=lambda m: extract_boundary_edges_circular(m, center=center, radius=radius),
-                                         couple_scale=couple_scale,
                                          coupling=coupling, sigma_scale=sigma_scale)
 
 def build_operators_catalog(x, y, center=None, radius=None, pad=0.15,
                             n_boundary=96, dedup_radius=None, guard_ring=True,
-                            verbose=True, coupling='legacy', sigma_scale=1.0):
+                            verbose=True, coupling='steinbach', sigma_scale=1.0):
     """
     Build FEM-BEM operators on a catalog-native P3 mesh (nodes at galaxy
     positions, clean circular far-field boundary).

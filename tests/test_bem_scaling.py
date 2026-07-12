@@ -1,14 +1,12 @@
 """
 tests/test_bem_scaling.py
-Characterises the BEM coupling scaling issue found in the forward-accuracy
-investigation (see examples/bem_scaling_diagnostic.py):
+Characterises the scale behaviour of the forward map and the (now default)
+Steinbach BEM coupling:
 
   - the lensing forward map is scale-invariant, and Dirichlet respects it;
-  - the DEFAULT BEM coupling does not -- its forward error grows with the
-    absolute coordinate scale (this test documents the bug so a future fix can
-    be validated against it);
-  - ||C_dense|| falls as 1/L with domain size (the mechanism);
-  - build_operators(..., couple_scale='auto') restores scale-invariance.
+  - the Steinbach coupling is scale-invariant too (this is the property the
+    legacy coupling lacked -- see the investigation notes and MATH.md 6.5);
+  - the boundary-only circular BEM mesh assembles consistent matrices.
 
 Run:
     python -m pytest tests/test_bem_scaling.py -v
@@ -46,19 +44,11 @@ def test_dirichlet_is_scale_invariant():
     assert abs(e1 - e2) < 0.02 * e1, f"Dirichlet not scale-invariant: {e1:.4f} vs {e2:.4f}"
 
 
-def test_default_bem_is_scale_dependent():
-    """Documents the bug: default BEM forward error grows sharply with scale."""
+def test_steinbach_bem_is_scale_invariant():
+    """The default (Steinbach) BEM coupling is scale-invariant."""
     e1 = _fwd_err(_ops(1.0), 1.0)
     e2 = _fwd_err(_ops(25.0), 25.0)
-    assert e2 > 3.0 * e1, f"expected BEM to degrade with scale: {e1:.4f} -> {e2:.4f}"
-
-
-def test_coupling_norm_scales_as_inverse_L():
-    """||C_dense|| ~ 1/L: the coupling weakens with domain size (the mechanism)."""
-    c1 = np.linalg.norm(_ops(1.0).C_dense)
-    c2 = np.linalg.norm(_ops(25.0).C_dense)
-    ratio = (c1 / c2)                       # expect ~ 25
-    assert 15.0 < ratio < 40.0, f"||C|| ratio {ratio:.1f} not ~ 1/L (expected ~25)"
+    assert abs(e1 - e2) < 0.1 * e1, f"Steinbach not scale-invariant: {e1:.4f} vs {e2:.4f}"
 
 
 def test_circular_boundary_mesh_is_valid():
@@ -74,22 +64,11 @@ def test_circular_boundary_mesh_is_valid():
     assert np.linalg.norm((0.5 * M + K) @ one) / np.linalg.norm(M @ one) < 1e-2
 
 
-def test_couple_scale_auto_restores_invariance():
-    """The experimental fix makes the BEM forward error scale-invariant."""
-    e1 = _fwd_err(_ops(1.0, couple_scale='auto'), 1.0)
-    e2 = _fwd_err(_ops(25.0, couple_scale='auto'), 25.0)
-    assert abs(e1 - e2) < 0.1 * e1, f"fix not scale-invariant: {e1:.4f} vs {e2:.4f}"
-    # and it is at least as accurate as the (scale-dependent) default at unit scale
-    assert e1 <= _fwd_err(_ops(1.0), 1.0) + 1e-6
-
-
 if __name__ == "__main__":
     tests = [
         test_dirichlet_is_scale_invariant,
-        test_default_bem_is_scale_dependent,
-        test_coupling_norm_scales_as_inverse_L,
+        test_steinbach_bem_is_scale_invariant,
         test_circular_boundary_mesh_is_valid,
-        test_couple_scale_auto_restores_invariance,
     ]
     passed, failed = 0, []
     for fn in tests:
