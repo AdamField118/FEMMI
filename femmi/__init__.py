@@ -73,6 +73,7 @@ if _JAX_AVAILABLE:
         kaiser_squires,
         run_comparison,
     )
+    from .sampling import sample_posterior, langevin_sample, PosteriorSamples
     from .mesh import (
         generate_p3_structured_mesh,
         generate_p3_adaptive_mesh,
@@ -87,6 +88,16 @@ if _JAX_AVAILABLE:
         load_frontier_model,
         field_to_catalog,
     )
+    from .priors import (
+        Prior,
+        WienerPrior,
+        TotalVariationPrior,
+        SparsityPrior,
+        MaxEntropyPrior,
+        ScorePrior,
+        make_prior,
+        build_gradient_operator,
+    )
 
 __all__ = [
     "FEMOperators",
@@ -99,6 +110,17 @@ __all__ = [
     "ReconstructionResult",
     "kaiser_squires",
     "run_comparison",
+    "Prior",
+    "WienerPrior",
+    "TotalVariationPrior",
+    "SparsityPrior",
+    "MaxEntropyPrior",
+    "ScorePrior",
+    "make_prior",
+    "build_gradient_operator",
+    "sample_posterior",
+    "langevin_sample",
+    "PosteriorSamples",
     "generate_p3_structured_mesh",
     "generate_p3_adaptive_mesh",
     "BoundaryMesh",

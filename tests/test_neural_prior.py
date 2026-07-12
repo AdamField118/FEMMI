@@ -1,0 +1,77 @@
+"""
+tests/test_neural_prior.py
+The neural score prior (femmi/neural_prior/). Flax-dependent -- skipped cleanly
+if flax/optax are not installed.
+
+  - the mesh<->grid binning bridge is consistent (bin then gather ~ identity on a
+    smooth field);
+  - a tiny DSM-trained score model produces a finite score at the mesh nodes and
+    plugs into MAPReconstructor / make_prior('neural');
+  - the synthetic training maps are non-Gaussian (positive skewness), which is the
+    whole point of a learned prior.
+
+Run:
+    python -m pytest tests/test_neural_prior.py -v
+"""
+
+import sys, os
+import numpy as np
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+flax = pytest.importorskip("flax")            # skip module if flax missing
+optax = pytest.importorskip("optax")
+
+from femmi.operators import build_operators
+from femmi.neural_prior.data import lognormal_kappa_maps
+
+
+def test_synthetic_maps_are_non_gaussian():
+    maps = lognormal_kappa_maps(64, 48, seed=0).reshape(64, -1)
+    # per-map skewness; log-normal fields are positively skewed on average
+    m = maps - maps.mean(1, keepdims=True)
+    skew = (m**3).mean(1) / ((m**2).mean(1)**1.5 + 1e-12)
+    assert skew.mean() > 0.3, f"training maps not skewed enough (skew={skew.mean():.2f})"
+
+
+def test_binning_bridge_roundtrips_smooth_field():
+    """gather @ bin preserves a smooth field when the grid resolves the nodes
+    (bilinear splat + nearest-fill => a mild smoothing, not signal destruction)."""
+    from femmi.neural_prior.prior import _binning_operators
+    ops = build_operators(16, 16, -2.0, 2.0, -2.0, 2.0, verbose=False)
+    nodes = np.array(ops.mesh.nodes)
+    bin_op, gather = _binning_operators(nodes, 32,
+                                        (nodes[:, 0].min(), nodes[:, 0].max(),
+                                         nodes[:, 1].min(), nodes[:, 1].max()))
+    f = np.sin(nodes[:, 0]) + 0.5 * nodes[:, 1]        # smooth field
+    back = gather @ (bin_op @ f)
+    rel = np.linalg.norm(back - f) / np.linalg.norm(f)
+    assert rel < 0.15, f"bin->gather roundtrip error {rel:.3f} too large"
+
+
+def test_neural_prior_scores_and_reconstructs(tmp_path):
+    from femmi.neural_prior.prior import NeuralScorePrior
+    from femmi.forward import DifferentiableForward
+    from femmi.inverse import MAPReconstructor
+    from femmi.catalog import analytic_gaussian_shear
+
+    ops = build_operators(10, 10, -2.0, 2.0, -2.0, 2.0, verbose=False)
+    ckpt = str(tmp_path / "tiny.msgpack")
+    # tiny, fast model just to exercise the pipeline
+    prior = NeuralScorePrior(ops, n_pix=32, base=16, steps=20, ckpt=ckpt, verbose=False)
+    nodes = np.array(ops.mesh.nodes)
+    kt, g1, g2 = analytic_gaussian_shear(nodes, sigma=0.5)
+
+    phi, grad = prior.value_grad(kt)
+    assert phi == 0.0 and np.all(np.isfinite(grad)) and grad.shape == (ops.n_nodes,)
+
+    fwd = DifferentiableForward(ops, lam_reg=1e-2)
+    rec = MAPReconstructor(fwd, maxiter=30, callback_every=0, prior=prior)
+    k, res = rec.reconstruct(g1, g2, verbose=False)
+    assert np.all(np.isfinite(k)) and res.n_iter > 0
+
+
+if __name__ == "__main__":
+    import subprocess
+    sys.exit(subprocess.call([sys.executable, "-m", "pytest", __file__, "-v"]))

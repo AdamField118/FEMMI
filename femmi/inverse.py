@@ -116,7 +116,8 @@ class MAPReconstructor:
     """
 
     def __init__(self, fwd, maxiter=500, gtol=1e-9, callback_every=50,
-                 wiener_length=0.0, noise_std=None, data_weight=None):
+                 wiener_length=0.0, noise_std=None, data_weight=None,
+                 prior=None):
         self.fwd            = fwd
         self.maxiter        = maxiter
         self.gtol           = gtol
@@ -126,6 +127,11 @@ class MAPReconstructor:
         self.data_weight    = (None if data_weight is None
                                else np.asarray(data_weight, dtype=np.float64))
         self.ops            = fwd.ops
+        # Pluggable prior. Default (prior=None) is the Gaussian/Matern Wiener
+        # prior parameterised by wiener_length, byte-for-byte the historical
+        # behaviour. A custom Prior (femmi.priors) overrides it -- TV, sparsity,
+        # maximum entropy, or a learned score prior.
+        self.prior          = prior
 
         if wiener_length > 0.0:
             self._R = build_wiener_regularizer(fwd.ops, wiener_length)
@@ -143,6 +149,8 @@ class MAPReconstructor:
 
         loss_history = []
 
+        prior = self.prior
+
         def obj_grad(kappa_flat):
             kappa = kappa_flat.reshape(-1)
 
@@ -154,13 +162,20 @@ class MAPReconstructor:
             r2 = g2 - gamma2_obs
             wr1, wr2 = (r1, r2) if w is None else (w * r1, w * r2)
 
-            Rk   = R @ kappa
-            loss = float(np.dot(wr1, r1) + np.dot(wr2, r2)) + float(lam * np.dot(kappa, Rk))
-            loss_history.append(loss)
-
+            data = float(np.dot(wr1, r1) + np.dot(wr2, r2))
             adj  = ops._solve_adjoint(S1.T @ wr1 + S2.T @ wr2)
-            grad = -4.0 * (M.T @ adj) + 2.0 * lam * Rk
+            grad = -4.0 * (M.T @ adj)
 
+            if prior is None:                     # default Gaussian/Matern path
+                Rk    = R @ kappa
+                loss  = data + float(lam * np.dot(kappa, Rk))
+                grad += 2.0 * lam * Rk
+            else:                                 # pluggable prior: loss += lam*phi
+                phi, gphi = prior.value_grad(kappa)
+                loss  = data + float(lam * phi)
+                grad += lam * gphi
+
+            loss_history.append(loss)
             return loss, grad.astype(np.float64)
 
         return obj_grad, loss_history
@@ -172,7 +187,12 @@ class MAPReconstructor:
 
         Returns (kappa_map, ReconstructionResult).
         """
-        if self.noise_std is not None:
+        if self.noise_std is not None and self.prior is not None and not self.prior.is_quadratic:
+            if verbose:
+                print(f"Morozov lambda-selection is only defined for the quadratic "
+                      f"(Wiener) prior; using fixed lambda={self.fwd.lam_reg:.2e} for "
+                      f"prior={self.prior.name}.")
+        elif self.noise_std is not None:
             from .regularization import MorozovSelector
             if verbose:
                 print(f"Auto-selecting lambda (noise_std={self.noise_std:.3e})...")
@@ -205,7 +225,10 @@ class MAPReconstructor:
         obj_grad, loss_history = self._make_obj_and_grad(g1_obs, g2_obs)
 
         if verbose:
-            prior  = f"Wiener (l={self.wiener_length:.2f})" if self.wiener_length > 0 else "H1"
+            if self.prior is not None:
+                prior = self.prior.name
+            else:
+                prior = f"Wiener (l={self.wiener_length:.2f})" if self.wiener_length > 0 else "H1"
             loss0, grad0 = obj_grad(kappa0)
             print(f"MAP reconstruction  n={n}  lambda={self.fwd.lam_reg:.2e}  "
                   f"prior={prior}  maxiter={self.maxiter}")

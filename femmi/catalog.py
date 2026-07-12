@@ -54,7 +54,7 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
                         radius=None, n_boundary=96, lam_reg=1e-2,
                         wiener_length=None, noise_std=None, noise_source='mad',
                         use_morozov=True, use_weights=False, maxiter=500,
-                        verbose=True, **mesh_kw):
+                        prior=None, prior_kw=None, verbose=True, **mesh_kw):
     """
     Reconstruct kappa directly from a galaxy shear catalog (catalog-native).
 
@@ -72,6 +72,12 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
                 'bmode' -> the B-mode noise floor (delta_noise), signal-free and
                            usually smaller, giving a better-scaled Morozov solve
                            at the cost of one extra fixed-lambda E/B solve.
+    prior     : optional non-Gaussian prior (femmi.priors). Either a Prior
+                instance or a string kind ('tv', 'sparse', 'maxent') built here
+                against the catalog mesh. None -> the default Wiener/Matern prior.
+                Morozov lambda-selection applies only to the default Wiener prior;
+                custom priors use the fixed lam_reg.
+    prior_kw  : keyword dict forwarded to make_prior when `prior` is a string.
     use_morozov : select lambda automatically via the discrepancy principle.
     use_weights : fold per-galaxy inverse-variance weights into the data term.
                   Off by default (binary galaxy selection), which keeps noise_std
@@ -105,10 +111,18 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
     if wiener_length is None:
         wiener_length = 0.2 * cm.radius
 
+    # Optional non-Gaussian prior: a string kind ('tv','sparse','maxent',...) is
+    # built here now that ops exists; a Prior instance is used as-is. None -> the
+    # default Wiener/Matern prior parameterised by wiener_length.
+    prior_obj = prior
+    if isinstance(prior, str):
+        from .priors import make_prior
+        prior_obj = make_prior(prior, ops, **(prior_kw or {}))
+
     fwd = DifferentiableForward(ops, lam_reg=lam_reg)
     rec = MAPReconstructor(
         fwd, maxiter=maxiter, gtol=1e-8, callback_every=0,
-        wiener_length=wiener_length, data_weight=dw)
+        wiener_length=wiener_length, data_weight=dw, prior=prior_obj)
 
     if noise_std is None:
         if noise_source == 'bmode':

@@ -32,6 +32,8 @@ dependencies = [
 dev = ["pytest>=7.4.0", "jupyter>=1.0.0"]
 mesh = ["triangle>=20200424"]
 io = ["astropy>=5.0"]        # FITS shear catalogs and Frontier Fields model maps
+neural = ["flax>=0.8", "optax>=0.2"]   # learned score prior (prior='neural')
+galsim = ["galsim>=2.5"]     # independent-truth NFW benchmark (examples/galsim_nfw_benchmark.py)
 
 [project.urls]
 Repository = "https://github.com/AdamField118/FEMMI"

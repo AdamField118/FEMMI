@@ -43,7 +43,13 @@ where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the si
 
 **MAP reconstruction.** The estimate minimises
 
-$$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\kappa^\top R\kappa, \qquad R = M + \ell^2 K \text{(Matérn-}\tfrac{1}{2}\text{ prior)}.$$
+$$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\,\phi(\kappa), \qquad \phi_{\mathrm{Wiener}}(\kappa) = \kappa^\top R\kappa, \quad R = M + \ell^2 K \text{ (Matérn-}\tfrac{1}{2}\text{ prior, default)}.$$
+
+**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov $\lambda$-selection applies to the quadratic Wiener prior; the others take a fixed $\lambda$. `examples/prior_comparison.py` and `examples/prior_bakeoff.py` (λ-tuned) compare them.
+
+**Learned neural prior** (`femmi/neural_prior/`, one flag away). `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the *same* learned score drives posterior sampling.
+
+**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and score-based **Langevin** for non-Gaussian/neural priors. `examples/uncertainty_demo.py`.
 
 $\lambda$ is selected automatically by Brent's method on the discrepancy functional 
 
@@ -98,7 +104,10 @@ femmi/
 ├── bem.py               # BEM: V_h, K_h, M_b, Calderon operator
 ├── operators.py         # K, M, S1, S2, A_coupled; FEMOperators dataclass
 ├── forward.py           # DifferentiableForward (JAX custom_vjp)
-├── inverse.py           # MAPReconstructor (E/B + bmode_diagnostics, data_weight), kaiser_squires
+├── inverse.py           # MAPReconstructor (E/B + bmode_diagnostics, data_weight, prior=), kaiser_squires
+├── priors.py            # Pluggable priors: Wiener (default), TV, sparsity, max-entropy, ScorePrior hook
+├── sampling.py          # Posterior UQ: perturb-and-MAP (RTO) + score-based Langevin
+├── neural_prior/        # Learned score prior (Flax): denoiser, DSM training, NeuralScorePrior
 ├── catalog.py           # reconstruct_catalog, kaiser_squires_binned, synthetic catalog
 ├── io.py                # FITS shear catalog -> tangent plane (ShearCatalog/FlatCatalog)
 ├── regularization.py    # MorozovSelector, estimate_noise_level
@@ -117,6 +126,9 @@ tests/
 ├── test_bc_ablation.py         # Boundary-condition machinery (Dirichlet operator)
 ├── test_bem_scaling.py         # Steinbach coupling scale-invariance vs Dirichlet
 ├── test_steinbach_coupling.py  # Steinbach coupling: sigma-scaling, scale/translation invariance
+├── test_priors.py             # Pluggable priors: gradient FD checks, default-path parity
+├── test_sampling.py           # Posterior sampling: RTO exactness, Langevin, UQ maps
+├── test_neural_prior.py       # Neural score prior: binning bridge, DSM, plug-in (flax-gated)
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
@@ -125,6 +137,11 @@ examples/
 ├── bc_ablation.py              # BEM vs Dirichlet vs Periodic boundary-condition study
 ├── bem_scaling_diagnostic.py   # BEM coupling scale-invariance: diagnosis + resolution
 ├── bem_dtn_diagnostic.py       # Exterior-DtN test: scalar fix vs symmetric Steklov-Poincare
+├── prior_comparison.py         # Wiener vs TV vs sparsity vs max-entropy on one catalog
+├── prior_bakeoff.py            # Prior bake-off with per-prior lambda tuning (+ --neural)
+├── uncertainty_demo.py         # Posterior mean + per-pixel uncertainty map (RTO / neural)
+├── galsim_nfw_benchmark.py     # GalSim NFW benchmark (independent truth): L2(kappa/gamma/psi)
+├── bmode_dipole_diagnostic.py  # Off-centre B-mode: under-regularisation, not gauge (verdict)
 ├── catalog_comparison.py       # Catalog-native FEMMI vs Fourier-grid KS head-to-head
 ├── smpy_comparison.py          # Full Monte Carlo benchmark vs SMPy KS
 └── visualize_results.py        # SVD modes, Picard, convergence diagnostics
