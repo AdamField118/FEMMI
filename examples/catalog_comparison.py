@@ -50,7 +50,7 @@ def _load_fits(path, hdu=1, flip_g2=False, max_gal=6000):
         idx = np.random.default_rng(0).choice(len(x), max_gal, replace=False)
         x, y, g1, g2, w = x[idx], y[idx], g1[idx], g2[idx], w[idx]
     print(f"  loaded {len(x)} galaxies from {os.path.basename(path)}  "
-          f"field ~{x.ptp():.1f} x {y.ptp():.1f} arcmin")
+          f"field ~{np.ptp(x):.1f} x {np.ptp(y):.1f} arcmin")
     return dict(x=x, y=y, g1=g1, g2=g2, weight=w, kappa_true=None)
 
 
@@ -58,23 +58,44 @@ def _rms(a):
     return float(np.sqrt(np.mean(np.asarray(a)**2)))
 
 
+def _mass_centroid(x, y, g1, g2, truth=None):
+    """Centroid to hang the mesh/gauge on. Prefer the kappa-weighted centroid
+    when a truth field is available; otherwise use the |shear|-weighted centroid
+    of the galaxy positions (a shear-only proxy for the mass location)."""
+    if truth is not None and np.any(np.isfinite(truth)):
+        w = np.clip(np.nan_to_num(np.asarray(truth)), 0.0, None)
+    else:
+        w = np.hypot(np.asarray(g1), np.asarray(g2))
+    s = float(w.sum())
+    if s <= 0:
+        return (float(np.mean(x)), float(np.mean(y)))
+    return (float(np.sum(w * x) / s), float(np.sum(w * y) / s))
+
+
 def run_head_to_head(cat, wiener_length=None, grid_size=64, ks_smoothing_px=2.0,
                      n_boundary=96, use_morozov=True, lam_reg=1e-2, maxiter=400,
-                     noise_source='mad'):
+                     noise_source='mad', noise_std=None, center_on='field'):
+    """wiener_length : Matern-1/2 prior length (arcmin). None -> 0.2 * ring radius."""
     x, y, g1, g2 = cat['x'], cat['y'], cat['g1'], cat['g2']
     weight = cat.get('weight')
     truth  = cat.get('kappa_true')
-    center = cat.get('center', (float(np.mean(x)), float(np.mean(y))))
+    if center_on == 'mass':
+        center = _mass_centroid(x, y, g1, g2, truth)
+    else:
+        center = cat.get('center', (float(np.mean(x)), float(np.mean(y))))
     R      = float(np.hypot(x - center[0], y - center[1]).max())
     if wiener_length is None:
         wiener_length = 0.2 * R
+    print(f"  mesh/gauge center = ({center[0]:+.3f}, {center[1]:+.3f})  "
+          f"[center_on={center_on}]   R={R:.3f}")
 
     # ---- FEMMI catalog-native (E-mode), plus its B-mode null (rotated shear) --
-    print(f"\n[FEMMI] catalog-native FEM-BEM MAP (noise_source={noise_source}) ...")
+    print(f"\n[FEMMI] catalog-native FEM-BEM MAP (noise_source={noise_source}"
+          f"{', noise_std=%.4g' % noise_std if noise_std is not None else ''}) ...")
     fem = reconstruct_catalog(x, y, g1, g2, weight=weight, center=center,
                               n_boundary=n_boundary, wiener_length=wiener_length,
                               use_morozov=use_morozov, lam_reg=lam_reg,
-                              noise_source=noise_source,
+                              noise_source=noise_source, noise_std=noise_std,
                               maxiter=maxiter, verbose=True)
     print("[FEMMI] B-mode null (45-deg-rotated shear) ...")
     femB = reconstruct_catalog(x, y, g2, -np.asarray(g1), weight=weight, center=center,
@@ -187,6 +208,17 @@ def main():
     ap.add_argument("--maxiter", type=int, default=400,
                     help="L-BFGS iterations for the FEMMI MAP solve; raise for "
                          "large catalogs that have not converged (e.g. 2000-4000)")
+    ap.add_argument("--noise-std", type=float, default=None,
+                    help="override the per-component shear noise fed to Morozov "
+                         "(bypasses the auto estimate; use to decouple lambda from "
+                         "a contaminated B-mode floor, e.g. --noise-std 0.05)")
+    ap.add_argument("--center-on", choices=["field", "mass"], default="field",
+                    help="where to hang the mesh/gauge: 'field' (galaxy centroid, "
+                         "the default) or 'mass' (kappa/shear-weighted centroid; "
+                         "removes gauge/boundary asymmetry for an off-centre cluster)")
+    ap.add_argument("--wiener-length", type=float, default=None,
+                    help="Matern-1/2 prior length in arcmin (default 0.2 * ring "
+                         "radius). Smaller = sharper peaks, larger = smoother.")
     args = ap.parse_args()
 
     if args.frontier:
@@ -212,7 +244,10 @@ def main():
     res = run_head_to_head(cat, grid_size=args.grid_size,
                            use_morozov=not args.no_morozov,
                            noise_source=args.noise_source,
-                           maxiter=args.maxiter)
+                           maxiter=args.maxiter,
+                           noise_std=args.noise_std,
+                           center_on=args.center_on,
+                           wiener_length=args.wiener_length)
     out = os.path.join(os.path.dirname(__file__), "..", "outputs",
                        "fig_catalog_comparison.png")
     make_figure(res, out)
