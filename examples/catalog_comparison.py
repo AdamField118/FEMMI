@@ -184,6 +184,9 @@ def main():
                     help="frontier: emit observable reduced shear g=gamma/(1-kappa)")
     ap.add_argument("--rmax", type=float, default=None,
                     help="frontier: restrict sources to this radius (arcmin)")
+    ap.add_argument("--maxiter", type=int, default=400,
+                    help="L-BFGS iterations for the FEMMI MAP solve; raise for "
+                         "large catalogs that have not converged (e.g. 2000-4000)")
     args = ap.parse_args()
 
     if args.frontier:
@@ -208,7 +211,8 @@ def main():
 
     res = run_head_to_head(cat, grid_size=args.grid_size,
                            use_morozov=not args.no_morozov,
-                           noise_source=args.noise_source)
+                           noise_source=args.noise_source,
+                           maxiter=args.maxiter)
     out = os.path.join(os.path.dirname(__file__), "..", "outputs",
                        "fig_catalog_comparison.png")
     make_figure(res, out)
