@@ -109,7 +109,22 @@ class NeuralScorePrior(Prior):
         self.extent = (nodes[:, 0].min() - pad, nodes[:, 0].max() + pad,
                        nodes[:, 1].min() - pad, nodes[:, 1].max() + pad)
         self.bin_op, self.gather = _binning_operators(nodes, n_pix, self.extent)
-        self._sig = jnp.ones((1,)) * self.sigma_eval
+
+        # PERFORMANCE: the score net is called tens of thousands of times inside
+        # the sampler. Two things make that fast instead of a hang:
+        #  (1) JIT the whole U-Net forward so it compiles ONCE and runs as fused
+        #      kernels (not one eager op-dispatch per layer, per call), and
+        #  (2) run it in float32. FEMMI enables x64 globally, which would make the
+        #      convolutions run in float64 -- 2-8x slower on a GPU and double the
+        #      memory. Score precision does not need x64.
+        import jax
+        self.params = jax.tree_util.tree_map(lambda a: jnp.asarray(a, jnp.float32),
+                                             self.params)
+        _model, _params = self.model, self.params
+        self._apply = jax.jit(lambda grid, sig: _model.apply(_params, grid, sig))
+        # warm up (pay the one-time compile now, not mid-sampling)
+        z = jnp.zeros((1, n_pix, n_pix, 1), jnp.float32)
+        self._apply(z, jnp.asarray([sigma_eval], jnp.float32)).block_until_ready()
 
     def score(self, kappa, sigma=None):
         """The learned score grad log p_sigma(kappa) at the mesh nodes.
@@ -118,11 +133,11 @@ class NeuralScorePrior(Prior):
         default sigma_eval (for MAP); the annealed sampler passes the current
         annealing level so the network supplies the correctly-tempered prior
         score at each temperature."""
-        sig = self._sig if sigma is None else jnp.ones((1,)) * float(sigma)
-        grid = np.asarray(self.bin_op @ kappa).reshape(self.n_pix, self.n_pix)
-        s_grid = np.asarray(self.model.apply(self.params,
-                                             jnp.asarray(grid)[None, ..., None], sig))
-        return self.gather @ s_grid.reshape(-1)
+        s = self.sigma_eval if sigma is None else float(sigma)
+        grid = np.asarray(self.bin_op @ kappa, np.float32).reshape(1, self.n_pix, self.n_pix, 1)
+        s_grid = np.asarray(self._apply(jnp.asarray(grid),
+                                        jnp.asarray([s], jnp.float32)))
+        return self.gather @ s_grid.reshape(-1).astype(np.float64)
 
     def value_grad(self, kappa):
         # grad of phi = -log p is -score; phi itself has no closed form -> 0.0 proxy

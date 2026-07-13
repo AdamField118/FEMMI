@@ -116,7 +116,13 @@ femmi/
 ├── catalog.py           # reconstruct_catalog, kaiser_squires_binned, synthetic catalog
 ├── io.py                # FITS shear catalog -> tangent plane (ShearCatalog/FlatCatalog)
 ├── regularization.py    # MorozovSelector, estimate_noise_level
+├── config.py            # layered YAML config loader (whole-pipeline schema)
+├── pipeline.py          # config -> build forward, get data, run MAP/sampling, save
+├── cli.py               # `femmi` command (run / train-prior), --set overrides
 └── svd_analysis.py      # SVD of F, Picard diagnostic, FactorizationIndicator, LSM
+
+configs/                 # YAML run configs (default.yaml, paper_artifacts.yaml)
+scripts/                 # SLURM submitter (femmi.sbatch)
 
 tests/
 ├── test_fem_bem_coupling.py    # BEM matrices (V_h, K_h, M_b, Calderon)
@@ -166,7 +172,27 @@ pip install -e ".[dev]"
 
 **Requirements:** Python 3.10+, JAX >= 0.4, SciPy >= 1.11, NumPy >= 1.25, matplotlib.
 
-**64-bit arithmetic is mandatory.** FEMMI enforces this at import time via `jax.config.update("jax_enable_x64", True)`. For a $20\times20$ mesh, $\kappa(A_{\mathrm{coupled}}) = O(1600)$; in 32-bit the solve error $O(\kappa\varepsilon_{32}) \approx 2\times10^{-5}$ dominates the P3 discretisation error $h^4 \approx 6\times10^{-6}$.
+**64-bit arithmetic is mandatory.** FEMMI enforces this at import time via `jax.config.update("jax_enable_x64", True)`. For a $20\times20$ mesh, $\kappa(A_{\mathrm{coupled}}) = O(1600)$; in 32-bit the solve error $O(\kappa\varepsilon_{32}) \approx 2\times10^{-5}$ dominates the P3 discretisation error $h^4 \approx 6\times10^{-6}$. (The learned score network is the exception — it runs JIT-compiled in float32, since a prior does not need 64-bit precision and float64 convolutions are needlessly slow on a GPU.)
+
+### One command, one config
+
+A whole run — forward operator, data, inverse (MAP or posterior sampling), prior, output — is described by a single YAML config (see [`configs/default.yaml`](configs/default.yaml)) and executed by the `femmi` command:
+
+```bash
+femmi run --config configs/default.yaml                        # synthetic MAP
+femmi run --config configs/default.yaml --set inverse.method=sample --set prior.kind=neural
+femmi run --config my_cluster.yaml --set data.source=frontier --set data.frontier_dir=data/abell2744/...
+```
+
+`--set key=value` overrides any config value (dot-notation), so there are no bespoke flags per script. The same config drives specific recreation scripts too, e.g. `python examples/paper_artifacts.py --config configs/paper_artifacts.yaml` turns a run into the Remy-et-al.-style figures.
+
+On SLURM, submit [`scripts/femmi.sbatch`](scripts/femmi.sbatch) — it requests a GPU, sets `XLA_PYTHON_CLIENT_PREALLOCATE=false` (JAX grows GPU memory on demand instead of pre-grabbing it), and runs the config:
+
+```bash
+sbatch scripts/femmi.sbatch configs/my_run.yaml inverse.method=sample prior.kind=neural
+```
+
+The FEM forward stays in **float64** on the CPU (it needs the precision to converge); only the learned score network runs JIT-compiled in float32 on the GPU.
 
 ---
 

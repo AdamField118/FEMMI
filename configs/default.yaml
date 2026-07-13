@@ -1,0 +1,69 @@
+# FEMMI run config -- the whole pipeline in one file.
+#   femmi run --config configs/default.yaml
+# Only list the keys you want to change; anything omitted falls back to
+# femmi.config.DEFAULTS. Override single values from the CLI with
+#   femmi run --config configs/default.yaml --set inverse.method=sample
+
+forward:
+  geometry: catalog        # catalog (galaxies at positions) | square (structured grid, synthetic only)
+  nx: 20                   # square: cells per side
+  half_width: 2.5          # square: domain [-half_width, half_width]^2
+  radius: null             # catalog: boundary radius (null = fit to the galaxy footprint)
+  n_boundary: 96           # boundary elements
+  coupling: steinbach      # BEM coupling (leave as steinbach)
+  sigma_scale: 1.0
+
+data:
+  source: synthetic        # synthetic | catalog_fits | frontier
+  # synthetic (analytic Gaussian lens):
+  n_gal: 1500
+  kappa_sigma: 0.5
+  shape_noise: 0.06
+  seed: 0
+  # catalog_fits:
+  fits: null               # path to a shear-catalog FITS
+  hdu: 1
+  flip_g2: false
+  # frontier (CATS lens-model maps):
+  frontier_dir: null
+  frontier_source: deflect # psi | deflect | kappa
+  kappa_max: 0.8
+  rmax: null
+  reduced_shear: false
+  # optional circular missing-data mask (null radius = no mask):
+  mask_radius: null
+  mask_center: [0.0, 0.0]
+
+inverse:
+  method: map              # map (point estimate) | sample (full posterior + UQ)
+  lam: null                # regularisation; null -> Morozov auto-select (MAP + Wiener)
+  wiener_length: 0.5
+  morozov: true
+  noise_source: bmode      # mad | bmode
+  maxiter: 400
+
+prior:
+  kind: wiener             # wiener | tv | sparse | maxent | neural
+  tv:     {eps: 1.0e-3}
+  sparse: {transform: field, eps: 1.0e-3}
+  maxent: {model: 1.0e-2}
+  neural: {n_pix: 32, base: 16, ckpt: null}   # ckpt null -> default cached model
+
+sampler:                   # used only when inverse.method: sample
+  method: auto             # auto | rto | annealed_hmc | langevin
+  n_samples: 300           # rto (Gaussian prior): number of exact draws
+  n_levels: 10             # annealed HMC (non-Gaussian / neural priors):
+  steps_per_level: 12
+  n_chains: 40
+  n_leapfrog: 5
+  keep_final: 4
+  sigma_max: 1.0
+  sigma_min: 0.02
+  n_delta_logp: 4
+  seed: 1
+
+output:
+  dir: outputs
+  name: run                # writes outputs/<name>.npz (kappa, std, truth, nodes)
+  save_kappa: true
+  save_figure: true

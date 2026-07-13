@@ -1,0 +1,42 @@
+# Config for examples/paper_artifacts.py (Remy et al. 2020 figure recreation).
+#   python examples/paper_artifacts.py --config configs/paper_artifacts.yaml
+# Uses the same schema as configs/default.yaml; this run is a structured-grid
+# posterior-sampling job with a survey mask. Switch prior.kind to 'neural' for
+# the annealed-HMC version.
+
+forward:
+  geometry: square         # structured grid (forced by the script anyway)
+  nx: 18
+  half_width: 2.5
+  coupling: steinbach
+
+data:
+  source: synthetic
+  kappa_sigma: 0.5
+  shape_noise: 0.06
+  seed: 0
+  mask_radius: 0.6         # circular missing-data hole
+  mask_center: [0.3, -0.4]
+
+inverse:
+  method: sample           # posterior UQ (forced by the script)
+  lam: 0.2                 # posterior precision (RTO); tune per run
+  wiener_length: 0.5
+
+prior:
+  kind: wiener             # wiener -> exact RTO; neural -> annealed HMC
+  neural: {n_pix: 32, base: 16, ckpt: null}
+
+sampler:
+  method: auto
+  n_samples: 300           # rto draws
+  # annealed HMC (used when prior.kind is non-Gaussian):
+  n_levels: 10
+  steps_per_level: 12
+  n_chains: 40
+  n_leapfrog: 5
+  keep_final: 4
+
+output:
+  dir: outputs
+  name: paper

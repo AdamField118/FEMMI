@@ -32,3 +32,8 @@ __pycache__/
 # Data
 data/
 *.txt
+outputs/*.npz
+femmi/neural_prior/checkpoints/
+
+# Slurm
+slurm_outfiles/
