@@ -1,5 +1,6 @@
 # FEMMI: Finite Element Mass Map Inversion
 
+[![Documentation Status](https://readthedocs.org/projects/femmi/badge/?version=latest)](https://femmi.readthedocs.io/en/latest/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
