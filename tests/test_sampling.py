@@ -87,6 +87,26 @@ def test_annealed_hmc_runs_and_mixes():
     assert rel < 0.8, f"annealed HMC mean far from MAP (rel={rel:.2f})"
 
 
+def test_auto_lam_calibration():
+    """lam=None auto-calibrates: for the Wiener prior it runs Morozov and converts
+    to the sampler convention, giving a sensible reconstruction (L2 << 1) instead
+    of the noise-dominated result a tiny lam produces. A score prior gets 1.0."""
+    from femmi.sampling import _auto_lam
+    ops, nodes, kt, g1, g2, sn = _data()
+    m = np.isfinite(kt)
+    fwd = DifferentiableForward(ops, lam_reg=1e-2)
+    ps = sample_posterior(fwd, g1, g2, noise_std=sn, wiener_length=0.5,
+                          lam=None, method="rto", n_samples=80, seed=1, verbose=False)
+    l2 = np.linalg.norm(ps.map_kappa[m] - kt[m]) / np.linalg.norm(kt[m])
+    assert l2 < 0.6, f"auto-lam RTO reconstruction poor (L2={l2:.2f})"
+    assert fwd.lam_reg > 1.0, "Wiener auto-lam should be >> the tiny raw default"
+
+    class _Score:
+        name = "score"
+        def score(self, k, s=None): return np.zeros_like(k)
+    assert _auto_lam(ops, g1, g2, sn, _Score(), 0.5, None, verbose=False) == 1.0
+
+
 def test_rto_rejects_non_gaussian_prior():
     ops, nodes, kt, g1, g2, sn = _data()
     fwd = DifferentiableForward(ops, lam_reg=1e-2)
@@ -104,6 +124,7 @@ if __name__ == "__main__":
         test_posterior_std_is_a_real_uncertainty_map,
         test_langevin_runs_with_custom_prior,
         test_annealed_hmc_runs_and_mixes,
+        test_auto_lam_calibration,
         test_rto_rejects_non_gaussian_prior,
     ]
     passed, failed = 0, []

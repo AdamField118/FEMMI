@@ -110,6 +110,25 @@ def _rto_sample(ops, g1, g2, noise_std, wiener_length, lam, w, n_samples,
     return k_map, samples
 
 
+def _map_warmstart(fwd, g1, g2, prior, wiener_length, w, sn2, lam, maxiter):
+    """MAP used as the sampler warm-start and (for HMC/Langevin) point estimate.
+
+    The sampler's `lam` is in the noise-normalised convention (data term
+    ||F k - y||^2 / (2 sigma_n^2)); MAPReconstructor minimises the un-normalised
+    ||F k - y||^2 + lam_map * phi. The two share the SAME mode iff
+    lam_map = 2 sigma_n^2 lam, so convert before the solve (otherwise a properly
+    large sampler lam over-smooths the warm-start MAP)."""
+    saved = fwd.lam_reg
+    fwd.lam_reg = 2.0 * sn2 * lam
+    try:
+        rec = MAPReconstructor(fwd, wiener_length=wiener_length, data_weight=w,
+                               prior=prior, maxiter=maxiter, callback_every=0)
+        k_map, _ = rec.reconstruct(g1, g2, verbose=False)
+    finally:
+        fwd.lam_reg = saved
+    return k_map
+
+
 def _langevin_sample(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
                      n_steps, burnin, thin, step, temperature, warm_start,
                      maxiter_map, seed, verbose):
@@ -127,9 +146,7 @@ def _langevin_sample(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
         g = (-4.0 * (M.T @ ops._solve_adjoint(S1.T @ wr1 + S2.T @ wr2))) * inv2s2
         return g + (lam * (2.0 * (R @ k)) if prior is None else lam * prior.value_grad(k)[1])
 
-    rec = MAPReconstructor(fwd, wiener_length=wiener_length, data_weight=w,
-                           prior=prior, maxiter=maxiter_map, callback_every=0)
-    k_map, _ = rec.reconstruct(g1, g2, verbose=False)
+    k_map = _map_warmstart(fwd, g1, g2, prior, wiener_length, w, noise_std**2, lam, maxiter_map)
     k = k_map.copy() if warm_start else np.zeros(ops.n_nodes)
 
     m = np.asarray(M @ np.ones(ops.n_nodes)).ravel()
@@ -202,9 +219,7 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
         lv, lg = lik(k, seff2)
         return lg - lam * pscore(k, s), lv
 
-    rec = MAPReconstructor(fwd, wiener_length=wiener_length, data_weight=w,
-                           prior=prior, maxiter=maxiter_map, callback_every=0)
-    k_map, _ = rec.reconstruct(g1, g2, verbose=False)
+    k_map = _map_warmstart(fwd, g1, g2, prior, wiener_length, w, sn2, lam, maxiter_map)
 
     def hess_topeig(k0, s, seff2, crng, n_iter=8, epsv=1e-4):
         """Largest eigenvalue of the FULL level Hessian (data + prior) near k0, so
@@ -267,6 +282,35 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
                                           n_levels=n_levels, n_chains=n_chains)
 
 
+def _auto_lam(ops, g1, g2, noise_std, prior, wiener_length, w, verbose):
+    """Principled default for `lam` when the caller passes lam=None.
+
+    Gaussian/Wiener prior: run the SAME Morozov discrepancy selection the MAP
+    reconstructor uses to get lam_MAP (data term ||F k - y||^2 + lam_MAP k^T R k),
+    then convert to the sampler's noise-normalised convention
+        lam_RTO = lam_MAP / (2 sigma_n^2)
+    (the two posteriors have the same mode iff this holds). This makes RTO / HMC
+    reproduce the MAP reconstruction instead of being ~10^3x under-regularised.
+
+    Score prior (neural): the network already encodes a properly normalised
+    log-prior, so the Bayesian coefficient is 1.0. Any other non-Gaussian prior
+    (TV / sparse / maxent) likewise defaults to 1.0.
+    """
+    is_gaussian = prior is None or isinstance(prior, WienerPrior)
+    if not is_gaussian:
+        return 1.0
+    from .regularization import MorozovSelector
+    wl = prior.wiener_length if isinstance(prior, WienerPrior) else wiener_length
+    sel = MorozovSelector(ops, noise_std=noise_std, wiener_length=wl,
+                          data_weight=w, verbose=False)
+    lam_map = float(sel.select(g1, g2))
+    lam = lam_map / (2.0 * noise_std ** 2)
+    if verbose:
+        print(f"  auto-lam: Morozov lam_MAP={lam_map:.3e} -> lam={lam:.3e} "
+              f"(= lam_MAP / 2 sigma_n^2)")
+    return lam
+
+
 def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=None,
                      wiener_length=0.0, data_weight=None, method="auto",
                      n_samples=200, temperature=1.0, cg_tol=1e-6,
@@ -285,13 +329,20 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
                 convention as MAPReconstructor (whose data term is un-normalised):
                 for the same reconstruction, lam here ~ lam_MAP / (2 sigma_n^2),
                 i.e. numerically much larger. All three sampler methods share this
-                convention, so lam is consistent across rto / langevin / annealed_hmc.
+                convention. Leave lam=None (recommended) to auto-calibrate it --
+                Morozov for the Wiener prior, 1.0 for the neural score prior; a raw
+                small lam leaves the posterior noise-dominated (see _auto_lam).
     """
-    if lam is not None:
-        fwd.lam_reg = lam
-    lam = fwd.lam_reg
     w = None if data_weight is None else np.asarray(data_weight, float)
     g1 = np.asarray(gamma1_obs, float); g2 = np.asarray(gamma2_obs, float)
+
+    # Auto-calibrate lam when the caller doesn't set one. Left uncalibrated, the
+    # sampler's raw lam is trivially wrong: the data term carries weight 1/sigma_n^2
+    # (~10^2-10^3), so a small lam leaves the posterior wildly under-regularised
+    # (noise-dominated, L2 > 1). See _auto_lam.
+    if lam is None:
+        lam = _auto_lam(fwd.ops, g1, g2, float(noise_std), prior, wiener_length, w, verbose)
+    fwd.lam_reg = lam
 
     is_gaussian = prior is None or isinstance(prior, WienerPrior)
     if method == "auto":

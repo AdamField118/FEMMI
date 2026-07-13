@@ -20,7 +20,8 @@ data:
 
 inverse:
   method: sample           # posterior UQ (forced by the script)
-  lam: 0.2                 # posterior precision (RTO); tune per run
+  lam: null                # null -> auto-calibrated (Morozov for Wiener/RTO,
+                           # 1.0 for the neural score prior). Set a number to override.
   wiener_length: 0.5
 
 prior:
