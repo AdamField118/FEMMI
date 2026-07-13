@@ -17,6 +17,7 @@ Run:
 
 import sys, os
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -36,6 +37,7 @@ def _data(nx=10, sigma=0.5, sn=0.05, seed=0):
     return ops, nodes, kt, g1, g2, sn
 
 
+@pytest.mark.slow
 def test_rto_mean_converges_to_map():
     ops, nodes, kt, g1, g2, sn = _data()
     fwd = DifferentiableForward(ops, lam_reg=1.0)          # strong -> proper posterior
@@ -50,6 +52,7 @@ def test_rto_mean_converges_to_map():
     assert ps.samples.shape == (250, ops.n_nodes)
 
 
+@pytest.mark.slow
 def test_posterior_std_is_a_real_uncertainty_map():
     ops, nodes, kt, g1, g2, sn = _data()
     fwd = DifferentiableForward(ops, lam_reg=1.0)
@@ -70,6 +73,7 @@ def test_langevin_runs_with_custom_prior():
     assert ps.samples.shape[0] == (150 - 50) // 5
 
 
+@pytest.mark.slow
 def test_annealed_hmc_runs_and_mixes():
     """Annealed HMC produces finite UQ with a healthy acceptance rate, and mixes
     far better than single-temperature Langevin (its mean is much closer to MAP)."""

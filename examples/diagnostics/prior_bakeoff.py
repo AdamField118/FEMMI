@@ -19,7 +19,7 @@ from __future__ import annotations
 import os, sys, argparse
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from femmi.operators import build_operators_catalog
 from femmi.forward   import DifferentiableForward

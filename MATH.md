@@ -337,8 +337,8 @@ at every scale) and **more accurate than a Dirichlet truncation** when the bound
 approaches the mass ($3.5\times$ lower error at $\kappa(\partial\Omega)\approx0.14$),
 converging to Dirichlet as the boundary recedes — the quantitative statement of the
 far-field claim in \S2. Regression tests in `tests/test_steinbach_coupling.py`; the
-scale/DtN diagnostics are reproduced by `examples/bem_scaling_diagnostic.py` and
-`examples/bem_dtn_diagnostic.py`.
+scale/DtN diagnostics are reproduced by `examples/diagnostics/bem_scaling_diagnostic.py` and
+`examples/diagnostics/bem_dtn_diagnostic.py`.
 
 
 ## 7. P3 Cubic Basis Functions

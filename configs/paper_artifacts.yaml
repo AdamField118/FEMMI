@@ -39,5 +39,5 @@ sampler:
   keep_final: 4
 
 output:
-  dir: outputs
+  dir: runs
   name: paper

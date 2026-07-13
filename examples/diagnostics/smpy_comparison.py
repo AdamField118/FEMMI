@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 from scipy.fft import fft2, ifft2, fftfreq
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from femmi.operators     import build_operators, build_operators_adaptive
 from femmi.forward       import DifferentiableForward

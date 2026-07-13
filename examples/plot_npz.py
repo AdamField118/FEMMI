@@ -6,8 +6,8 @@ The .npz holds node-aligned fields -- kappa (the point estimate), optionally
 std (posterior uncertainty) and truth -- plus `nodes`, the (N, 2) mesh
 coordinates. Each field is drawn as a tripcolor over the mesh triangulation.
 
-    python examples/plot_npz.py outputs/paper.npz
-    python examples/plot_npz.py outputs/paper.npz -o paper.png --cmap inferno
+    python examples/plot_npz.py runs/run.npz
+    python examples/plot_npz.py runs/run.npz -o paper.png --cmap inferno
 """
 
 import argparse

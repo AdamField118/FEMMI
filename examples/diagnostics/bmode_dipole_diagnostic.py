@@ -37,7 +37,7 @@ from __future__ import annotations
 import os, sys
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from femmi.catalog import reconstruct_catalog, analytic_gaussian_shear
 

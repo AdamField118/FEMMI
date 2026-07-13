@@ -92,7 +92,7 @@ DEFAULTS: dict = {
 
     # --- output --------------------------------------------------------------
     "output": {
-        "dir": "outputs",
+        "dir": "runs",
         "name": "run",            # basename for saved arrays / figures
         "save_kappa": True,       # write kappa (and std, if sampling) as .npz
         "save_figure": True,      # write a summary figure

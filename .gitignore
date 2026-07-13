@@ -33,7 +33,12 @@ __pycache__/
 data/
 *.txt
 outputs/*.npz
+runs/                     # default output.dir for `femmi run` (kept out of the repo)
+femmi_outputs/            # _resolve_out_dir fallback when output.dir is unwritable
 femmi/neural_prior/checkpoints/
 
 # Slurm
 slurm_outfiles/
+
+# MkDocs build
+site/

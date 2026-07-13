@@ -22,7 +22,7 @@ import matplotlib.gridspec as gridspec
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from femmi.operators    import build_operators
 from femmi.forward      import DifferentiableForward

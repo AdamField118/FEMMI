@@ -63,7 +63,7 @@ sampler:                   # used only when inverse.method: sample
   seed: 1
 
 output:
-  dir: outputs
-  name: run                # writes outputs/<name>.npz (kappa, std, truth, nodes)
+  dir: runs
+  name: run                # writes runs/<name>.npz (kappa, std, truth, nodes)
   save_kappa: true
   save_figure: true

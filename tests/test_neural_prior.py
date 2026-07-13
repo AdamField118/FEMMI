@@ -56,6 +56,7 @@ def test_checkpoint_arch_parsed_from_filename():
     assert parse_ckpt_arch("no_arch_here.msgpack") == (None, None)
 
 
+@pytest.mark.slow
 def test_early_stopping_restores_best(tmp_path):
     """A tiny DSM run stops before the step budget once validation plateaus, and
     saves the best-validation params (not the last)."""
@@ -68,6 +69,7 @@ def test_early_stopping_restores_best(tmp_path):
     assert m is not None                    # best params were saved and reload cleanly
 
 
+@pytest.mark.slow
 def test_neural_prior_scores_and_reconstructs(tmp_path):
     from femmi.neural_prior.prior import NeuralScorePrior
     from femmi.forward import DifferentiableForward

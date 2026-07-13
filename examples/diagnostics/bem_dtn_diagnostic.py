@@ -46,7 +46,7 @@ from __future__ import annotations
 import argparse, os, sys
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from femmi.bem import assemble_bem_matrices, circular_boundary_mesh
 
