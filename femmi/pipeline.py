@@ -12,6 +12,7 @@ sampler, output (see configs/default.yaml).
 
 from __future__ import annotations
 import os
+import tempfile
 import numpy as np
 
 from .operators import build_operators, build_operators_catalog, dirichlet_from_operators
@@ -208,10 +209,32 @@ def _report(cfg, result, verbose):
         print(f"  mean posterior std = {np.nanmean(result['std_nodes']):.3e}")
 
 
+def _resolve_out_dir(cfg):
+    """Return a writable output directory (absolute path).
+
+    output.dir is resolved against the current working directory. If it can't be
+    created (e.g. a SLURM job whose cwd landed in an unwritable spool dir), fall
+    back to ./femmi_outputs under the cwd, then to the system temp dir, so a long
+    compute run never dies at the final write.
+    """
+    want = os.path.abspath(cfg.get("output.dir"))
+    for cand in (want, os.path.abspath("femmi_outputs"),
+                 os.path.join(tempfile.gettempdir(), "femmi_outputs")):
+        try:
+            os.makedirs(cand, exist_ok=True)
+            if os.access(cand, os.W_OK):
+                if cand != want:
+                    print(f"  [warn] cannot write to {want!r}; using {cand!r} instead")
+                return cand
+        except OSError:
+            continue
+    raise RuntimeError(f"no writable output directory (tried {want!r} and fallbacks)")
+
+
 def _save(cfg, result):
     if not cfg.get("output.save_kappa"):
         return
-    out_dir = cfg.get("output.dir"); os.makedirs(out_dir, exist_ok=True)
+    out_dir = _resolve_out_dir(cfg)
     path = os.path.join(out_dir, cfg.get("output.name") + ".npz")
     payload = dict(kappa=result["kappa"], nodes=result["nodes"])
     if result.get("std") is not None:

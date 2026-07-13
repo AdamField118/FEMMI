@@ -16,8 +16,12 @@
 # The first arg is the config; any further args are `--set key=value` overrides.
 
 set -euo pipefail
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# SLURM copies the batch script to a spool dir before running it, so
+# ${BASH_SOURCE[0]} points there, not at the repo. SLURM_SUBMIT_DIR is the
+# directory you ran `sbatch` from (the repo root, if you submit from there).
+REPO="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO"
+echo "repo=$REPO  cwd=$(pwd)"
 
 CONFIG="${1:-configs/default.yaml}"
 shift || true

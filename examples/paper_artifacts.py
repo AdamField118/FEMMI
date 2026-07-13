@@ -77,7 +77,9 @@ def run(cfg):
 def _figures(nodes, kt, masked, kks, ps, mean_display, tag, cfg):
     tri = mtri.Triangulation(nodes[:, 0], nodes[:, 1])
     vmax = float(np.nanpercentile(kt, 99)) or 1.0
-    out = lambda n: os.path.join(cfg.get("output.dir"), f"{cfg.get('output.name')}_{n}.png")
+    from femmi.pipeline import _resolve_out_dir
+    out_dir = _resolve_out_dir(cfg)
+    out = lambda n: os.path.join(out_dir, f"{cfg.get('output.name')}_{n}.png")
 
     maskfield = np.where(masked, 1.0, 0.0)
     row1 = [("truth kappa", kt, "hot", 0, vmax), ("survey mask", maskfield, "gray", 0, 1),
