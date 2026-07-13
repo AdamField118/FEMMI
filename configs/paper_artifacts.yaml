@@ -24,8 +24,8 @@ inverse:
   wiener_length: 0.5
 
 prior:
-  kind: wiener             # wiener -> exact RTO; neural -> annealed HMC
-  neural: {n_pix: 32, base: 16, ckpt: null}
+  kind: neural             # wiener -> exact RTO; neural -> annealed HMC
+  neural: {n_pix: 64, base: 32, ckpt: null}
 
 sampler:
   method: auto
