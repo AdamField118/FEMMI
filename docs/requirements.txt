@@ -1,0 +1,3 @@
+# Documentation build (Read the Docs / local `mkdocs serve`).
+# Kept minimal: the docs are static Markdown and don't import the package.
+mkdocs-material>=9.5
