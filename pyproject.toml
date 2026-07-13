@@ -14,6 +14,7 @@ authors = [
 license = { text = "MIT" }
 classifiers = [
   "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Physics",
   "Topic :: Scientific/Engineering :: Astronomy",

@@ -90,8 +90,15 @@ def _nearest_fill_operator(n_pix, populated):
 class NeuralScorePrior(Prior):
     """Learned score prior. grad_phi(kappa) = -score_net(kappa), bridged mesh<->grid."""
 
-    def __init__(self, ops, n_pix=32, base=16, sigma_eval=0.1, steps=600,
+    def __init__(self, ops, n_pix=32, base=16, sigma_eval=0.1, steps=8000,
                  ckpt=None, verbose=True):
+        # If a checkpoint path is given, the architecture is read from its name,
+        # so you can point at a run by filename and the grid matches the model.
+        if ckpt is not None:
+            from .train import parse_ckpt_arch
+            fn_pix, fn_base = parse_ckpt_arch(ckpt)
+            if fn_pix is not None:
+                n_pix, base = fn_pix, fn_base
         self.name = f"Neural(score,n_pix={n_pix})"
         self.n_pix = n_pix
         self.sigma_eval = float(sigma_eval)
@@ -104,11 +111,17 @@ class NeuralScorePrior(Prior):
         self.bin_op, self.gather = _binning_operators(nodes, n_pix, self.extent)
         self._sig = jnp.ones((1,)) * self.sigma_eval
 
-    def score(self, kappa):
-        """The learned score grad log p(kappa) at the mesh nodes."""
+    def score(self, kappa, sigma=None):
+        """The learned score grad log p_sigma(kappa) at the mesh nodes.
+
+        sigma is the noise level the score is conditioned on. None uses the
+        default sigma_eval (for MAP); the annealed sampler passes the current
+        annealing level so the network supplies the correctly-tempered prior
+        score at each temperature."""
+        sig = self._sig if sigma is None else jnp.ones((1,)) * float(sigma)
         grid = np.asarray(self.bin_op @ kappa).reshape(self.n_pix, self.n_pix)
         s_grid = np.asarray(self.model.apply(self.params,
-                                             jnp.asarray(grid)[None, ..., None], self._sig))
+                                             jnp.asarray(grid)[None, ..., None], sig))
         return self.gather @ s_grid.reshape(-1)
 
     def value_grad(self, kappa):

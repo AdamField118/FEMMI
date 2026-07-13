@@ -41,7 +41,7 @@ def run(args):
     fwd = DifferentiableForward(ops, lam_reg=args.lam)
     if args.neural:
         from femmi.priors import make_prior
-        prior = make_prior("neural", ops, n_pix=args.n_pix, verbose=True)
+        prior = make_prior("neural", ops, n_pix=args.n_pix, base=args.base, verbose=True)
         ps = sample_posterior(fwd, g1, g2, noise_std=args.shape_noise, prior=prior,
                               method="langevin", n_steps=args.n_steps, burnin=args.n_steps // 3,
                               thin=5, verbose=True)
@@ -88,11 +88,14 @@ def main():
     ap = argparse.ArgumentParser(description="FEMMI posterior UQ demo")
     ap.add_argument("--nx", type=int, default=16)
     ap.add_argument("--shape-noise", type=float, default=0.05)
-    ap.add_argument("--lam", type=float, default=0.5)
+    ap.add_argument("--lam", type=float, default=40.0,
+                    help="prior precision in the Bayesian posterior (data term /2sigma^2); "
+                         "~ lambda_MAP / (2 sigma_n^2)")
     ap.add_argument("--n-samples", type=int, default=300, help="RTO samples")
     ap.add_argument("--neural", action="store_true", help="use the neural prior + Langevin")
     ap.add_argument("--n-steps", type=int, default=1500, help="Langevin steps (neural)")
-    ap.add_argument("--n-pix", type=int, default=48)
+    ap.add_argument("--n-pix", type=int, default=32, help="neural: score-grid size (must match the trained checkpoint)")
+    ap.add_argument("--base", type=int, default=16, help="neural: U-Net base channels (must match the trained checkpoint)")
     run(ap.parse_args())
 
 

@@ -50,7 +50,18 @@ cheaply (Remy et al. eq. 3; Vincent 2011):
 3. At the optimum, `r_θ(κ', σ) = ∇log p_σ(κ')` — the score we want.
 
 `train.py` runs this loop; `denoiser.py` is the Flax U-Net; a small default model
-trains in a couple of minutes on CPU and is cached under `checkpoints/`.
+trains in a couple of minutes on CPU and is cached under `checkpoints/`. Training
+tracks a **held-out validation DSM loss** and **early-stops with patience**
+(keeping the best-validation params), so a large `steps` budget is an upper bound,
+not wasted compute — it stops once the model has converged.
+
+**Referencing a trained model.** Checkpoints are named
+`score_unet_p{n_pix}_b{base}.msgpack` and the architecture is read back from that
+name, so you point at a run by file and nothing else is needed:
+
+```python
+prior = make_prior('neural', ops, ckpt='path/to/score_unet_p64_b32.msgpack')
+```
 
 ## Why FEMMI is a natural fit
 

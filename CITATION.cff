@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use FEMMI in your research or software, please cite it as below."
+title: "FEMMI: Finite Element Mass Map Inversion"
+abstract: >-
+  A P3 finite-element / boundary-element pipeline for weak gravitational lensing
+  mass reconstruction. FEMMI solves the lensing Poisson problem with an exact
+  exterior (far-field) boundary condition via boundary elements, reconstructs the
+  convergence by Morozov-regularised MAP inversion with pluggable priors
+  (Gaussian/Matern, total variation, sparsity, maximum entropy, and a learned
+  neural score prior), and provides posterior uncertainty quantification through a
+  differentiable forward operator.
+authors:
+  - family-names: Field
+    given-names: Adam
+type: software
+version: 0.1.0
+date-released: 2026-07-13
+license: MIT
+repository-code: "https://github.com/AdamField118/FEMMI"
+url: "https://github.com/AdamField118/FEMMI"
+keywords:
+  - weak gravitational lensing
+  - mass mapping
+  - dark matter
+  - finite element method
+  - boundary element method
+  - inverse problems
+  - Bayesian inference

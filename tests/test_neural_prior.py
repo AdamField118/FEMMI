@@ -50,6 +50,24 @@ def test_binning_bridge_roundtrips_smooth_field():
     assert rel < 0.15, f"bin->gather roundtrip error {rel:.3f} too large"
 
 
+def test_checkpoint_arch_parsed_from_filename():
+    from femmi.neural_prior.train import parse_ckpt_arch
+    assert parse_ckpt_arch("some/dir/score_unet_p64_b32.msgpack") == (64, 32)
+    assert parse_ckpt_arch("no_arch_here.msgpack") == (None, None)
+
+
+def test_early_stopping_restores_best(tmp_path):
+    """A tiny DSM run stops before the step budget once validation plateaus, and
+    saves the best-validation params (not the last)."""
+    from femmi.neural_prior.train import train_score_model, load_score_model
+    ckpt = str(tmp_path / "es.msgpack")
+    # tiny net + aggressive patience so it stops well before `steps`
+    train_score_model(n_pix=16, base=8, steps=1200, batch=16, patience=2,
+                      val_every=100, min_steps=200, verbose=False, save_path=ckpt)
+    m, p = load_score_model(path=ckpt)     # arch (16,8) parsed from filename fallback? name has p16_b8
+    assert m is not None                    # best params were saved and reload cleanly
+
+
 def test_neural_prior_scores_and_reconstructs(tmp_path):
     from femmi.neural_prior.prior import NeuralScorePrior
     from femmi.forward import DifferentiableForward

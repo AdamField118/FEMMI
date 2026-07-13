@@ -15,18 +15,23 @@ entry point `sample_posterior`:
       operator); the prior perturbation uses a dense Cholesky of R (fine for the
       moderate meshes used for UQ).
 
-  method='langevin' (score-based, mass-preconditioned ULA): the general path for
-      NON-Gaussian priors -- in particular the learned NeuralScorePrior -- which
-      have no closed-form posterior. Integrates
-          kappa <- kappa - step P grad U + sqrt(2 step T) P^{1/2} xi
-      with U = ||F kappa - gamma||^2_w/(2 sigma_n^2) + lambda phi(kappa), the
-      mass-matrix metric P, and a warm start at the MAP. This is the mode that
-      needs only the prior SCORE, so it is what pairs with score matching
-      (Song & Ermon 2019; Remy et al. 2020). It is an approximate sampler on
-      ill-conditioned problems -- treat its spread as indicative.
+  method='annealed_hmc' (tempered HMC, Remy et al. 2020 eq. 4; Song & Ermon 2019):
+      the paper's sampler and the default for NON-Gaussian priors. Anneals the
+      noise level sigma from sigma_max down to sigma_min; at each level the target
+      is tempered (the likelihood via sigma_eff^2 = sigma_n^2 + sigma^2, and the
+      prior via the noise-conditional score net r_theta(., sigma)), so modes merge
+      at high sigma and separate as it cools. Each level runs HMC with a Metropolis
+      correction that uses the exact quadratic likelihood difference plus a
+      score line-integral estimate of the prior log-density difference (the
+      num_delta_logp trick). Annealing is what tightens the mixing that a single
+      temperature Langevin cannot.
+
+  method='langevin' (mass-preconditioned ULA): the simpler single-temperature
+      score-based sampler; kept as a lightweight fallback. Mixes slowly on
+      ill-conditioned problems -- prefer 'annealed_hmc'.
 
 `sample_posterior(..., method='auto')` picks 'rto' for the Gaussian/Wiener prior
-and 'langevin' for any other prior.
+and 'annealed_hmc' for any other prior.
 """
 
 from __future__ import annotations
@@ -154,16 +159,133 @@ def _langevin_sample(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
     return k_map, np.array(kept), step
 
 
+def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
+                  n_levels, steps_per_level, sigma_max, sigma_min, n_leapfrog,
+                  leap_frac, n_delta_logp, n_chains, keep_final, maxiter_map,
+                  seed, verbose):
+    """Tempered / annealed HMC (Remy et al. 2020 eq. 4; Song & Ermon 2019).
+
+    Target at annealing level sigma:  U_sigma(kappa) =
+        ||F kappa - y||^2_w / (2 (sigma_n^2 + sigma^2))  -  lambda log p_sigma(kappa).
+    sigma^2 is the inverse temperature: high sigma broadens both the likelihood
+    (via sigma_eff) and the prior (the score net is noise-conditional, so it
+    supplies the correctly-tempered prior score at each level), merging modes;
+    annealing sigma_max -> sigma_min lands on the true posterior. Each level runs
+    HMC; for a score-only prior the Metropolis correction uses the exact
+    (quadratic) likelihood difference plus a line-integral estimate of the prior
+    log-density difference (the num_delta_logp trick)."""
+    ops = fwd.ops
+    M, S1, S2 = ops.M, ops.S1, ops.S2
+    sn2 = float(noise_std)**2
+
+    has_score = hasattr(prior, "score")               # NeuralScorePrior / ScorePrior
+    if not has_score:
+        R = WienerPrior(ops, wiener_length).R
+        def pscore(k, s):
+            return -2.0 * (R @ k)                     # raw grad log p (sigma-indep. Gaussian)
+        def neg_logp(k):
+            return float(k @ (R @ k))                 # exact prior value (x lambda later)
+    else:
+        def pscore(k, s):
+            return np.asarray(prior.score(k, s), float)
+
+    def lik(k, seff2):
+        psi = ops._solve_psi(-2.0 * M @ k)
+        r1, r2 = S1 @ psi - g1, S2 @ psi - g2
+        wr1, wr2 = (r1, r2) if w is None else (w * r1, w * r2)
+        value = 0.5 * float(np.dot(wr1, r1) + np.dot(wr2, r2)) / seff2
+        adj = ops._solve_adjoint(S1.T @ wr1 + S2.T @ wr2)
+        grad = (-2.0 * (M.T @ adj)) / seff2
+        return value, grad
+
+    def gradU(k, s, seff2):
+        lv, lg = lik(k, seff2)
+        return lg - lam * pscore(k, s), lv
+
+    rec = MAPReconstructor(fwd, wiener_length=wiener_length, data_weight=w,
+                           prior=prior, maxiter=maxiter_map, callback_every=0)
+    k_map, _ = rec.reconstruct(g1, g2, verbose=False)
+
+    def hess_topeig(k0, s, seff2, crng, n_iter=8, epsv=1e-4):
+        """Largest eigenvalue of the FULL level Hessian (data + prior) near k0, so
+        the leapfrog step is stable whether the likelihood or the prior dominates."""
+        g0 = gradU(k0, s, seff2)[0]
+        v = crng.standard_normal(ops.n_nodes); v /= np.linalg.norm(v); Lm = 1.0
+        for _ in range(n_iter):
+            Hv = (gradU(k0 + epsv * v, s, seff2)[0] - g0) / epsv
+            Lm = float(np.linalg.norm(Hv))
+            if Lm < 1e-30:
+                break
+            v = Hv / Lm
+        return Lm
+
+    def hmc_step(k, s, seff2, eps, crng):
+        p0 = crng.standard_normal(ops.n_nodes); k0 = k.copy()
+        g, lv0 = gradU(k, s, seff2)
+        p = p0 - 0.5 * eps * g
+        for l in range(n_leapfrog):
+            k = k + eps * p
+            g, lv = gradU(k, s, seff2)
+            if l != n_leapfrog - 1:
+                p = p - eps * g
+        p = p - 0.5 * eps * g
+        dK = 0.5 * (np.dot(p, p) - np.dot(p0, p0))
+        dlik = lv - lv0
+        if not has_score:
+            dprior = lam * (neg_logp(k) - neg_logp(k0))
+        else:                                         # score line integral for delta(-log p)
+            dk = k - k0; acc = 0.0
+            for j in range(n_delta_logp):
+                t = (j + 0.5) / n_delta_logp
+                acc += float(np.dot(pscore(k0 + t * dk, s), dk))
+            dprior = -lam * acc / n_delta_logp
+        accepted = np.log(crng.random() + 1e-30) < -(dK + dlik + dprior)
+        return (k, 1) if accepted else (k0, 0)
+
+    # Independent annealed chains: each chain anneals sigma_max -> sigma_min and
+    # contributes samples from the coldest level. Independence between chains
+    # (not steps within one chain) is what gives correct posterior variance.
+    sigmas = np.geomspace(sigma_max, sigma_min, n_levels)
+    samples, n_acc, n_prop = [], 0, 0
+    thin = max(1, keep_final // 2)
+    for c in range(n_chains):
+        crng = np.random.default_rng(seed + 1000 + c)
+        k = k_map + sigma_max * crng.standard_normal(ops.n_nodes)   # broad start
+        for li, s in enumerate(sigmas):
+            seff2 = sn2 + s**2
+            eps = leap_frac / np.sqrt(hess_topeig(k, s, seff2, crng) + 1e-30)
+            n_here = steps_per_level + (keep_final * thin if li == n_levels - 1 else 0)
+            for it in range(n_here):
+                k, a = hmc_step(k, s, seff2, eps, crng)
+                n_acc += a; n_prop += 1
+                if li == n_levels - 1 and it >= steps_per_level and (it - steps_per_level) % thin == 0:
+                    samples.append(k.copy())
+        if verbose and (c + 1) % max(1, n_chains // 5) == 0:
+            print(f"  annealed chain {c+1}/{n_chains}  accept={n_acc/max(1,n_prop):.2f}")
+    return k_map, np.array(samples), dict(accept=n_acc / max(1, n_prop),
+                                          sigmas=[float(x) for x in sigmas],
+                                          n_levels=n_levels, n_chains=n_chains)
+
+
 def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=None,
                      wiener_length=0.0, data_weight=None, method="auto",
                      n_samples=200, temperature=1.0, cg_tol=1e-6,
                      n_steps=2000, burnin=400, thin=5, step=None, warm_start=True,
-                     maxiter_map=200, seed=0, verbose=True):
+                     maxiter_map=200, seed=0, verbose=True,
+                     n_levels=10, steps_per_level=15, sigma_max=1.0, sigma_min=0.02,
+                     n_leapfrog=5, leap_frac=0.5, n_delta_logp=4,
+                     n_chains=40, keep_final=4):
     """Sample the kappa posterior and return mean, std (UQ), and samples.
 
     noise_std : per-component shear noise sigma_n (sets the likelihood scale).
     prior     : femmi.priors.Prior or None -> Wiener. method='auto' uses exact RTO
-                for the Gaussian/Wiener prior and Langevin for any other prior.
+                for the Gaussian/Wiener prior and annealed HMC for any other prior.
+    lam       : prior precision in the PROPER Bayesian posterior, whose data term
+                is ||F kappa - gamma||^2 / (2 sigma_n^2). This is NOT the same
+                convention as MAPReconstructor (whose data term is un-normalised):
+                for the same reconstruction, lam here ~ lam_MAP / (2 sigma_n^2),
+                i.e. numerically much larger. All three sampler methods share this
+                convention, so lam is consistent across rto / langevin / annealed_hmc.
     """
     if lam is not None:
         fwd.lam_reg = lam
@@ -173,10 +295,10 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
 
     is_gaussian = prior is None or isinstance(prior, WienerPrior)
     if method == "auto":
-        method = "rto" if is_gaussian else "langevin"
+        method = "rto" if is_gaussian else "annealed_hmc"
     if method == "rto" and not is_gaussian:
         raise ValueError("method='rto' is exact only for the Gaussian/Wiener prior; "
-                         "use method='langevin' for non-Gaussian priors.")
+                         "use method='langevin' or 'annealed_hmc' for non-Gaussian priors.")
 
     if verbose:
         pname = prior.name if prior is not None else (
@@ -189,6 +311,11 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
         k_map, samples = _rto_sample(fwd.ops, g1, g2, float(noise_std), wl, lam, w,
                                      n_samples, cg_tol, seed, verbose)
         info = dict(n_samples=n_samples)
+    elif method == "annealed_hmc":
+        k_map, samples, info = _annealed_hmc(
+            fwd, g1, g2, float(noise_std), prior, lam, wiener_length, w,
+            n_levels, steps_per_level, sigma_max, sigma_min, n_leapfrog,
+            leap_frac, n_delta_logp, n_chains, keep_final, maxiter_map, seed, verbose)
     else:
         k_map, samples, step = _langevin_sample(
             fwd, g1, g2, float(noise_std), prior, lam, wiener_length, w,

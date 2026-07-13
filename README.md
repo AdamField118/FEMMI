@@ -1,6 +1,11 @@
 # FEMMI: Finite Element Mass Map Inversion
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+
 Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and inverse-scattering support recovery.
+
+New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass map from a shear catalog in about a dozen lines.
 
 ---
 
@@ -49,7 +54,7 @@ $$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\,\phi(\k
 
 **Learned neural prior** (`femmi/neural_prior/`, one flag away). `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the *same* learned score drives posterior sampling.
 
-**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and score-based **Langevin** for non-Gaussian/neural priors. `examples/uncertainty_demo.py`.
+**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and the paper's **annealed HMC** (tempered, noise-conditional score + score-integral Metropolis) for non-Gaussian/neural priors, with single-temperature Langevin as a fallback. `examples/uncertainty_demo.py`; `examples/paper_artifacts.py` reproduces the Remy et al. figure structure (truth · mask · KS · posterior mean · uncertainty · samples) on masked, noisy data.
 
 $\lambda$ is selected automatically by Brent's method on the discrepancy functional 
 
@@ -132,6 +137,7 @@ tests/
 └── test_regression.py          # End-to-end NFW reconstruction
 
 examples/
+├── quickstart.py               # Minimal: reconstruct a mass map from a catalog (start here)
 ├── generate_figures.py         # Preliminary results figures (self-contained)
 ├── eb_modes_demo.py            # E/B-mode decomposition figure
 ├── bc_ablation.py              # BEM vs Dirichlet vs Periodic boundary-condition study
@@ -140,6 +146,7 @@ examples/
 ├── prior_comparison.py         # Wiener vs TV vs sparsity vs max-entropy on one catalog
 ├── prior_bakeoff.py            # Prior bake-off with per-prior lambda tuning (+ --neural)
 ├── uncertainty_demo.py         # Posterior mean + per-pixel uncertainty map (RTO / neural)
+├── paper_artifacts.py          # Remy et al. 2020 figure structure: masked/noisy probabilistic map
 ├── galsim_nfw_benchmark.py     # GalSim NFW benchmark (independent truth): L2(kappa/gamma/psi)
 ├── bmode_dipole_diagnostic.py  # Off-centre B-mode: under-regularisation, not gauge (verdict)
 ├── catalog_comparison.py       # Catalog-native FEMMI vs Fourier-grid KS head-to-head
@@ -323,3 +330,22 @@ The $\psi$ convergence rate is capped at $O(h^{5/3})$ on square domains due to r
 7. Kaiser, N. & Squires, G. (1993). Mapping the dark matter with weak gravitational lensing. *ApJ*, 404, 441–450.
 8. Dunavant, D. A. (1985). High degree efficient symmetrical Gaussian quadrature rules for the triangle. *IJNME*, 21(6), 1129–1148.
 9. Brenner, S. & Scott, R. (2008). *The Mathematical Theory of Finite Element Methods*, 3rd ed. Springer.
+
+---
+
+## Citing FEMMI
+
+If FEMMI is useful in your research or software, please cite it — see
+[`CITATION.cff`](CITATION.cff) (GitHub's "Cite this repository" button reads this)
+or the note in [`CITATIONS.md`](CITATIONS.md). A citable paper is planned; until
+then, please reference the repository.
+
+## Contributing
+
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) — the guiding
+principle is that FEMMI should stay approachable, so examples are kept short and
+self-contained.
+
+## License
+
+FEMMI is released under the [MIT License](LICENSE.md) &copy; 2026 Adam Field.

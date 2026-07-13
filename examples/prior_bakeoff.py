@@ -72,7 +72,7 @@ def run(args):
     configs = [("wiener", None), ("tv", {}),
                ("sparse", {"transform": "field"}), ("maxent", {"model": 1e-2})]
     if args.neural:
-        configs.append(("neural", {"n_pix": args.n_pix, "verbose": False}))
+        configs.append(("neural", {"n_pix": args.n_pix, "base": args.base, "verbose": False}))
 
     for kind, kw in configs:
         l2, peak, lam = _best_over_lambda(ops, g1n, g2n, gn, si, truth, inner,
@@ -90,7 +90,8 @@ def main():
     ap.add_argument("--n-lam", type=int, default=6)
     ap.add_argument("--maxiter", type=int, default=250)
     ap.add_argument("--neural", action="store_true", help="also score the neural prior")
-    ap.add_argument("--n-pix", type=int, default=48)
+    ap.add_argument("--n-pix", type=int, default=32, help="neural: score-grid size (match the checkpoint)")
+    ap.add_argument("--base", type=int, default=16, help="neural: U-Net base channels (match the checkpoint)")
     run(ap.parse_args())
 
 

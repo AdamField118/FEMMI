@@ -70,6 +70,23 @@ def test_langevin_runs_with_custom_prior():
     assert ps.samples.shape[0] == (150 - 50) // 5
 
 
+def test_annealed_hmc_runs_and_mixes():
+    """Annealed HMC produces finite UQ with a healthy acceptance rate, and mixes
+    far better than single-temperature Langevin (its mean is much closer to MAP)."""
+    ops, nodes, kt, g1, g2, sn = _data()
+    fwd = DifferentiableForward(ops, lam_reg=1.0)
+    from femmi.priors import WienerPrior
+    ps = sample_posterior(fwd, g1, g2, noise_std=sn, prior=WienerPrior(ops, 0.5),
+                          method="annealed_hmc", n_levels=8, steps_per_level=8,
+                          n_leapfrog=5, n_chains=20, keep_final=3, seed=1, verbose=False)
+    assert ps.method == "annealed_hmc"
+    assert np.all(np.isfinite(ps.mean)) and np.all(ps.std >= 0)
+    assert 0.2 < ps.info["accept"] < 0.99, f"accept {ps.info['accept']:.2f} unhealthy"
+    dm = lambda a: a - a.mean()
+    rel = np.linalg.norm(dm(ps.mean) - dm(ps.map_kappa)) / (np.linalg.norm(dm(ps.map_kappa)) + 1e-30)
+    assert rel < 0.8, f"annealed HMC mean far from MAP (rel={rel:.2f})"
+
+
 def test_rto_rejects_non_gaussian_prior():
     ops, nodes, kt, g1, g2, sn = _data()
     fwd = DifferentiableForward(ops, lam_reg=1e-2)
@@ -86,6 +103,7 @@ if __name__ == "__main__":
         test_rto_mean_converges_to_map,
         test_posterior_std_is_a_real_uncertainty_map,
         test_langevin_runs_with_custom_prior,
+        test_annealed_hmc_runs_and_mixes,
         test_rto_rejects_non_gaussian_prior,
     ]
     passed, failed = 0, []
