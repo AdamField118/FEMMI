@@ -1,0 +1,51 @@
+# Fair non-Gaussian test for the neural / hybrid prior.
+#
+# The truth is a shifted-log-normal kappa field with the SAME statistics the
+# neural prior trains on -- the regime where a learned non-Gaussian prior can beat
+# a Gaussian (Wiener) one. (On the smooth Gaussian blob in paper_artifacts.yaml,
+# Wiener is *supposed* to win.) Run the same config with different priors and
+# compare:
+#
+#   sbatch scripts/femmi.sbatch configs/lognormal.yaml            # Wiener baseline (prior.kind below)
+#   # then edit prior.kind -> neural (and neural.hybrid: true) and resubmit
+#   python examples/plot_npz.py runs/lognormal.npz --n-samples 4
+#
+# Compare the relative-L2-vs-truth printed by each run, and the sample / appearance
+# panels from plot_npz.
+
+forward:
+  geometry: square
+  nx: 18
+  half_width: 2.5
+  coupling: steinbach
+
+data:
+  source: synthetic
+  kappa_field: lognormal   # <-- the non-Gaussian truth
+  lognormal: {kappa_std: 0.35, slope: 2.5, sigma_g: 0.9, n_pix: 128}
+  shape_noise: 0.03
+  seed: 0
+  mask_radius: 0.6
+  mask_center: [0.3, -0.4]
+
+inverse:
+  method: sample
+  lam: null                # auto-calibrated
+  wiener_length: 0.5
+
+prior:
+  kind: neural             # switch to neural (with neural.hybrid: true) for the fair comparison
+  neural: {n_pix: 64, base: 32, ckpt: null, hybrid: true}
+
+sampler:
+  method: auto
+  n_samples: 300           # rto (Wiener)
+  n_levels: 10
+  steps_per_level: 12
+  n_chains: 40
+  n_leapfrog: 5
+  keep_final: 4
+
+output:
+  dir: runs
+  name: ln_hybrid

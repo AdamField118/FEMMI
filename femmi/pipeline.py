@@ -19,7 +19,8 @@ from .operators import build_operators, build_operators_catalog, dirichlet_from_
 from .forward   import DifferentiableForward
 from .inverse   import MAPReconstructor
 from .catalog   import (reconstruct_catalog, analytic_gaussian_catalog,
-                        analytic_gaussian_shear, load_frontier_model, field_to_catalog)
+                        analytic_gaussian_shear, lognormal_shear,
+                        load_frontier_model, field_to_catalog)
 
 
 # --------------------------------------------------------------------------- #
@@ -47,7 +48,15 @@ def build_forward_and_data(cfg):
                               coupling=cfg.get("forward.coupling"),
                               sigma_scale=cfg.get("forward.sigma_scale"))
         nodes = np.array(ops.mesh.nodes)
-        kt, g1t, g2t = analytic_gaussian_shear(nodes, sigma=cfg.get("data.kappa_sigma"))
+        if cfg.get("data.kappa_field") == "lognormal":
+            # non-Gaussian truth matching the neural prior's training statistics
+            ln = cfg.section("data").get("lognormal", {}) or {}
+            kt, g1t, g2t = lognormal_shear(
+                ops, hw, kappa_std=ln.get("kappa_std", 0.35), slope=ln.get("slope", 2.5),
+                sigma_g=ln.get("sigma_g", 0.9), n_pix=ln.get("n_pix", 128),
+                seed=cfg.get("data.seed"))
+        else:
+            kt, g1t, g2t = analytic_gaussian_shear(nodes, sigma=cfg.get("data.kappa_sigma"))
         kt = np.asarray(kt); g1t = np.asarray(g1t); g2t = np.asarray(g2t)
         rng = np.random.default_rng(cfg.get("data.seed"))
         g1n = g1t + rng.normal(0, sn, len(g1t)); g2n = g2t + rng.normal(0, sn, len(g2t))

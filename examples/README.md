@@ -15,7 +15,8 @@ All scripts run from the repo root, e.g. `python examples/quickstart.py`.
 | `catalog_comparison.py` | FEMMI vs Fourier Kaiser–Squires on the same catalog (head-to-head). |
 | `prior_comparison.py` | Swapping priors (Wiener / TV / sparse / max-entropy / neural). |
 | `uncertainty_demo.py` | Posterior sampling: mean + per-pixel uncertainty map. |
-| `plot_npz.py` | Plot the `.npz` a `femmi run` writes (truth / kappa / std panels). |
+| `plot_npz.py` | Plot the `.npz` a `femmi run` writes (truth / kappa / std / samples). |
+| `compare_runs.py` | Head-to-head of several runs on one field (Wiener vs neural vs hybrid): L2 table + side-by-side means + appearance-frequency maps. |
 | `paper_artifacts.py` | Flagship: reproduces the Remy et al. 2020 figure structure, config-driven. |
 
 The recommended path into the library, though, is the CLI + a config file:

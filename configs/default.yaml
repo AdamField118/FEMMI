@@ -15,7 +15,10 @@ forward:
 
 data:
   source: synthetic        # synthetic | catalog_fits | frontier
-  # synthetic (analytic Gaussian lens):
+  # synthetic (square geometry): gaussian = analytic smooth blob;
+  # lognormal = non-Gaussian field matching the neural prior (the fair neural test)
+  kappa_field: gaussian    # gaussian | lognormal
+  lognormal: {kappa_std: 0.35, slope: 2.5, sigma_g: 0.9, n_pix: 128}
   n_gal: 1500
   kappa_sigma: 0.5
   shape_noise: 0.06

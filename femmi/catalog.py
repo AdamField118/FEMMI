@@ -439,6 +439,46 @@ def analytic_gaussian_shear(points, sigma=0.4, amp=1.0, center=(0.0, 0.0)):
     return kappa, -gamma_t * np.cos(2 * phi), -gamma_t * np.sin(2 * phi)
 
 
+def _grid_to_nodes_bilinear(grid, nodes, extent):
+    """Bilinearly sample a regular (n_pix, n_pix) grid at arbitrary node coords.
+    grid is indexed [row=y, col=x] over `extent` = (x0, x1, y0, y1)."""
+    x0, x1, y0, y1 = extent
+    n_pix = grid.shape[0]
+    gx = (nodes[:, 0] - x0) / (x1 - x0) * (n_pix - 1)
+    gy = (nodes[:, 1] - y0) / (y1 - y0) * (n_pix - 1)
+    gx = np.clip(gx, 0, n_pix - 1 - 1e-9); gy = np.clip(gy, 0, n_pix - 1 - 1e-9)
+    ix = np.floor(gx).astype(int); iy = np.floor(gy).astype(int)
+    fx = gx - ix; fy = gy - iy
+    ix1 = np.minimum(ix + 1, n_pix - 1); iy1 = np.minimum(iy + 1, n_pix - 1)
+    v00 = grid[iy, ix]; v10 = grid[iy, ix1]; v01 = grid[iy1, ix]; v11 = grid[iy1, ix1]
+    return (1 - fx) * (1 - fy) * v00 + fx * (1 - fy) * v10 \
+        + (1 - fx) * fy * v01 + fx * fy * v11
+
+
+def lognormal_shear(ops, half_width, kappa_std=0.35, slope=2.5, sigma_g=0.9,
+                    n_pix=128, seed=0):
+    """Non-Gaussian synthetic truth: a shifted-log-normal kappa field (the SAME
+    statistics the neural prior trains on), with shear from FEMMI's own forward.
+
+    Draws a log-normal map on an n_pix grid over [-half_width, half_width]^2,
+    interpolates it to the mesh nodes, and applies gamma = F(kappa) with the exact
+    operator the reconstruction inverts (ops._solve_psi + S1/S2). Returns
+    (kappa, g1, g2) at the nodes.
+
+    This is the FAIR test field for the neural / hybrid prior: its log-normal,
+    peaked, non-Gaussian structure is what those priors expect. A smooth Gaussian
+    blob (analytic_gaussian_shear) is the case a Wiener prior is *supposed* to win.
+    """
+    from .neural_prior.data import lognormal_kappa_maps   # pure numpy, no flax
+    m = lognormal_kappa_maps(1, n_pix, slope=slope, sigma_g=sigma_g,
+                             kappa_std=kappa_std, seed=int(seed))[0]
+    nodes = np.asarray(ops.mesh.nodes, np.float64)
+    hw = float(half_width)
+    kt = _grid_to_nodes_bilinear(m.astype(np.float64), nodes, (-hw, hw, -hw, hw))
+    psi = ops._solve_psi(-2.0 * (ops.M @ kt))
+    return kt, np.asarray(ops.S1 @ psi), np.asarray(ops.S2 @ psi)
+
+
 def analytic_gaussian_catalog(n_gal=1500, sigma=0.5, amp=1.0, field_radius=2.5,
                               shape_noise=0.0, center=(0.0, 0.0), seed=0):
     """

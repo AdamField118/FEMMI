@@ -68,9 +68,34 @@ def test_save_writes_samples_when_present(tmp_path):
     assert "samples" not in np.load(str(tmp_path / "r2.npz")).files
 
 
+def test_lognormal_truth_is_non_gaussian_and_consistent():
+    """data.kappa_field=lognormal builds a non-Gaussian (skewed) truth whose shear
+    comes from FEMMI's own forward, so a Wiener MAP recovers it (L2 < 1)."""
+    import numpy as np
+    from femmi.pipeline import build_forward_and_data
+    from femmi.forward import DifferentiableForward
+    from femmi.inverse import MAPReconstructor
+    cfg = load_config(None)
+    cfg.set("forward.geometry", "square"); cfg.set("forward.nx", 10)
+    cfg.set("forward.half_width", 2.5); cfg.set("data.source", "synthetic")
+    cfg.set("data.kappa_field", "lognormal"); cfg.set("data.shape_noise", 0.02)
+    d = build_forward_and_data(cfg)
+    t = d["truth_nodes"]; tm = t - t.mean()
+    skew = (tm**3).mean() / ((tm**2).mean()**1.5 + 1e-12)
+    assert skew > 1.0, f"log-normal truth should be strongly right-skewed (got {skew:.2f})"
+
+    fwd = DifferentiableForward(d["ops"], lam_reg=1e-2)
+    rec = MAPReconstructor(fwd, wiener_length=0.5, noise_std=d["noise_std"],
+                           data_weight=d["weight"], callback_every=0)
+    k, _ = rec.reconstruct(d["g1n"], d["g2n"], verbose=False)
+    dm = lambda a: a - a.mean()
+    l2 = np.linalg.norm(dm(k) - dm(t)) / np.linalg.norm(dm(t))
+    assert l2 < 0.7, f"shear inconsistent with the forward (MAP L2={l2:.2f})"
+
+
 def test_shipped_configs_are_valid():
     here = os.path.dirname(__file__)
-    for name in ("default.yaml", "paper_artifacts.yaml"):
+    for name in ("default.yaml", "paper_artifacts.yaml", "lognormal.yaml"):
         path = os.path.join(here, "..", "configs", name)
         if not os.path.exists(path):
             continue

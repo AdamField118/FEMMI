@@ -85,6 +85,18 @@ help, apply it to genuinely non-Gaussian fields: realistic cluster catalogs
 (`data.source: frontier`) or a log-normal synthetic. This is the regime the method
 is designed for and the fair comparison for reproducing the paper.
 
+FEMMI ships that fair test. Set `data.kappa_field: lognormal` (square geometry) to
+make the synthetic truth a shifted-log-normal field with the *same* statistics the
+prior trains on, with shear from FEMMI's own forward. `configs/lognormal.yaml` is a
+ready-to-run version — run it with `prior.kind: wiener`, then `neural`, then
+`neural` + `hybrid: true`, and compare the relative-L2 each prints plus the
+`plot_npz` sample / appearance-frequency panels:
+
+```bash
+sbatch scripts/femmi.sbatch configs/lognormal.yaml     # edit prior.kind between runs
+python examples/plot_npz.py runs/lognormal.npz --n-samples 4
+```
+
 ## Performance
 
 The score net is called many thousands of times inside the sampler. FEMMI JITs the

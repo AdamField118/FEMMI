@@ -41,7 +41,10 @@ DEFAULTS: dict = {
     # --- data: where the shear catalog comes from ---------------------------
     "data": {
         "source": "synthetic",    # synthetic | catalog_fits | frontier
-        # synthetic (analytic Gaussian lens):
+        # synthetic (square geometry):
+        "kappa_field": "gaussian", # gaussian (analytic smooth blob) | lognormal
+        #   (non-Gaussian field matching the neural prior -- the fair neural test)
+        "lognormal": {"kappa_std": 0.35, "slope": 2.5, "sigma_g": 0.9, "n_pix": 128},
         "n_gal": 1500,
         "kappa_sigma": 0.5,
         "shape_noise": 0.06,
