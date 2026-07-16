@@ -26,7 +26,7 @@ inverse:
 
 prior:
   kind: neural             # wiener -> exact RTO; neural -> annealed HMC
-  neural: {n_pix: 64, base: 32, ckpt: null, hybrid: true}   # hybrid: true -> 1-to-1 with
+  neural: {n_pix: 64, base: 32, ckpt: null, hybrid: true, train_data: massivenus, data_dir: /home/adfield/FEMMI/data/massivenus/convergence_maps/Maps10/}   # hybrid: true -> 1-to-1 with
   #        Remy 2020 (net learns only the non-Gaussian residual on an analytic Gaussian prior)
 
 sampler:

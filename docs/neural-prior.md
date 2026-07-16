@@ -50,6 +50,26 @@ prior:
 or leave `ckpt: null` and FEMMI loads the default cached model matching
 `n_pix`/`base`.
 
+## Training on MassiveNuS (the paper's data)
+
+The shipped default trains on synthetic shifted-log-normal maps. For an exact
+Remy et al. 2020 reproduction, train on **MassiveNuS** convergence maps (Liu et
+al. 2018), the same simulation suite the paper uses. Download the maps from the
+[Columbia Lensing group](http://columbialensing.org) into a directory, install
+the extras, and point the trainer at it:
+
+```bash
+pip install -e ".[neural,paper]"        # paper extra: galsim + astropy
+femmi train-prior --config configs/paper_artifacts.yaml \
+    --set prior.neural.train_data=massivenus \
+    --set prior.neural.data_dir=/path/to/massivenus/kappa_maps \
+    --set prior.neural.hybrid=true
+```
+
+The loader reads `.npy` / `.npz` / `.fits` maps and serves random `n_pix` patches,
+so nothing else about training changes. A run then references the resulting
+checkpoint exactly as usual.
+
 ## Hybrid mode (1-to-1 with the paper)
 
 By default the network learns the **full** score. Set `hybrid: true` to instead

@@ -18,6 +18,7 @@ Install only what a given run needs:
 pip install -e ".[neural]"   # learned score prior (Flax + optax)
 pip install -e ".[io]"       # FITS shear catalogs / Frontier Fields maps (astropy)
 pip install -e ".[galsim]"   # independent-truth NFW benchmark
+pip install -e ".[paper]"    # exact Remy 2020 reproduction: GalSim + astropy (MassiveNuS maps)
 pip install -e ".[mesh]"     # Triangle-based adaptive meshing
 pip install -e ".[dev]"      # test suite (pytest)
 pip install -e ".[docs]"     # build this documentation site (mkdocs-material)

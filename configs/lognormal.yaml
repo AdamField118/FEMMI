@@ -35,7 +35,7 @@ inverse:
 
 prior:
   kind: neural             # switch to neural (with neural.hybrid: true) for the fair comparison
-  neural: {n_pix: 64, base: 32, ckpt: null, hybrid: true}
+  neural: {n_pix: 64, base: 32, ckpt: null, hybrid: true, train_data: massivenus, data_dir: /home/adfield/FEMMI/data/massivenus/convergence_maps/Maps10/}
 
 sampler:
   method: auto

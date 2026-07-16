@@ -58,20 +58,42 @@ def parse_ckpt_arch(path):
     return (int(m.group(1)), int(m.group(2))) if m else (None, None)
 
 
-def _fixed_validation_set(n_pix, n_val=64, seed=1234):
+def _fixed_validation_set(n_pix, maps_fn, n_val=64, seed=1234):
     """A held-out set of maps + FIXED noise/sigma, so the val loss is comparable
     across training steps (unlike a fresh-noise train loss)."""
-    x = lognormal_kappa_maps(n_val, n_pix, seed=seed)[..., None]
+    x = maps_fn(n_val, seed)[..., None]
     rng = np.random.default_rng(seed + 1)
     sigma = np.exp(rng.uniform(np.log(0.02), np.log(1.0), n_val)).astype(np.float32)
     u = rng.standard_normal(x.shape).astype(np.float32)
     return jnp.asarray(x), jnp.asarray(sigma), jnp.asarray(u)
 
 
+def _training_source(train_data, data_dir, n_pix, batch, kappa_std, seed):
+    """Return (batch_generator, maps_fn) for the requested training data.
+    maps_fn(n, seed) -> (n, n_pix, n_pix), used for the validation set and (in
+    hybrid mode) the Gaussian power-spectrum estimate."""
+    if train_data == "massivenus":
+        from .massivenus import massivenus_batch_generator, massivenus_maps
+        if not data_dir:
+            raise ValueError("train_data='massivenus' requires prior.neural.data_dir "
+                             "(a directory of MassiveNuS convergence maps)")
+        gen = massivenus_batch_generator(data_dir, batch=batch, n_pix=n_pix,
+                                         kappa_std=kappa_std, seed=seed + 1)
+        maps_fn = lambda n, sd: massivenus_maps(data_dir, n, n_pix,
+                                                kappa_std=kappa_std, seed=sd)
+        return gen, maps_fn
+    if train_data not in ("synthetic", None):
+        raise ValueError(f"unknown train_data={train_data!r} (synthetic | massivenus)")
+    gen = batch_generator(n_pix, batch=batch, kappa_std=kappa_std, seed=seed + 1)
+    maps_fn = lambda n, sd: lognormal_kappa_maps(n, n_pix, kappa_std=kappa_std, seed=sd)
+    return gen, maps_fn
+
+
 def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
                       sigma_min=0.02, sigma_max=1.0, seed=0, verbose=True,
                       save_path=None, patience=8, val_every=250, min_steps=1000,
-                      hybrid=False):
+                      hybrid=False, train_data="synthetic", data_dir=None,
+                      kappa_std=0.35):
     """Train the score U-Net by DSM with validation-based early stopping.
 
     patience   : stop after this many validation checks without improvement.
@@ -82,6 +104,8 @@ def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
                  analytic Gaussian score p_th uses the training field's own power
                  spectrum; the net is trained to correct it. The Gaussian P(k) is
                  saved as a sidecar so inference reconstructs the same p_th.
+    train_data : 'synthetic' (shifted-log-normal maps) or 'massivenus' (real
+                 MassiveNuS convergence maps in data_dir -- the paper's data).
     `steps` is an upper bound; training usually stops earlier at the best
     validation loss, whose params are what get saved.
     Returns (model, params).
@@ -89,14 +113,14 @@ def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
     model, params = init_params(jax.random.PRNGKey(seed), n_pix, base=base)
     opt = optax.adam(lr)
     opt_state = opt.init(params)
-    gen = batch_generator(n_pix, batch=batch, seed=seed + 1)
+    gen, maps_fn = _training_source(train_data, data_dir, n_pix, batch, kappa_std, seed)
     log_smin, log_smax = np.log(sigma_min), np.log(sigma_max)
 
     gscore = None
     if hybrid:
         from .gaussian_score import GridGaussianScore
         # estimate P(k) from a large batch drawn from the training distribution
-        est = lognormal_kappa_maps(256, n_pix, seed=seed + 7)
+        est = maps_fn(256, seed + 7)
         gscore = GridGaussianScore(GridGaussianScore.power_from_maps(est))
 
     def loss_fn(params, x, sigma, u):
@@ -111,7 +135,7 @@ def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
         updates, opt_state = opt.update(grads, opt_state, params)
         return optax.apply_updates(params, updates), opt_state, loss
 
-    val_x, val_sigma, val_u = _fixed_validation_set(n_pix)
+    val_x, val_sigma, val_u = _fixed_validation_set(n_pix, maps_fn)
     val_loss = jax.jit(loss_fn)
 
     key = jax.random.PRNGKey(seed + 2)
@@ -179,7 +203,8 @@ def load_score_model(n_pix=32, base=16, path=None):
     return model, target["params"]
 
 
-def get_or_train(n_pix=32, base=16, steps=8000, verbose=True, path=None, hybrid=False):
+def get_or_train(n_pix=32, base=16, steps=8000, verbose=True, path=None, hybrid=False,
+                 train_data="synthetic", data_dir=None):
     """Load the cached score model, or train (and cache) one if absent.
     This is what makes the neural prior 'one flag away' -- first use trains a
     small default model on synthetic data; later uses load the checkpoint. When
@@ -200,5 +225,6 @@ def get_or_train(n_pix=32, base=16, steps=8000, verbose=True, path=None, hybrid=
         print(f"  no cached score model -- training a default {'hybrid ' if hybrid else ''}"
               f"one (n_pix={n_pix}); one-time, early-stopped on validation ...")
     model, params = train_score_model(n_pix=n_pix, base=base, steps=steps,
-                                      verbose=verbose, save_path=resolved, hybrid=hybrid)
+                                      verbose=verbose, save_path=resolved, hybrid=hybrid,
+                                      train_data=train_data, data_dir=data_dir)
     return model, params, resolved

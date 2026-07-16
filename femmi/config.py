@@ -81,8 +81,13 @@ DEFAULTS: dict = {
         "sparse": {"transform": "field", "eps": 1.0e-3},
         "maxent": {"model": 1.0e-2},
         "neural": {"n_pix": 32, "base": 16, "ckpt": None,    # ckpt null -> cached model
-                   "hybrid": False},                         # hybrid: learn only the
+                   "hybrid": False,                          # hybrid: learn only the
         #          non-Gaussian residual on an analytic Gaussian prior (Remy 2020 eq. 6)
+                   "boundary_taper": 0.08,                   # taper the score to 0 in a
+        #          boundary band (fraction of domain) to kill mesh<->grid edge artifacts
+                   "train_data": "synthetic",                # synthetic | massivenus
+                   "data_dir": None},                        # MassiveNuS map directory
+        #          (train_data=massivenus -> the exact simulation suite from the paper)
     },
 
     # --- sampler: only used when inverse.method == sample -------------------

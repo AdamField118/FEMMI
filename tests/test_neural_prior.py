@@ -72,6 +72,31 @@ def test_hybrid_prior_is_gaussian_plus_residual(tmp_path):
     assert not p2.hybrid
 
 
+def test_boundary_taper_zeros_edges_keeps_interior():
+    """The boundary taper -> 0 at the domain edge (killing the mesh<->grid edge
+    artifact) and -> 1 in the interior; frac<=0 disables it."""
+    from femmi.neural_prior.prior import _boundary_taper
+    ops = build_operators(8, 8, -2.5, 2.5, -2.5, 2.5, verbose=False)
+    nodes = np.asarray(ops.mesh.nodes)
+    w = _boundary_taper(nodes, 0.08)
+    edge = (np.abs(nodes[:, 0]) > 2.45) | (np.abs(nodes[:, 1]) > 2.45)
+    core = np.hypot(nodes[:, 0], nodes[:, 1]) < 1.0
+    assert w[edge].max() < 1e-6 and w[core].min() > 0.999
+    assert _boundary_taper(nodes, 0.0) == 1.0
+
+
+def test_massivenus_loader_serves_patches(tmp_path):
+    """The MassiveNuS loader discovers maps and serves normalized n_pix patches."""
+    from femmi.neural_prior.massivenus import find_maps, massivenus_maps
+    rng = np.random.default_rng(0)
+    for i in range(3):
+        np.save(str(tmp_path / f"kappa_{i}.npy"), rng.standard_normal((64, 64)).astype(np.float32))
+    assert len(find_maps(str(tmp_path))) == 3
+    p = massivenus_maps(str(tmp_path), 5, 16, kappa_std=0.35, seed=1)
+    assert p.shape == (5, 16, 16)
+    assert abs(p.std() - 0.35) < 0.15          # renormalised to ~kappa_std
+
+
 def test_synthetic_maps_are_non_gaussian():
     maps = lognormal_kappa_maps(64, 48, seed=0).reshape(64, -1)
     # per-map skewness; log-normal fields are positively skewed on average

@@ -87,11 +87,31 @@ def _nearest_fill_operator(n_pix, populated):
     return sp.coo_matrix((np.ones(npix2), (rows, cols)), shape=(npix2, npix2)).tocsr()
 
 
+def _boundary_taper(nodes, frac):
+    """Per-node weight in [0, 1] that -> 0 at the domain edge and -> 1 in the
+    interior over a band of width `frac` x (domain size). The mesh->grid bridge is
+    unreliable at the boundary -- edge grid pixels are extrapolated (nearest-fill)
+    and the CNN has border effects -- so the learned score there injects spurious
+    edge structure. Tapering the score to zero near the boundary removes that
+    artifact; the reconstruction there is then driven by the (well-behaved) data
+    term alone, exactly like the Wiener prior. frac<=0 disables (returns 1.0)."""
+    if not frac or frac <= 0:
+        return 1.0
+    x = nodes[:, 0]; y = nodes[:, 1]
+    x0, x1, y0, y1 = x.min(), x.max(), y.min(), y.max()
+    bx = frac * (x1 - x0) + 1e-12; by = frac * (y1 - y0) + 1e-12
+    tx = np.clip(np.minimum(x - x0, x1 - x) / bx, 0.0, 1.0)
+    ty = np.clip(np.minimum(y - y0, y1 - y) / by, 0.0, 1.0)
+    ss = lambda t: t * t * (3.0 - 2.0 * t)              # smoothstep
+    return ss(tx) * ss(ty)
+
+
 class NeuralScorePrior(Prior):
     """Learned score prior. grad_phi(kappa) = -score_net(kappa), bridged mesh<->grid."""
 
     def __init__(self, ops, n_pix=32, base=16, sigma_eval=0.1, steps=8000,
-                 ckpt=None, hybrid=False, verbose=True):
+                 ckpt=None, hybrid=False, boundary_taper=0.08,
+                 train_data="synthetic", data_dir=None, verbose=True):
         # If a checkpoint path is given, the architecture is read from its name,
         # so you can point at a run by filename and the grid matches the model.
         if ckpt is not None:
@@ -102,7 +122,8 @@ class NeuralScorePrior(Prior):
         self.n_pix = n_pix
         self.sigma_eval = float(sigma_eval)
         self.model, self.params, ckpt_used = get_or_train(
-            n_pix=n_pix, base=base, steps=steps, verbose=verbose, path=ckpt, hybrid=hybrid)
+            n_pix=n_pix, base=base, steps=steps, verbose=verbose, path=ckpt, hybrid=hybrid,
+            train_data=train_data, data_dir=data_dir)
 
         # HYBRID prior (Remy et al. 2020 eq. 6): the network learns only the
         # non-Gaussian residual and the analytic Gaussian score p_th is added
@@ -120,6 +141,8 @@ class NeuralScorePrior(Prior):
         self.extent = (nodes[:, 0].min() - pad, nodes[:, 0].max() + pad,
                        nodes[:, 1].min() - pad, nodes[:, 1].max() + pad)
         self.bin_op, self.gather = _binning_operators(nodes, n_pix, self.extent)
+        # taper the prior score to zero near the domain boundary (see _boundary_taper)
+        self.taper = _boundary_taper(nodes, boundary_taper)
 
         # PERFORMANCE: the score net is called tens of thousands of times inside
         # the sampler. Two things make that fast instead of a hang:
@@ -155,7 +178,7 @@ class NeuralScorePrior(Prior):
         grid = np.asarray(self.bin_op @ kappa, np.float32).reshape(1, self.n_pix, self.n_pix, 1)
         s_grid = np.asarray(self._apply(jnp.asarray(grid),
                                         jnp.asarray([s], jnp.float32)))
-        return self.gather @ s_grid.reshape(-1).astype(np.float64)
+        return self.taper * (self.gather @ s_grid.reshape(-1).astype(np.float64))
 
     def value_grad(self, kappa):
         # grad of phi = -log p is -score; phi itself has no closed form -> 0.0 proxy
