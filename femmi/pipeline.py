@@ -241,5 +241,9 @@ def _save(cfg, result):
         payload["std"] = result["std"]
     if result.get("truth") is not None:
         payload["truth"] = result["truth"]
+    # Individual posterior draws (node-aligned, (n_kept, n_nodes)) -- the raw
+    # material for Figure-2-style plots: individual samples + appearance frequency.
+    if result.get("samples") is not None and cfg.get("output.save_samples", True):
+        payload["samples"] = np.asarray(result["samples"])
     np.savez(path, **payload)
     print(f"  saved {os.path.normpath(path)}")

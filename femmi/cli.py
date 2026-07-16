@@ -57,7 +57,8 @@ def cmd_train_prior(args):
     from .neural_prior.train import train_score_model
     n = cfg.get("prior.neural", {}) or {}
     train_score_model(n_pix=n.get("n_pix", 32), base=n.get("base", 16),
-                      steps=cfg.get("prior.neural.steps", 8000), verbose=True)
+                      steps=cfg.get("prior.neural.steps", 8000),
+                      hybrid=n.get("hybrid", False), verbose=True)
 
 
 def build_parser():

@@ -31,8 +31,24 @@ from .data import batch_generator, lognormal_kappa_maps
 _CKPT_DIR = os.path.join(os.path.dirname(__file__), "checkpoints")
 
 
-def default_ckpt_path(n_pix, base=16):
-    return os.path.join(_CKPT_DIR, f"score_unet_p{n_pix}_b{base}.msgpack")
+def default_ckpt_path(n_pix, base=16, hybrid=False):
+    suf = "_hybrid" if hybrid else ""
+    return os.path.join(_CKPT_DIR, f"score_unet_p{n_pix}_b{base}{suf}.msgpack")
+
+
+def _gauss_sidecar(path):
+    """Companion file that stores the Gaussian power spectrum P(k) for a HYBRID
+    checkpoint. Its existence is the authoritative 'is this a hybrid model' flag,
+    so plain (full-score) checkpoints -- which have no sidecar -- stay 100%
+    backward compatible."""
+    return re.sub(r"\.msgpack$", "", path) + ".gauss.npy"
+
+
+def load_gauss_power(path):
+    """Return the stored Gaussian power spectrum for a hybrid checkpoint, or None
+    if `path` is a plain full-score checkpoint (no sidecar)."""
+    side = _gauss_sidecar(path)
+    return np.load(side) if os.path.exists(side) else None
 
 
 def parse_ckpt_arch(path):
@@ -54,12 +70,18 @@ def _fixed_validation_set(n_pix, n_val=64, seed=1234):
 
 def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
                       sigma_min=0.02, sigma_max=1.0, seed=0, verbose=True,
-                      save_path=None, patience=8, val_every=250, min_steps=1000):
+                      save_path=None, patience=8, val_every=250, min_steps=1000,
+                      hybrid=False):
     """Train the score U-Net by DSM with validation-based early stopping.
 
     patience   : stop after this many validation checks without improvement.
     val_every  : evaluate validation loss every this many steps.
     min_steps  : never stop before this many steps (let it warm up).
+    hybrid     : if True, learn only the NON-GAUSSIAN residual (Remy et al. 2020
+                 eq. 6). The total score is grad log p_th + r_theta, where the
+                 analytic Gaussian score p_th uses the training field's own power
+                 spectrum; the net is trained to correct it. The Gaussian P(k) is
+                 saved as a sidecar so inference reconstructs the same p_th.
     `steps` is an upper bound; training usually stops earlier at the best
     validation loss, whose params are what get saved.
     Returns (model, params).
@@ -70,9 +92,18 @@ def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
     gen = batch_generator(n_pix, batch=batch, seed=seed + 1)
     log_smin, log_smax = np.log(sigma_min), np.log(sigma_max)
 
+    gscore = None
+    if hybrid:
+        from .gaussian_score import GridGaussianScore
+        # estimate P(k) from a large batch drawn from the training distribution
+        est = lognormal_kappa_maps(256, n_pix, seed=seed + 7)
+        gscore = GridGaussianScore(GridGaussianScore.power_from_maps(est))
+
     def loss_fn(params, x, sigma, u):
-        r = model.apply(params, x + sigma[:, None, None, None] * u, sigma)
-        return jnp.mean((u + sigma[:, None, None, None] * r) ** 2)
+        xn = x + sigma[:, None, None, None] * u
+        r = model.apply(params, xn, sigma)
+        s = r if gscore is None else r + gscore.score(xn, sigma)
+        return jnp.mean((u + sigma[:, None, None, None] * s) ** 2)
 
     @jax.jit
     def step(params, opt_state, x, sigma, u):
@@ -115,13 +146,16 @@ def train_score_model(n_pix=32, base=16, steps=8000, batch=32, lr=2e-4,
                 break
 
     params = best_params                              # restore best-validation params
-    path = save_path or default_ckpt_path(n_pix, base)
+    path = save_path or default_ckpt_path(n_pix, base, hybrid=hybrid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
         f.write(serialization.to_bytes({"params": params,
                                         "cfg": {"n_pix": n_pix, "base": base}}))
+    if gscore is not None:                            # hybrid: persist the Gaussian P(k)
+        np.save(_gauss_sidecar(path), np.asarray(gscore.power))
     if verbose:
-        print(f"  saved best score checkpoint (val={best_val:.4f}) -> {os.path.relpath(path)}")
+        tag = "hybrid " if gscore is not None else ""
+        print(f"  saved best {tag}score checkpoint (val={best_val:.4f}) -> {os.path.relpath(path)}")
     return model, params
 
 
@@ -145,20 +179,26 @@ def load_score_model(n_pix=32, base=16, path=None):
     return model, target["params"]
 
 
-def get_or_train(n_pix=32, base=16, steps=8000, verbose=True, path=None):
+def get_or_train(n_pix=32, base=16, steps=8000, verbose=True, path=None, hybrid=False):
     """Load the cached score model, or train (and cache) one if absent.
     This is what makes the neural prior 'one flag away' -- first use trains a
     small default model on synthetic data; later uses load the checkpoint. When
-    `path` names an existing checkpoint, its architecture is auto-detected."""
-    model, params = load_score_model(n_pix, base, path)
+    `path` names an existing checkpoint, its architecture is auto-detected.
+
+    Returns (model, params, resolved_path); the path lets the caller find the
+    hybrid Gaussian sidecar (load_gauss_power)."""
+    resolved = path or default_ckpt_path(n_pix, base, hybrid=hybrid)
+    model, params = load_score_model(n_pix, base, resolved)
     if model is not None:
         if verbose:
-            fn_pix, fn_base = parse_ckpt_arch(path or default_ckpt_path(n_pix, base))
-            print(f"  loaded cached score model "
+            fn_pix, fn_base = parse_ckpt_arch(resolved)
+            tag = "hybrid " if os.path.exists(_gauss_sidecar(resolved)) else ""
+            print(f"  loaded cached {tag}score model "
                   f"(n_pix={fn_pix or n_pix}, base={fn_base or base})")
-        return model, params
+        return model, params, resolved
     if verbose:
-        print(f"  no cached score model -- training a default one "
-              f"(n_pix={n_pix}); one-time, early-stopped on validation ...")
-    return train_score_model(n_pix=n_pix, base=base, steps=steps, verbose=verbose,
-                             save_path=path)
+        print(f"  no cached score model -- training a default {'hybrid ' if hybrid else ''}"
+              f"one (n_pix={n_pix}); one-time, early-stopped on validation ...")
+    model, params = train_score_model(n_pix=n_pix, base=base, steps=steps,
+                                      verbose=verbose, save_path=resolved, hybrid=hybrid)
+    return model, params, resolved

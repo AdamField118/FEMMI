@@ -91,7 +91,7 @@ class NeuralScorePrior(Prior):
     """Learned score prior. grad_phi(kappa) = -score_net(kappa), bridged mesh<->grid."""
 
     def __init__(self, ops, n_pix=32, base=16, sigma_eval=0.1, steps=8000,
-                 ckpt=None, verbose=True):
+                 ckpt=None, hybrid=False, verbose=True):
         # If a checkpoint path is given, the architecture is read from its name,
         # so you can point at a run by filename and the grid matches the model.
         if ckpt is not None:
@@ -99,11 +99,22 @@ class NeuralScorePrior(Prior):
             fn_pix, fn_base = parse_ckpt_arch(ckpt)
             if fn_pix is not None:
                 n_pix, base = fn_pix, fn_base
-        self.name = f"Neural(score,n_pix={n_pix})"
         self.n_pix = n_pix
         self.sigma_eval = float(sigma_eval)
-        self.model, self.params = get_or_train(n_pix=n_pix, base=base, steps=steps,
-                                               verbose=verbose, path=ckpt)
+        self.model, self.params, ckpt_used = get_or_train(
+            n_pix=n_pix, base=base, steps=steps, verbose=verbose, path=ckpt, hybrid=hybrid)
+
+        # HYBRID prior (Remy et al. 2020 eq. 6): the network learns only the
+        # non-Gaussian residual and the analytic Gaussian score p_th is added
+        # back. Whether a checkpoint is hybrid is decided by its Gaussian sidecar
+        # (not the requested flag), so pointing at a plain checkpoint always works.
+        from .train import load_gauss_power
+        power = load_gauss_power(ckpt_used)
+        self.hybrid = power is not None
+        if hybrid and not self.hybrid and verbose:
+            print("  [warn] hybrid requested but checkpoint has no Gaussian sidecar; "
+                  "using the full-score prior")
+        self.name = f"Neural({'hybrid' if self.hybrid else 'score'},n_pix={n_pix})"
         nodes = np.asarray(ops.mesh.nodes)
         pad = 0.02 * (np.ptp(nodes[:, 0]) + np.ptp(nodes[:, 1]))
         self.extent = (nodes[:, 0].min() - pad, nodes[:, 0].max() + pad,
@@ -121,7 +132,14 @@ class NeuralScorePrior(Prior):
         self.params = jax.tree_util.tree_map(lambda a: jnp.asarray(a, jnp.float32),
                                              self.params)
         _model, _params = self.model, self.params
-        self._apply = jax.jit(lambda grid, sig: _model.apply(_params, grid, sig))
+        if self.hybrid:
+            from .gaussian_score import GridGaussianScore
+            self.gscore = GridGaussianScore(power)
+            _g = self.gscore
+            self._apply = jax.jit(lambda grid, sig:
+                                  _model.apply(_params, grid, sig) + _g.score(grid, sig))
+        else:
+            self._apply = jax.jit(lambda grid, sig: _model.apply(_params, grid, sig))
         # warm up (pay the one-time compile now, not mid-sampling)
         z = jnp.zeros((1, n_pix, n_pix, 1), jnp.float32)
         self._apply(z, jnp.asarray([sigma_eval], jnp.float32)).block_until_ready()

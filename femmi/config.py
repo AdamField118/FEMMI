@@ -77,7 +77,9 @@ DEFAULTS: dict = {
         "tv":     {"eps": 1.0e-3},
         "sparse": {"transform": "field", "eps": 1.0e-3},
         "maxent": {"model": 1.0e-2},
-        "neural": {"n_pix": 32, "base": 16, "ckpt": None},   # ckpt null -> cached model
+        "neural": {"n_pix": 32, "base": 16, "ckpt": None,    # ckpt null -> cached model
+                   "hybrid": False},                         # hybrid: learn only the
+        #          non-Gaussian residual on an analytic Gaussian prior (Remy 2020 eq. 6)
     },
 
     # --- sampler: only used when inverse.method == sample -------------------
@@ -95,6 +97,7 @@ DEFAULTS: dict = {
         "dir": "runs",
         "name": "run",            # basename for saved arrays / figures
         "save_kappa": True,       # write kappa (and std, if sampling) as .npz
+        "save_samples": True,     # also store individual posterior draws in the .npz
         "save_figure": True,      # write a summary figure
     },
 }

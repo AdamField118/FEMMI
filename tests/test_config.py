@@ -49,6 +49,25 @@ def test_set_and_cli_coerce():
     assert _coerce("hello") == "hello"
 
 
+def test_save_writes_samples_when_present(tmp_path):
+    """_save persists individual posterior draws (node-aligned) into the .npz so
+    plot_npz can render Figure-2-style samples + appearance frequency."""
+    import numpy as np
+    from femmi.pipeline import _save
+    cfg = load_config(None)
+    cfg.set("output.dir", str(tmp_path)); cfg.set("output.name", "r")
+    nodes = np.zeros((5, 2))
+    result = dict(kappa=np.ones(5), nodes=nodes, std=np.ones(5),
+                  truth=np.zeros(5), samples=np.arange(15.0).reshape(3, 5))
+    _save(cfg, result)
+    d = np.load(str(tmp_path / "r.npz"))
+    assert "samples" in d.files and d["samples"].shape == (3, 5)
+    # opting out drops them
+    cfg.set("output.save_samples", False); cfg.set("output.name", "r2")
+    _save(cfg, result)
+    assert "samples" not in np.load(str(tmp_path / "r2.npz")).files
+
+
 def test_shipped_configs_are_valid():
     here = os.path.dirname(__file__)
     for name in ("default.yaml", "paper_artifacts.yaml"):

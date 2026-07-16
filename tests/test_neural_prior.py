@@ -27,6 +27,51 @@ from femmi.operators import build_operators
 from femmi.neural_prior.data import lognormal_kappa_maps
 
 
+def test_gaussian_score_large_sigma_limit():
+    """The analytic Gaussian score -> -x/sigma^2 when sigma dominates the signal
+    power (a basic correctness check that needs no training)."""
+    import jax.numpy as jnp
+    from femmi.neural_prior.gaussian_score import GridGaussianScore
+    maps = lognormal_kappa_maps(32, 16, seed=3)
+    g = GridGaussianScore(GridGaussianScore.power_from_maps(maps))
+    x = jnp.asarray(maps[:1, ..., None].astype(np.float32))
+    s = np.asarray(g.score(x, jnp.asarray([50.0], np.float32)))
+    approx = -np.asarray(x) / (50.0 ** 2)
+    assert np.linalg.norm(s - approx) / np.linalg.norm(approx) < 1e-2
+
+
+@pytest.mark.slow
+def test_hybrid_prior_is_gaussian_plus_residual(tmp_path):
+    """Hybrid training writes a Gaussian sidecar; the prior loads as hybrid and
+    its score is exactly net(grid) + analytic_gaussian(grid) (Remy 2020 eq. 6).
+    A plain checkpoint has no sidecar and stays a full-score prior."""
+    import jax.numpy as jnp
+    from femmi.neural_prior.train import train_score_model, _gauss_sidecar
+    from femmi.neural_prior.prior import NeuralScorePrior
+
+    ck = str(tmp_path / "score_unet_p16_b8_hybrid.msgpack")
+    train_score_model(n_pix=16, base=8, steps=300, batch=16, patience=2,
+                      val_every=100, min_steps=200, hybrid=True, save_path=ck, verbose=False)
+    assert os.path.exists(_gauss_sidecar(ck)), "hybrid must write a Gaussian sidecar"
+
+    ops = build_operators(6, 6, -2, 2, -2, 2, verbose=False)
+    p = NeuralScorePrior(ops, ckpt=ck, hybrid=True, verbose=False)
+    assert p.hybrid and "hybrid" in p.name
+    grid = jnp.asarray(np.random.default_rng(1).standard_normal((1, 16, 16, 1)).astype(np.float32))
+    sig = jnp.asarray([0.1], np.float32)
+    net = np.asarray(p.model.apply(p.params, grid, sig))
+    gau = np.asarray(p.gscore.score(grid, sig))
+    tot = np.asarray(p._apply(grid, sig))
+    assert np.allclose(tot, net + gau, atol=1e-4)
+
+    ck2 = str(tmp_path / "score_unet_p16_b8.msgpack")
+    train_score_model(n_pix=16, base=8, steps=250, batch=16, patience=2,
+                      val_every=100, min_steps=200, hybrid=False, save_path=ck2, verbose=False)
+    assert not os.path.exists(_gauss_sidecar(ck2))
+    p2 = NeuralScorePrior(ops, ckpt=ck2, hybrid=False, verbose=False)
+    assert not p2.hybrid
+
+
 def test_synthetic_maps_are_non_gaussian():
     maps = lognormal_kappa_maps(64, 48, seed=0).reshape(64, -1)
     # per-map skewness; log-normal fields are positively skewed on average

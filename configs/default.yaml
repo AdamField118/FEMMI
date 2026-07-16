@@ -47,7 +47,8 @@ prior:
   tv:     {eps: 1.0e-3}
   sparse: {transform: field, eps: 1.0e-3}
   maxent: {model: 1.0e-2}
-  neural: {n_pix: 32, base: 16, ckpt: null}   # ckpt null -> default cached model
+  neural: {n_pix: 32, base: 16, ckpt: null, hybrid: false}   # ckpt null -> default cached model;
+  #        hybrid: net learns only the non-Gaussian residual on an analytic Gaussian prior (Remy 2020)
 
 sampler:                   # used only when inverse.method: sample
   method: auto             # auto | rto | annealed_hmc | langevin

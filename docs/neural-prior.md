@@ -50,6 +50,32 @@ prior:
 or leave `ckpt: null` and FEMMI loads the default cached model matching
 `n_pix`/`base`.
 
+## Hybrid mode (1-to-1 with the paper)
+
+By default the network learns the **full** score. Set `hybrid: true` to instead
+learn only the **non-Gaussian residual** on top of an analytic Gaussian prior —
+exactly the decomposition in Remy et al. 2020 (eq. 6):
+
+$$\nabla\log p(\kappa) = \nabla\log p_{\rm th}(\kappa) + r_\theta(\kappa,\sigma).$$
+
+```yaml
+prior:
+  kind: neural
+  neural: {n_pix: 64, base: 32, hybrid: true}
+```
+
+`p_th` is a stationary Gaussian whose power spectrum is estimated from the
+training field, so the net only has to model what the Gaussian prior misses. Train
+a hybrid model with the same flag:
+
+```bash
+femmi train-prior --config configs/default.yaml --set prior.neural.hybrid=true
+```
+
+The Gaussian power spectrum is saved as a `.gauss.npy` sidecar next to the
+checkpoint; its presence is what marks a model "hybrid," so plain (full-score)
+checkpoints stay fully backward compatible. The full-score default is unchanged.
+
 ## Choosing the test field
 
 The learned prior encodes the morphology of its **training data** (log-normal
