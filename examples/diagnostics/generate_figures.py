@@ -35,7 +35,7 @@ from smpy.config import Config
 from smpy.mapping_methods.kaiser_squires.kaiser_squires import KaiserSquiresMapper
 
 # ── style ─────────────────────────────────────────────────────────────────────
-BG, PANEL   = "#1a1a1a", "#111111"
+BG, PANEL   = "white", "white"
 GREEN, BLUE, ORANGE = "#00ff41", "#4488ff", "#ff8800"
 TEXT, MUTED = "#eeeeee", "#aaaaaa"
 

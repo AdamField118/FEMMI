@@ -21,6 +21,9 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from femmi.plotstyle import use_paper_style
 
 
 def _l2(k, t):
@@ -90,9 +93,10 @@ def main():
     ap.add_argument("npz", nargs="+", help="run .npz files (same field / nodes)")
     ap.add_argument("--labels", nargs="*", default=None, help="one label per run")
     ap.add_argument("-o", "--out", default="compare.png")
-    ap.add_argument("--cmap", default="hot")
+    ap.add_argument("--cmap", default="viridis")
     ap.add_argument("--detect-threshold", type=float, default=None)
     args = ap.parse_args()
+    use_paper_style()
 
     runs = [np.load(p) for p in args.npz]
     labels = args.labels or [p.rsplit("/", 1)[-1].rsplit(".", 1)[0] for p in args.npz]

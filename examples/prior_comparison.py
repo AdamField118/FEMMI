@@ -77,17 +77,17 @@ def _figure(x, y, truth, recs):
 
     panels = [("truth", truth)] + [(k, recs[k]) for k in recs]
     fig, axes = plt.subplots(1, len(panels), figsize=(3.4 * len(panels), 4.2),
-                             facecolor="#1a1a1a")
+                             facecolor="white")
     for ax, (title, d) in zip(axes, panels):
-        ax.set_facecolor("#111111")
+        ax.set_facecolor("white")
         tc = ax.tripcolor(tri, np.nan_to_num(d), cmap="hot", vmin=0.0, vmax=vmax,
                           shading="gouraud")
-        ax.set_title(title, color="white"); ax.set_aspect("equal"); ax.tick_params(colors="#aaa")
+        ax.set_title(title, color="#111111"); ax.set_aspect("equal"); ax.tick_params(colors="#555555")
         fig.colorbar(tc, ax=ax, fraction=0.046)
-    fig.suptitle("Prior comparison (same mesh / forward / data)", color="white", y=1.02)
+    fig.suptitle("Prior comparison (same mesh / forward / data)", color="#111111", y=1.02)
     fig.tight_layout()
     out = os.path.join(os.path.dirname(__file__), "..", "outputs", "fig_prior_comparison.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"\nwrote {os.path.normpath(out)}")
 

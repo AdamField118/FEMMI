@@ -360,19 +360,19 @@ def _figure(x, y, kap_t, kfem, kks, args):
     vmax = float(np.nanpercentile(kap_t, 99)) or 1.0
     panels = [("truth kappa (GalSim NFW)", kap_t),
               ("FEMMI kappa_hat", kfem), ("KS kappa_hat", kks)]
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.6), facecolor="#1a1a1a")
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.6), facecolor="white")
     for ax, (title, d) in zip(axes, panels):
-        ax.set_facecolor("#111111")
+        ax.set_facecolor("white")
         tc = ax.tripcolor(tri, np.nan_to_num(d), cmap="hot", vmin=0.0, vmax=vmax, shading="gouraud")
-        ax.set_title(title, color="white"); ax.set_aspect("equal")
-        ax.tick_params(colors="#aaa")
+        ax.set_title(title, color="#111111"); ax.set_aspect("equal")
+        ax.tick_params(colors="#555555")
         fig.colorbar(tc, ax=ax, fraction=0.046)
     fig.suptitle(f"GalSim {args.halos}-halo NFW benchmark  (independent analytic truth)",
-                 color="white", fontsize=13, y=1.02)
+                 color="#111111", fontsize=13, y=1.02)
     fig.tight_layout()
     out = os.path.join(os.path.dirname(__file__), "..", "outputs",
                        f"fig_galsim_nfw_{args.halos}halo.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"\nwrote {os.path.normpath(out)}")
 

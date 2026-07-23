@@ -35,6 +35,7 @@ from femmi.pipeline import build_forward_and_data, build_prior
 from femmi.forward  import DifferentiableForward
 from femmi.inverse  import kaiser_squires
 from femmi.sampling import sample_posterior
+from femmi.plotstyle import use_paper_style
 
 
 def run(cfg):
@@ -82,26 +83,26 @@ def _figures(nodes, kt, masked, kks, ps, mean_display, tag, cfg):
     out = lambda n: os.path.join(out_dir, f"{cfg.get('output.name')}_{n}.png")
 
     maskfield = np.where(masked, 1.0, 0.0)
-    row1 = [("truth kappa", kt, "hot", 0, vmax), ("survey mask", maskfield, "gray", 0, 1),
-            ("Kaiser-Squires", kks, "hot", 0, vmax), ("FEMMI posterior mean", mean_display, "hot", 0, vmax)]
+    row1 = [("truth kappa", kt, "viridis", 0, vmax), ("survey mask", maskfield, "gray", 0, 1),
+            ("Kaiser-Squires", kks, "viridis", 0, vmax), ("FEMMI posterior mean", mean_display, "viridis", 0, vmax)]
     _panelrow(tri, row1, f"FEMMI probabilistic mass map -- {tag}  [Fig. 1]", out("fig1"))
 
     idx = np.linspace(0, len(ps.samples) - 1, 3).astype(int)
     row2 = [("posterior std (uncertainty)", ps.std, "viridis", None, None)]
-    row2 += [(f"posterior sample {i+1}", ps.samples[j], "hot", 0, vmax) for i, j in enumerate(idx)]
+    row2 += [(f"posterior sample {i+1}", ps.samples[j], "viridis", 0, vmax) for i, j in enumerate(idx)]
     _panelrow(tri, row2, f"Uncertainty + posterior samples -- {tag}  [Fig. 2]", out("fig2"))
 
 
 def _panelrow(tri, panels, title, out):
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    fig, axes = plt.subplots(1, len(panels), figsize=(4.2 * len(panels), 4.2), facecolor="#1a1a1a")
+    fig, axes = plt.subplots(1, len(panels), figsize=(4.2 * len(panels), 4.2), facecolor="white")
     for ax, (t, dd, cmap, vmin, vmax) in zip(axes, panels):
-        ax.set_facecolor("#111111")
+        ax.set_facecolor("white")
         tc = ax.tripcolor(tri, np.nan_to_num(dd), cmap=cmap, shading="gouraud", vmin=vmin, vmax=vmax)
-        ax.set_title(t, color="white"); ax.set_aspect("equal"); ax.tick_params(colors="#aaa")
+        ax.set_title(t, color="#111111"); ax.set_aspect("equal"); ax.tick_params(colors="#555555")
         fig.colorbar(tc, ax=ax, fraction=0.046)
-    fig.suptitle(title, color="white", y=1.02)
-    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.suptitle(title, color="#111111", y=1.02)
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig); print(f"wrote {os.path.normpath(out)}")
 
 
@@ -114,6 +115,7 @@ def main():
     args = ap.parse_args()
 
     cfg = load_config(args.config)
+    use_paper_style()
     from femmi.cli import _apply_overrides
     _apply_overrides(cfg, args.set)
     # this recreation uses the structured grid + posterior sampling

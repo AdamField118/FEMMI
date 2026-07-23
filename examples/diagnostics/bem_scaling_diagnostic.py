@@ -73,27 +73,27 @@ def run(scales=(1.0, 3.0, 10.0, 30.0, 100.0), nx=24):
 
 def make_figure(rows, path):
     s = [r["scale"] for r in rows]
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.6), facecolor="#1a1a1a")
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.6), facecolor="white")
     for ax in (a1, a2):
-        ax.set_facecolor("#111111"); ax.tick_params(colors="#aaa"); ax.grid(True, alpha=0.2)
-        ax.set_xscale("log"); ax.set_xlabel("coordinate scale (x -> s*x)", color="white")
+        ax.set_facecolor("white"); ax.tick_params(colors="#555555"); ax.grid(True, alpha=0.2)
+        ax.set_xscale("log"); ax.set_xlabel("coordinate scale (x -> s*x)", color="#111111")
         for sp in ax.spines.values(): sp.set_edgecolor("#555")
 
     a1.plot(s, [r["bem"] for r in rows], "o-", color="#00e676", label="BEM (steinbach, default)")
     a1.plot(s, [r["dir"] for r in rows], "s-", color="#4488ff", label="Dirichlet")
-    a1.set_yscale("log"); a1.set_ylabel("forward error vs analytic shear", color="white")
-    a1.set_title("Scale-invariance restored: Steinbach tracks Dirichlet", color="white")
-    a1.legend(labelcolor="white", framealpha=0.2)
+    a1.set_yscale("log"); a1.set_ylabel("forward error vs analytic shear", color="#111111")
+    a1.set_title("Scale-invariance restored: Steinbach tracks Dirichlet", color="#111111")
+    a1.legend(labelcolor="#111111", framealpha=0.2)
 
     a2.plot(s, [r["c_norm"] for r in rows], "o-", color="#ffab40", label="||C|| (coupling)")
-    a2.plot(s, [rows[0]["c_norm"] for _ in s], "--", color="#888", label="scale-free reference")
-    a2.set_ylabel("||C_dense||", color="white")
-    a2.set_title("Coupling strength is now scale-free (Galerkin M_b pairing)", color="white")
-    a2.legend(labelcolor="white", framealpha=0.2)
+    a2.plot(s, [rows[0]["c_norm"] for _ in s], "--", color="#666666", label="scale-free reference")
+    a2.set_ylabel("||C_dense||", color="#111111")
+    a2.set_title("Coupling strength is now scale-free (Galerkin M_b pairing)", color="#111111")
+    a2.legend(labelcolor="#111111", framealpha=0.2)
 
-    fig.suptitle("BEM coupling scaling diagnostic (resolved)", color="white", fontsize=13, y=1.02)
+    fig.suptitle("BEM coupling scaling diagnostic (resolved)", color="#111111", fontsize=13, y=1.02)
     fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"\nwrote {os.path.normpath(path)}")
 

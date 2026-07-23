@@ -161,18 +161,18 @@ def make_figure(res, path):
               [(t, d, "RdBu_r", -b_vmax, b_vmax) for t, d in b_panels])
 
     n = len(panels)
-    fig, axes = plt.subplots(1, n, figsize=(4.6 * n, 4.4), facecolor="#1a1a1a")
+    fig, axes = plt.subplots(1, n, figsize=(4.6 * n, 4.4), facecolor="white")
     for ax, (title, data, cmap, vmin, vmax) in zip(axes, panels):
-        ax.set_facecolor("#1a1a1a")
+        ax.set_facecolor("white")
         d = np.nan_to_num(np.asarray(data))
         tc = ax.tripcolor(tri, d, cmap=cmap, vmin=vmin, vmax=vmax, shading="gouraud")
         plt.colorbar(tc, ax=ax, fraction=0.046, pad=0.04)
-        ax.set_title(title, color="white", fontsize=10)
-        ax.set_aspect("equal"); ax.tick_params(colors="#888", labelsize=7)
+        ax.set_title(title, color="#111111", fontsize=10)
+        ax.set_aspect("equal"); ax.tick_params(colors="#666666", labelsize=7)
     fig.suptitle("Catalog-native FEMMI  vs  Fourier-grid Kaiser-Squires "
-                 "(shared kappa scale)", color="white", fontsize=13, y=1.03)
+                 "(shared kappa scale)", color="#111111", fontsize=13, y=1.03)
     plt.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"\nwrote {os.path.normpath(path)}")
 

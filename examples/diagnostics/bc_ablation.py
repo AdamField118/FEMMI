@@ -93,30 +93,30 @@ def run_ablation(domains=(1.2, 1.5, 2.0, 3.0), sigma=0.5, cells_per_unit=7,
 
 def make_figure(rows, path):
     L = [r["L"] for r in rows]
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.6), facecolor="#1a1a1a")
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.6), facecolor="white")
     for ax in (a1, a2):
-        ax.set_facecolor("#111111")
-        ax.tick_params(colors="#aaa"); ax.grid(True, alpha=0.2)
-        ax.set_xlabel("domain half-size L  (boundary distance from lens)", color="white")
+        ax.set_facecolor("white")
+        ax.tick_params(colors="#555555"); ax.grid(True, alpha=0.2)
+        ax.set_xlabel("domain half-size L  (boundary distance from lens)", color="#111111")
         for sp in ax.spines.values(): sp.set_edgecolor("#555")
 
     a1.plot(L, [r["fe_bem"] for r in rows], "o-", color="#00e676", label="BEM")
     a1.plot(L, [r["fe_dir"] for r in rows], "s-", color="#4488ff", label="Dirichlet")
-    a1.set_yscale("log"); a1.set_ylabel("forward error vs analytic shear", color="white")
-    a1.set_title("Forward accuracy", color="white")
-    a1.legend(labelcolor="white", framealpha=0.2)
+    a1.set_yscale("log"); a1.set_ylabel("forward error vs analytic shear", color="#111111")
+    a1.set_title("Forward accuracy", color="#111111")
+    a1.legend(labelcolor="#111111", framealpha=0.2)
 
     a2.plot(L, [r["l2_bem"] for r in rows], "o-", color="#00e676", label="BEM")
     a2.plot(L, [r["l2_dir"] for r in rows], "s-", color="#4488ff", label="Dirichlet")
     a2.plot(L, [r["l2_ks"] for r in rows], "^-", color="#ff8800", label="Periodic (KS)")
-    a2.set_ylabel("inverse L2 (kappa) on central aperture", color="white")
-    a2.set_title("Reconstruction error", color="white")
-    a2.legend(labelcolor="white", framealpha=0.2)
+    a2.set_ylabel("inverse L2 (kappa) on central aperture", color="#111111")
+    a2.set_title("Reconstruction error", color="#111111")
+    a2.legend(labelcolor="#111111", framealpha=0.2)
 
     fig.suptitle("Boundary-condition ablation (only the BC changes)",
-                 color="white", fontsize=13, y=1.02)
+                 color="#111111", fontsize=13, y=1.02)
     fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"\nwrote {os.path.normpath(path)}")
 

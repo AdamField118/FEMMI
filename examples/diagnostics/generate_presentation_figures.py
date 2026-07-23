@@ -41,7 +41,7 @@ except ImportError:
     print("WARNING: SMPy not found -- KS panels will be blank.")
 
 # ---- style ---------------------------------------------------------------
-BG, PANEL = "#1a1a1a", "#111111"
+BG, PANEL = "white", "white"
 GREEN, BLUE, ORANGE = "#00ff41", "#4488ff", "#ff8800"
 TEXT, MUTED = "#eeeeee", "#aaaaaa"
 

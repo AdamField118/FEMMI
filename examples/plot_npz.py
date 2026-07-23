@@ -20,9 +20,14 @@ the figure also gets the Figure-2 material from Remy et al. 2020:
 """
 
 import argparse
+import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from femmi.plotstyle import use_paper_style, SEQ_CMAP
 
 
 def _panel(fig, ax, tri, field, title, cmap, vmin=None, vmax=None):
@@ -37,13 +42,14 @@ def main():
     ap = argparse.ArgumentParser(description="Plot a FEMMI output .npz")
     ap.add_argument("npz", help="path to the saved .npz")
     ap.add_argument("-o", "--out", default=None, help="output image (default: <npz>.png)")
-    ap.add_argument("--cmap", default="hot", help="colormap for kappa/truth (default: hot)")
+    ap.add_argument("--cmap", default="viridis", help="colormap for kappa/truth (default: viridis)")
     ap.add_argument("--n-samples", type=int, default=3,
                     help="how many individual posterior samples to show (if present)")
     ap.add_argument("--detect-threshold", type=float, default=None,
                     help="kappa threshold tau for the appearance-frequency map "
                          "P(kappa>tau); default = 0.5 x the 99th-pct amplitude")
     args = ap.parse_args()
+    use_paper_style()
 
     d = np.load(args.npz)
     nodes = d["nodes"]

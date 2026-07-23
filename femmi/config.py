@@ -86,8 +86,10 @@ DEFAULTS: dict = {
                    "boundary_taper": 0.08,                   # taper the score to 0 in a
         #          boundary band (fraction of domain) to kill mesh<->grid edge artifacts
                    "train_data": "synthetic",                # synthetic | massivenus
-                   "data_dir": None},                        # MassiveNuS map directory
+                   "data_dir": None,                         # MassiveNuS map directory
         #          (train_data=massivenus -> the exact simulation suite from the paper)
+                   "map_glob": None,                         # filename filter e.g. '*z1.00*'
+                   "pool_maps": 512},                        # #maps held in RAM (bounded)
     },
 
     # --- sampler: only used when inverse.method == sample -------------------

@@ -111,7 +111,8 @@ class NeuralScorePrior(Prior):
 
     def __init__(self, ops, n_pix=32, base=16, sigma_eval=0.1, steps=8000,
                  ckpt=None, hybrid=False, boundary_taper=0.08,
-                 train_data="synthetic", data_dir=None, verbose=True):
+                 train_data="synthetic", data_dir=None, map_glob=None, pool_maps=512,
+                 verbose=True):
         # If a checkpoint path is given, the architecture is read from its name,
         # so you can point at a run by filename and the grid matches the model.
         if ckpt is not None:
@@ -123,7 +124,7 @@ class NeuralScorePrior(Prior):
         self.sigma_eval = float(sigma_eval)
         self.model, self.params, ckpt_used = get_or_train(
             n_pix=n_pix, base=base, steps=steps, verbose=verbose, path=ckpt, hybrid=hybrid,
-            train_data=train_data, data_dir=data_dir)
+            train_data=train_data, data_dir=data_dir, map_glob=map_glob, pool_maps=pool_maps)
 
         # HYBRID prior (Remy et al. 2020 eq. 6): the network learns only the
         # non-Gaussian residual and the analytic Gaussian score p_th is added

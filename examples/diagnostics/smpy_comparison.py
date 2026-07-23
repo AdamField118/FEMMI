@@ -299,7 +299,7 @@ def monte_carlo(label, kappa_fn, n_trials=10, **trial_kwargs):
 # Visualisation
 # ------------------------------------------------------------
 
-BG, PANEL = "#1a1a1a", "#111111"
+BG, PANEL = "white", "white"
 GREEN, BLUE, ORANGE = "#00ff41", "#4488ff", "#ff8800"
 
 def save_residual_figure(r, label, path):
@@ -322,11 +322,11 @@ def save_residual_figure(r, label, path):
         g  = _interpolate_to_grid(nodes, data)
         im = ax.imshow(g, origin="lower", extent=ext,
                        cmap=cmap, vmin=vmin, vmax=vmax_, aspect="equal")
-        ax.set_title(title, color="white", fontsize=9, pad=4)
-        ax.tick_params(colors="#888", labelsize=7)
+        ax.set_title(title, color="#111111", fontsize=9, pad=4)
+        ax.tick_params(colors="#666666", labelsize=7)
         ax.set_facecolor(PANEL)
         plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04).ax.tick_params(
-            colors="#888", labelsize=7)
+            colors="#666666", labelsize=7)
 
     l2_map_str = f"L2={r['l2_map']:.3f}"
     l2_ks_str  = f"L2={r['l2_ks']:.3f}" if HAS_SMPY else "built-in"
@@ -352,7 +352,7 @@ def save_summary_bar(mc_results, path):
     x, w = np.arange(len(labels)), 0.32
     fig, ax = plt.subplots(figsize=(max(8, 2*len(labels)), 5), facecolor=BG)
     ax.set_facecolor(PANEL)
-    ekw = dict(ecolor="white", lw=1.5, capsize=4)
+    ekw = dict(ecolor="#111111", lw=1.5, capsize=4)
 
     bars_f = ax.bar(x - w/2, mean_map, w, yerr=std_map,
                     label="FEMMI-MAP (Morozov + Wiener)", color=GREEN, alpha=0.85, error_kw=ekw)
@@ -361,11 +361,11 @@ def save_summary_bar(mc_results, path):
                         label="Kaiser-Squires + DC", color=BLUE, alpha=0.85, error_kw=ekw)
         for bar, m in zip(bars_k, mean_ks):
             ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.005,
-                    f"{m:.3f}", ha="center", va="bottom", color="white", fontsize=9)
+                    f"{m:.3f}", ha="center", va="bottom", color="#111111", fontsize=9)
 
     for bar, m in zip(bars_f, mean_map):
         ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.005,
-                f"{m:.3f}", ha="center", va="bottom", color="white", fontsize=9)
+                f"{m:.3f}", ha="center", va="bottom", color="#111111", fontsize=9)
 
     if HAS_SMPY:
         for i, r in enumerate(mc_results):
@@ -376,12 +376,12 @@ def save_summary_bar(mc_results, path):
                     color=color, fontweight="bold")
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=15, ha="right", color="white", fontsize=9)
-    ax.set_ylabel("Mean normalised L2 error (+/- 1 sigma)", color="white")
+    ax.set_xticklabels(labels, rotation=15, ha="right", color="#111111", fontsize=9)
+    ax.set_ylabel("Mean normalised L2 error (+/- 1 sigma)", color="#111111")
     ax.set_title("FEMMI-MAP vs Kaiser-Squires (Morozov lambda, Wiener prior)",
                  color=GREEN, fontsize=12)
-    ax.legend(framealpha=0.3, labelcolor="white", fontsize=10)
-    ax.tick_params(colors="#888")
+    ax.legend(framealpha=0.3, labelcolor="#111111", fontsize=10)
+    ax.tick_params(colors="#666666")
     ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
     for sp in ax.spines.values(): sp.set_edgecolor("#555")
 

@@ -5,18 +5,26 @@ Lensing) -- the exact simulation suite used by Remy et al. 2020 -- instead of th
 shipped synthetic shifted-log-normal maps, for an apples-to-apples reproduction.
 
 MassiveNuS kappa maps are distributed by the Columbia Lensing group
-(http://columbialensing.org). Download the convergence maps you want (e.g. the
-massless-neutrino fiducial cosmology at a source redshift) into a directory and
-point `data_dir` at it. This module reads .npy / .npz / .fits maps and serves
-random n_pix patches in the SAME interface as data.batch_generator, so training
-is `femmi train-prior ... --set prior.neural.train_data=massivenus
---set prior.neural.data_dir=/path/to/maps`.
+(http://columbialensing.org). Download the fiducial galaxy-lensing maps
+(`convergence_gal_mnv0.00000_om0.30000_As2.1000.tar`), extract one source
+redshift (e.g. `Maps10/` = z_s=1, the paper's choice), and point `data_dir` at
+that folder. This module reads .npy / .npz / .fits maps and serves random n_pix
+patches in the SAME interface as data.batch_generator.
+
+Scale note: a redshift folder holds ~10,000 maps. To stay memory-bounded and fast,
+the loader globs the directory ONCE and holds a fixed random POOL of `pool_size`
+maps in RAM (drawing patches from those), rather than caching every map it ever
+touches. `map_glob` filters filenames (e.g. '*z1.00*') so you can point at a
+folder that mixes redshifts and still train on one.
 """
 
 from __future__ import annotations
+import fnmatch
 import glob
 import os
 import numpy as np
+
+_EXTS = (".npy", ".npz", ".fits", ".fit", ".fits.gz")
 
 
 def _load_map(path):
@@ -34,52 +42,73 @@ def _load_map(path):
     return np.asarray(a, np.float32)
 
 
-def find_maps(data_dir):
-    """All convergence-map files under data_dir (recursive)."""
+def find_maps(data_dir, map_glob=None):
+    """All convergence-map files under data_dir (recursive), optionally filtered by
+    a filename glob such as '*z1.00*' (matched against the basename)."""
     files = []
-    for ext in ("*.npy", "*.npz", "*.fits", "*.fit", "*.fits.gz"):
-        files += glob.glob(os.path.join(data_dir, "**", ext), recursive=True)
+    for ext in _EXTS:
+        files += glob.glob(os.path.join(data_dir, "**", "*" + ext), recursive=True)
+    if map_glob:
+        files = [f for f in files if fnmatch.fnmatch(os.path.basename(f), map_glob)]
     if not files:
         raise FileNotFoundError(
-            f"no .npy/.npz/.fits convergence maps under {data_dir!r} -- download "
-            "MassiveNuS maps from http://columbialensing.org")
+            f"no {'/'.join(_EXTS)} maps under {data_dir!r}"
+            + (f" matching {map_glob!r}" if map_glob else "")
+            + " -- download MassiveNuS maps from http://columbialensing.org")
     return sorted(files)
 
 
-def massivenus_maps(data_dir, n, n_pix, kappa_std=0.35, seed=0, _cache=None):
-    """Return (n, n_pix, n_pix) random patches from the MassiveNuS maps in data_dir.
+class MassiveNuSMaps:
+    """A fixed, memory-bounded pool of convergence maps that serves random n_pix
+    patches. The directory is globbed ONCE; up to `pool_size` maps are loaded into
+    RAM (a random subset if there are more on disk) and every patch is drawn from
+    that pool -- so memory is bounded to ~pool_size maps no matter how many are on
+    disk, with no per-batch globbing or unbounded caching."""
 
-    Each patch is zero-meaned; if kappa_std is set it is renormalised to that
-    per-patch std (matching the synthetic-data amplitude convention), else the
-    native amplitude is kept."""
-    files = find_maps(data_dir)
-    rng = np.random.default_rng(seed)
-    cache = {} if _cache is None else _cache
-    out = np.empty((n, n_pix, n_pix), np.float32)
-    for i in range(n):
-        f = files[rng.integers(len(files))]
-        m = cache.get(f)
-        if m is None:
-            m = _load_map(f); cache[f] = m
-        H, W = m.shape[-2:]
-        if H < n_pix or W < n_pix:
-            raise ValueError(f"map {f} ({H}x{W}) is smaller than n_pix={n_pix}")
-        iy = int(rng.integers(0, H - n_pix + 1)); ix = int(rng.integers(0, W - n_pix + 1))
-        patch = np.asarray(m[..., iy:iy + n_pix, ix:ix + n_pix], np.float32)
-        patch = patch - patch.mean()
-        if kappa_std:
-            patch = patch * (kappa_std / (patch.std() + 1e-8))
-        out[i] = patch
-    return out
+    def __init__(self, data_dir, n_pix, kappa_std=0.35, map_glob=None,
+                 pool_size=512, seed=0, verbose=False):
+        files = find_maps(data_dir, map_glob)
+        self.n_disk = len(files)
+        rng = np.random.default_rng(seed)
+        if len(files) > pool_size:
+            files = [files[i] for i in sorted(rng.choice(len(files), pool_size, replace=False))]
+        self.pool = [_load_map(f) for f in files]
+        self.n_pix = int(n_pix)
+        self.kappa_std = kappa_std
+        if verbose:
+            H, W = self.pool[0].shape[-2:]
+            print(f"  MassiveNuS: pool of {len(self.pool)}/{self.n_disk} maps "
+                  f"({H}x{W}) from {data_dir}")
+
+    def sample(self, n, seed):
+        rng = np.random.default_rng(seed)
+        out = np.empty((n, self.n_pix, self.n_pix), np.float32)
+        for i in range(n):
+            m = self.pool[int(rng.integers(len(self.pool)))]
+            H, W = m.shape[-2:]
+            if H < self.n_pix or W < self.n_pix:
+                raise ValueError(f"map ({H}x{W}) smaller than n_pix={self.n_pix}")
+            iy = int(rng.integers(0, H - self.n_pix + 1))
+            ix = int(rng.integers(0, W - self.n_pix + 1))
+            p = np.asarray(m[..., iy:iy + self.n_pix, ix:ix + self.n_pix], np.float32)
+            p = p - p.mean()
+            if self.kappa_std:
+                p = p * (self.kappa_std / (p.std() + 1e-8))
+            out[i] = p
+        return out
+
+    def generator(self, batch, seed=0):
+        """Infinite stream of (batch, n_pix, n_pix, 1) patches -- drop-in for
+        data.batch_generator."""
+        s = seed
+        while True:
+            yield self.sample(batch, s)[..., None]
+            s += 1
 
 
-def massivenus_batch_generator(data_dir, batch=32, n_pix=64, kappa_std=0.35, seed=0):
-    """Infinite stream of (batch, n_pix, n_pix, 1) patches -- drop-in for
-    data.batch_generator, so the DSM trainer is unchanged."""
-    find_maps(data_dir)                       # fail fast if the directory is empty
-    cache: dict = {}
-    s = seed
-    while True:
-        yield massivenus_maps(data_dir, batch, n_pix, kappa_std=kappa_std,
-                              seed=s, _cache=cache)[..., None]
-        s += 1
+# --- thin backward-compatible helper ---------------------------------------- #
+def massivenus_maps(data_dir, n, n_pix, kappa_std=0.35, seed=0, map_glob=None,
+                    pool_size=512):
+    """Return (n, n_pix, n_pix) random patches from the maps in data_dir."""
+    return MassiveNuSMaps(data_dir, n_pix, kappa_std=kappa_std, map_glob=map_glob,
+                          pool_size=pool_size, seed=seed).sample(n, seed)

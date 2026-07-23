@@ -60,7 +60,9 @@ def cmd_train_prior(args):
                       steps=cfg.get("prior.neural.steps", 8000),
                       hybrid=n.get("hybrid", False),
                       train_data=n.get("train_data", "synthetic"),
-                      data_dir=n.get("data_dir"), verbose=True)
+                      data_dir=n.get("data_dir"),
+                      map_glob=n.get("map_glob"), pool_maps=n.get("pool_maps", 512),
+                      verbose=True)
 
 
 def build_parser():

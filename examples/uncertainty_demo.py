@@ -64,22 +64,22 @@ def _figure(nodes, kt, ps, args):
     panels = [("truth kappa", kt, "hot"), ("MAP", ps.map_kappa, "hot"),
               ("posterior mean", ps.mean, "hot"),
               ("posterior std (uncertainty)", ps.std, "viridis")]
-    fig, axes = plt.subplots(1, 4, figsize=(17, 4.2), facecolor="#1a1a1a")
+    fig, axes = plt.subplots(1, 4, figsize=(17, 4.2), facecolor="white")
     vmax = float(np.nanpercentile(kt, 99)) or 1.0
     for ax, (title, d, cmap) in zip(axes, panels):
-        ax.set_facecolor("#111111")
+        ax.set_facecolor("white")
         vm = None if cmap == "viridis" else vmax
         tc = ax.tripcolor(tri, d, cmap=cmap, shading="gouraud",
                           vmin=(0 if cmap == "hot" else None), vmax=vm)
-        ax.set_title(title, color="white"); ax.set_aspect("equal"); ax.tick_params(colors="#aaa")
+        ax.set_title(title, color="#111111"); ax.set_aspect("equal"); ax.tick_params(colors="#555555")
         fig.colorbar(tc, ax=ax, fraction=0.046)
     tag = "neural (Langevin)" if args.neural else "Wiener (RTO exact)"
     fig.suptitle(f"FEMMI posterior UQ via the differentiable forward -- {tag}",
-                 color="white", y=1.02)
+                 color="#111111", y=1.02)
     fig.tight_layout()
     out = os.path.join(os.path.dirname(__file__), "..", "outputs",
                        f"fig_uncertainty_{'neural' if args.neural else 'wiener'}.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"wrote {os.path.normpath(out)}")
 

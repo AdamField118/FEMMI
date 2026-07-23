@@ -54,21 +54,27 @@ or leave `ckpt: null` and FEMMI loads the default cached model matching
 
 The shipped default trains on synthetic shifted-log-normal maps. For an exact
 Remy et al. 2020 reproduction, train on **MassiveNuS** convergence maps (Liu et
-al. 2018), the same simulation suite the paper uses. Download the maps from the
-[Columbia Lensing group](http://columbialensing.org) into a directory, install
-the extras, and point the trainer at it:
+al. 2018), the same simulation suite the paper uses.
+
+Download the fiducial galaxy-lensing maps from the
+[Columbia Lensing group](http://columbialensing.org) — the file
+`convergence_gal_mnv0.00000_om0.30000_As2.1000.tar` — and extract one source
+redshift (`Maps10/` = z_s=1, the paper's choice; the tar also has z=0.5/1.5/2/2.5):
 
 ```bash
+tar xf convergence_gal_mnv0.00000_om0.30000_As2.1000.tar Maps10   # 512x512 FITS maps
 pip install -e ".[neural,paper]"        # paper extra: galsim + astropy
 femmi train-prior --config configs/paper_artifacts.yaml \
     --set prior.neural.train_data=massivenus \
-    --set prior.neural.data_dir=/path/to/massivenus/kappa_maps \
+    --set prior.neural.data_dir=/abs/path/to/Maps10 \
     --set prior.neural.hybrid=true
 ```
 
 The loader reads `.npy` / `.npz` / `.fits` maps and serves random `n_pix` patches,
-so nothing else about training changes. A run then references the resulting
-checkpoint exactly as usual.
+so nothing else about training changes. A redshift folder holds ~10,000 maps, so to
+stay memory-bounded it globs once and holds a fixed random pool of
+`prior.neural.pool_maps` maps (default 512 ≈ 0.5 GB) in RAM. If you extract several
+redshifts into one folder, `prior.neural.map_glob='*z1.00*'` trains on just one.
 
 ## Hybrid mode (1-to-1 with the paper)
 

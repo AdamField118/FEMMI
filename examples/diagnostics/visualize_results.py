@@ -40,7 +40,7 @@ except ImportError:
 OUT_DIR = os.path.join(os.path.dirname(__file__), "figures")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-BG     = "#0e0e0e"
+BG     = "white"
 PANEL  = "#141414"
 GREEN  = "#00e676"
 BLUE   = "#448aff"

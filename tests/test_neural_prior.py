@@ -86,15 +86,22 @@ def test_boundary_taper_zeros_edges_keeps_interior():
 
 
 def test_massivenus_loader_serves_patches(tmp_path):
-    """The MassiveNuS loader discovers maps and serves normalized n_pix patches."""
-    from femmi.neural_prior.massivenus import find_maps, massivenus_maps
+    """The MassiveNuS loader discovers maps (with an optional filename filter),
+    holds a bounded RAM pool, and serves normalized n_pix patches."""
+    from femmi.neural_prior.massivenus import find_maps, massivenus_maps, MassiveNuSMaps
     rng = np.random.default_rng(0)
-    for i in range(3):
-        np.save(str(tmp_path / f"kappa_{i}.npy"), rng.standard_normal((64, 64)).astype(np.float32))
-    assert len(find_maps(str(tmp_path))) == 3
+    for z in ("0.50", "1.00"):
+        for i in range(6):
+            np.save(str(tmp_path / f"WLconv_z{z}_{i:04d}r.npy"),
+                    rng.standard_normal((64, 64)).astype(np.float32))
+    assert len(find_maps(str(tmp_path))) == 12
+    assert len(find_maps(str(tmp_path), "*z1.00*")) == 6      # filename filter
+
     p = massivenus_maps(str(tmp_path), 5, 16, kappa_std=0.35, seed=1)
-    assert p.shape == (5, 16, 16)
-    assert abs(p.std() - 0.35) < 0.15          # renormalised to ~kappa_std
+    assert p.shape == (5, 16, 16) and abs(p.std() - 0.35) < 0.15
+
+    mn = MassiveNuSMaps(str(tmp_path), 16, map_glob="*z1.00*", pool_size=3, seed=1)
+    assert len(mn.pool) == 3 and mn.n_disk == 6              # bounded pool < on-disk
 
 
 def test_synthetic_maps_are_non_gaussian():

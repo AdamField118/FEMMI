@@ -26,6 +26,21 @@ femmi run --config configs/default.yaml
 python examples/plot_npz.py runs/run.npz   # see the result
 ```
 
+## paper/ (the thesis: FEMMI vs Kaiser–Squires)
+
+The structural results that justify choosing FEMMI over KS in a real pipeline —
+each is a standalone figure backed by `femmi.experiments`.
+
+| script | result |
+|---|---|
+| `paper/mass_sheet.py` | **[central]** FEMMI recovers the absolute convergence normalisation (the DC / mass-sheet mode) that KS floats by an unconstrained constant. |
+| `paper/boundary_bias.py` | reconstruction error vs distance-from-edge — FEMMI's exact BEM far-field beats KS's truncation near the boundary. |
+| `paper/injectivity.py` | the DC mode at the operator level: FEMMI's forward observes a uniform sheet (`‖F·1‖>0`); the KS/FFT forward annihilates it. |
+| `paper/forward_convergence.py` | forward-shear convergence with resolution (credibility). |
+
+All plots use the shared paper style (`femmi.plotstyle`, white background,
+colorblind-safe colormaps).
+
 ## diagnostics/ (development & validation)
 
 Forward-operator accuracy (`bem_dtn_diagnostic`, `bem_scaling_diagnostic`),

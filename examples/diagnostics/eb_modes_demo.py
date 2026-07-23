@@ -62,25 +62,25 @@ def main(nx=20, noise_level=0.10, seed=42):
         (kB,         "FEMMI B-mode (null)",   "RdBu_r"),
         (ksB,        "Kaiser-Squires B-mode", "RdBu_r"),
     ]
-    fig, axes = plt.subplots(1, 4, figsize=(20, 5), facecolor="#1a1a1a")
+    fig, axes = plt.subplots(1, 4, figsize=(20, 5), facecolor="white")
     for ax, (data, title, cmap) in zip(axes, panels):
-        ax.set_facecolor("#1a1a1a")
+        ax.set_facecolor("white")
         if cmap == "RdBu_r":
             vmax = np.percentile(np.abs(data), 99); vmin = -vmax
         else:
             vmax = np.percentile(np.abs(data), 99); vmin = 0
         tc = ax.tripcolor(triang, data, cmap=cmap, vmin=vmin, vmax=vmax, shading="gouraud")
         plt.colorbar(tc, ax=ax, fraction=0.046, pad=0.04)
-        ax.set_title(title, color="white", fontsize=11)
+        ax.set_title(title, color="#111111", fontsize=11)
         ax.set_aspect("equal")
-        ax.tick_params(colors="white")
+        ax.tick_params(colors="#333333")
 
     fig.suptitle(f"E/B decomposition  |  noise={noise_level*100:.0f}%  |  "
                  f"corr(E,truth)={corr_E:.2f}, corr(B,truth)={corr_B:.2f}",
-                 color="white", fontsize=13, y=1.02)
+                 color="#111111", fontsize=13, y=1.02)
     plt.tight_layout()
     out = os.path.join(os.path.dirname(__file__), "..", "outputs", "fig_eb_modes.png")
-    plt.savefig(out, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
+    plt.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
     print(f"\nwrote {os.path.normpath(out)}")
 
 
