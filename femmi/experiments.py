@@ -134,20 +134,55 @@ def boundary_error_profile(nx=20, half_width=2.5, sigma=0.7, noise_std=0.02,
 # --------------------------------------------------------------------------- #
 # P1.5 -- forward-operator convergence
 # --------------------------------------------------------------------------- #
-def forward_convergence(nxs=(8, 12, 16, 24), half_width=2.5, sigma=0.6):
-    """Relative L2 error of FEMMI's forward shear vs the analytic Gaussian shear on
-    interior nodes, at increasing resolution. Returns (h, err, fitted_order)."""
+def manufactured_potential(nodes, R=1.5, c=1.0, p=6):
+    """The compactly-supported manufactured lensing potential psi = c(1-(r/R)^2)^p
+    for r<R, else 0. p=6 makes psi in C^5 (H^6), smooth enough that the O(h^4) P3
+    rate is not regularity-limited; and psi=0 for r>=R, so if R<half_width it
+    vanishes at the FEMMI boundary (no finite-vs-infinite-domain floor)."""
+    r = np.hypot(nodes[:, 0], nodes[:, 1])
+    u = 1.0 - (r / R) ** 2
+    return np.where(r < R, c * u ** p, 0.0)
+
+
+def manufactured_bump(nodes, R=1.5, c=1.0, p=6):
+    """(kappa, g1, g2) consistent with manufactured_potential: kappa = 1/2 lap(psi),
+    the shear is the traceless Hessian (FEMMI's sign convention). psi = c u^p,
+    u = 1-(r/R)^2, gives
+        lap(psi) = 4 c p [ (p-1) r^2/R^4 u^{p-2} - u^{p-1}/R^2 ]
+        gamma_t  = 2 c p (p-1) r^2/R^4 u^{p-2}."""
+    x, y = nodes[:, 0], nodes[:, 1]
+    r = np.hypot(x, y); phi = np.arctan2(y, x)
+    u = 1.0 - (r / R) ** 2
+    inside = r < R
+    lap = 4 * c * p * ((p - 1) * r**2 / R**4 * u**(p - 2) - u**(p - 1) / R**2)
+    gt = 2 * c * p * (p - 1) * r**2 / R**4 * u**(p - 2)
+    lap = np.where(inside, lap, 0.0); gt = np.where(inside, gt, 0.0)
+    return 0.5 * lap, gt * np.cos(2 * phi), gt * np.sin(2 * phi)
+
+
+def forward_convergence(nxs=(8, 12, 16, 24, 32, 40), half_width=2.5, R=1.5, p=6):
+    """Convergence of FEMMI's recovered lensing POTENTIAL psi = F-solve(kappa) toward
+    a COMPACTLY-SUPPORTED manufactured psi (manufactured_potential), at increasing
+    resolution -- the validation of the forward operator F itself.
+
+    psi is zero at the boundary (compact support), so there is no finite-vs-
+    infinite-domain floor; the additive gauge (FEMMI pins one node) is removed
+    before comparing. For P3 elements the theory rate is O(h^4) in L2, and that is
+    what this measures (the shear is a well-defined post-hoc derivative of psi, not
+    a property of F, so it is not the operator-validation quantity). Returns
+    (h, err, fitted_order)."""
+    import jax.numpy as jnp
+    from .forward import DifferentiableForward
+
     hs, errs = [], []
     for nx in nxs:
         ops = square_ops(nx, half_width)
         nodes = np.array(ops.mesh.nodes)
-        kt, g1a, g2a = analytic_gaussian_shear(nodes, sigma=sigma, amp=1.0)
-        g1, g2 = femmi_forward_shear(ops, kt)
-        r = np.hypot(nodes[:, 0], nodes[:, 1])
-        inner = r < 0.6 * half_width           # away from the boundary-truncation floor
-        num = np.hypot(g1[inner] - g1a[inner], g2[inner] - g2a[inner])
-        den = np.hypot(g1a[inner], g2a[inner])
-        errs.append(np.linalg.norm(num) / (np.linalg.norm(den) + 1e-30))
+        kt, _, _ = manufactured_bump(nodes, R=R, p=p)
+        psi = np.asarray(DifferentiableForward(ops, lam_reg=1e-2).psi_from_kappa(jnp.asarray(kt)))
+        pt = manufactured_potential(nodes, R=R, p=p)
+        dm = lambda a: a - a.mean()            # remove the gauge (additive constant)
+        errs.append(np.linalg.norm(dm(psi) - dm(pt)) / (np.linalg.norm(dm(pt)) + 1e-30))
         hs.append(2.0 * half_width / nx)
     hs, errs = np.array(hs), np.array(errs)
     order = float(np.polyfit(np.log(hs), np.log(errs), 1)[0])

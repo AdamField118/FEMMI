@@ -46,8 +46,9 @@ def main():
 
     tri = mtri.Triangulation(d["nodes"][:, 0], d["nodes"][:, 1])
     vmax = float(np.nanpercentile(d["truth"], 99)) or 1.0
-    fig = plt.figure(figsize=(13, 4.2))
-    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1, 1.25])
+
+    fig = plt.figure(figsize=(14, 4.2))
+    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1, 1.3], wspace=0.55)
     for j, (key, title) in enumerate([("truth", "truth $\\kappa$"),
                                        ("femmi", "FEMMI"), ("ks", "Kaiser-Squires")]):
         ax = fig.add_subplot(gs[0, j])

@@ -44,10 +44,12 @@ def test_femmi_beats_ks_at_the_boundary():
     assert d["err_femmi"][-1] < d["err_ks"][-1]         # smaller error at the outer edge
 
 
-def test_forward_shear_converges():
-    h, err, order = forward_convergence(nxs=(8, 12, 16))
+def test_forward_potential_converges_at_order_four():
+    """FEMMI's recovered potential psi converges at the P3 theory rate O(h^4),
+    validating the forward operator F (no floor: the manufactured psi is compact)."""
+    h, err, order = forward_convergence(nxs=(8, 12, 16, 24, 32))
     assert err[-1] < err[0]                             # error drops with resolution
-    assert order > 0.8                                  # positive (sub-)quadratic rate
+    assert order > 3.5                                  # clean O(h^4), not regularity-limited
 
 
 if __name__ == "__main__":
