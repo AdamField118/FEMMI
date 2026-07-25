@@ -33,10 +33,20 @@ each is a standalone figure backed by `femmi.experiments`.
 
 | script | result |
 |---|---|
-| `paper/mass_sheet.py` | **[central]** FEMMI recovers the absolute convergence normalisation (the DC / mass-sheet mode) that KS floats by an unconstrained constant. |
-| `paper/boundary_bias.py` | reconstruction error vs distance-from-edge — FEMMI's exact BEM far-field beats KS's truncation near the boundary. |
-| `paper/injectivity.py` | the DC mode at the operator level: FEMMI's forward observes a uniform sheet (`‖F·1‖>0`); the KS/FFT forward annihilates it. |
-| `paper/forward_convergence.py` | forward-shear convergence with resolution (credibility). |
+| `paper/independent_truth.py` | **[central]** both claims on truth NEITHER method generated (analytic GalSim NFW, or MassiveNuS + aperiodic shear). FEMMI's boundary advantage survives; its DC-mode advantage does not. Read this before `mass_sheet.py`. |
+| `paper/mass_sheet.py` | the same absolute-normalisation comparison on FEMMI's OWN forward shear. Shows the mechanism cleanly, but it is an inverse crime — quote `independent_truth.py` for the headline number. |
+| `paper/boundary_bias.py` | reconstruction error vs distance-from-edge — FEMMI's exact BEM far-field beats KS's truncation near the boundary (also self-consistent shear; the neutral version is in `independent_truth.py`). |
+| `paper/injectivity.py` | the DC mode at the operator level: FEMMI's forward observes a uniform sheet (`‖F·1‖>0`); the KS/FFT forward annihilates it. Operator-level fact, and it holds — but see the caveat below. |
+| `paper/forward_convergence.py` | the potential ψ converges at the P3 theory rate `O(h⁴)` — the forward operator's validation. |
+| `paper/shear_recovery.py` | shear extraction reaches `O(h²)`; variational recovery beats nodal sampling by ~1.8× in constant; and noise amplified by `h⁻²` makes that rate unreachable catalog-native. |
+
+**Scope of the mass-sheet claim.** `‖F·1‖ > 0` is true and KS's is exactly zero,
+so the DC mode is formally observable to FEMMI and formally invisible to KS. But
+~99.9% of that response is concentrated in the *corners* of the square domain and
+it grows under refinement rather than converging, so it does not turn into
+practical DC recovery: on independent truth FEMMI's mean-κ error is comparable to
+KS's. State the injectivity result as an operator property, not as a solved
+mass-sheet degeneracy.
 
 All plots use the shared paper style (`femmi.plotstyle`, white background,
 colorblind-safe colormaps).

@@ -26,7 +26,7 @@ The central methodological claim is that the standard practice of truncating thi
 |---|---|---|
 | Far-field boundary condition | Periodic / Dirichlet (wrong) | Exact exterior via BEM |
 | Regularisation parameter | Manual smoothing kernel | Morozov discrepancy principle |
-| Mass-sheet degeneracy | Present in $F$ | Resolved ($F$ injective) |
+| DC / mass-sheet mode | In $F$'s null space (exactly) | Observable ($\|F\mathbf{1}\|>0$) — but see the scope note below |
 | Inverse method | Direct FFT | MAP + L-BFGS, Matérn prior |
 | Masked / missing data | Unreliable near mask | Inpainting via prior covariance |
 | E/B-mode null test | 45-deg rotation | 45-deg rotation (same solver) |
@@ -65,7 +65,11 @@ $$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\de
 
 $$\partial\mathcal{L} / \partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
 
-**Injectivity and the mass-sheet degeneracy.** The BEM far-field normalization fixes the $\kappa \to \kappa + c$ degeneracy present in all FFT-based methods: the forward operator $F$ is injective, so the MAP problem has a unique solution. A single-node gauge condition removes the remaining scalar null space (the additive constant in $\psi$).
+**Injectivity and the mass-sheet degeneracy — with its scope.** The BEM far-field normalization removes the $\kappa \to \kappa + c$ mode from the null space of $F$, where every FFT-based method has it identically ($\|F_{\rm KS}\mathbf{1}\| = 0$ exactly, because the $1/k^2$ kernel is singular at $k=0$ and is zeroed there). A single-node gauge condition removes the remaining scalar null space (the additive constant in $\psi$).
+
+That is an operator-level statement and it is the correct one to make. It does **not** mean the absolute normalisation is recovered in practice, and measurement says it is not: ~99.9% of $\|F\mathbf{1}\|^2$ sits in the corners of the square domain and *grows* under refinement rather than converging, and on ground truth that FEMMI did not itself generate its mean-$\kappa$ error is $0.047$ against Kaiser–Squires' $0.049$. The much larger gap sometimes quoted comes from generating the test shear with FEMMI's own forward — an inverse crime. See `MATH.md` §6.3a and `examples/paper/independent_truth.py`.
+
+What *does* survive on neutral truth is the boundary claim: FEMMI's exact far-field condition gives ~1.7× lower error than KS near the domain edge, with the margin growing outward.
 
 **Inverse scattering connection.** The forward operator $F: L^2(\Omega) \to L^2(\Omega)^2$ is compact, placing the lensing problem in the same mathematical framework as the Born approximation in acoustic inverse scattering (C&K Ch. 8, 10). FEMMI implements the Kirsch factorization method and linear sampling method for parameter-free support recovery from the truncated SVD of $F$.
 

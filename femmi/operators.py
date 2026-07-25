@@ -77,6 +77,84 @@ def _assemble_shear_ops(nodes, elements, H_ref):
     return (sc @ S1r).tocsr(), (sc @ S2r).tocsr()
 
 
+def _assemble_recovery_blocks(nodes, elements, quad_wts_np, dN_ref):
+    """Assemble Bx, By, Bxy with Bx[i,j] = int N_i,x N_j,x, By[i,j] = int N_i,y N_j,y,
+    Bxy[i,j] = int N_i,x N_j,y -- the pieces of the variational (weak-form) shear
+    recovery in build_recovered_shear_ops."""
+    n_nodes = len(nodes)
+    max_nnz = len(elements) * 100
+    I = np.zeros(max_nnz, dtype=np.int32); J = np.zeros(max_nnz, dtype=np.int32)
+    Dx = np.zeros(max_nnz); Dy = np.zeros(max_nnz); Dxy = np.zeros(max_nnz)
+    entry = 0
+    for elem in elements:
+        xy   = nodes[elem[:3]]
+        Jac  = np.array([[xy[1, 0] - xy[0, 0], xy[1, 1] - xy[0, 1]],
+                         [xy[2, 0] - xy[0, 0], xy[2, 1] - xy[0, 1]]])
+        area = abs(np.linalg.det(Jac)) / 2.0
+        dN   = dN_ref @ np.linalg.inv(Jac).T           # (nq, 10, 2) physical grads
+        w    = quad_wts_np
+        Dx[entry:entry + 100]  = (area * np.einsum('q,qi,qj->ij', w, dN[:, :, 0], dN[:, :, 0])).ravel()
+        Dy[entry:entry + 100]  = (area * np.einsum('q,qi,qj->ij', w, dN[:, :, 1], dN[:, :, 1])).ravel()
+        Dxy[entry:entry + 100] = (area * np.einsum('q,qi,qj->ij', w, dN[:, :, 0], dN[:, :, 1])).ravel()
+        I[entry:entry + 100] = np.repeat(elem, 10)
+        J[entry:entry + 100] = np.tile(elem, 10)
+        entry += 100
+    mk = lambda d: sp.coo_matrix((d[:entry], (I[:entry], J[:entry])),
+                                 shape=(n_nodes, n_nodes)).tocsr()
+    return mk(Dx), mk(Dy), mk(Dxy)
+
+
+class RecoveredShear:
+    """Variationally recovered shear gamma = (1/2(psi_xx - psi_yy), psi_xy).
+
+    The default S1/S2 operators sample the element Hessian AT THE P3 NODES and
+    average over the elements meeting there. Nodes are exactly where a C^0 P3
+    element's second derivative jumps, so that estimate loses an order: it is
+    only ~O(h^1.3) in practice, well short of the O(h^2) the approximation theory
+    allows for P3.
+
+    This recovers the shear variationally instead. Integrating by parts once,
+
+        int N_i gamma1 = 1/2 [ -int N_i,x psi_,x + int N_i,y psi_,y ]  + boundary
+        int N_i gamma2 =     -int N_i,y psi_,x                          + boundary
+
+    so only FIRST derivatives of psi_h are ever evaluated (those converge at
+    O(h^3) for P3, and are continuous across elements), and the result is the L2
+    projection of the recovered field onto the continuous P3 space:
+
+        M gamma1_rec = 1/2 (By - Bx) psi,     M gamma2_rec = -1/2 (Bxy + Bxy^T) psi.
+
+    The boundary term int_dOmega N_i psi_,x n ds is dropped, so recovered values
+    on the boundary ring are not meaningful -- use `interior_mask` (or a compactly
+    supported field, as in experiments.shear_convergence) when measuring error.
+    """
+
+    def __init__(self, ops):
+        from scipy.sparse.linalg import splu
+        mesh = ops.mesh
+        nodes = np.asarray(mesh.nodes, np.float64)
+        elements = np.asarray(mesh.elements)
+        quad_pts, quad_wts = get_gauss_quadrature_triangle(order=5)
+        _, dN_ref = _precompute_reference_data(np.array(quad_pts), np.array(quad_wts))
+        Bx, By, Bxy = _assemble_recovery_blocks(nodes, elements,
+                                                np.array(quad_wts), dN_ref)
+        self.ops = ops
+        self.A1 = (0.5 * (By - Bx)).tocsc()
+        self.A2 = (-0.5 * (Bxy + Bxy.T)).tocsc()
+        self._M_lu = splu(ops.M.tocsc())
+        self.interior_mask = np.asarray(ops.interior, bool)
+
+    def __call__(self, psi):
+        psi = np.asarray(psi, np.float64)
+        return (self._M_lu.solve(self.A1 @ psi),
+                self._M_lu.solve(self.A2 @ psi))
+
+
+def build_recovered_shear_ops(ops):
+    """Convenience wrapper: returns a RecoveredShear callable psi -> (g1, g2)."""
+    return RecoveredShear(ops)
+
+
 def _precompute_reference_data(quad_pts_np, quad_wts_np):
     """Precompute N_ref (nq, 10) and dN_ref (nq, 10, 2) at all quadrature points."""
     nq     = len(quad_wts_np)
