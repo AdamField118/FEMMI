@@ -13,6 +13,7 @@ import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Tuple, Optional
 import time
 
@@ -39,8 +40,14 @@ _P3_REF_NODES = np.array([
 ])
 
 
+@lru_cache(maxsize=None)
 def _build_ref_hessians():
-    """Precompute H_ref[eval_node, shape_fn, i, j] shape (10,10,2,2) via JAX AD."""
+    """Precompute H_ref[eval_node, shape_fn, i, j] shape (10,10,2,2) via JAX AD.
+
+    Cached: this depends only on the P3 reference element, so it is the same
+    (10,10,2,2) array on every mesh, but the JAX jacfwd/jacrev tracing costs
+    ~1.4s each time. Rebuilding it per operator build made every convergence
+    sweep pay it once per resolution for nothing."""
     def N_vec(xi_eta):
         return compute_p3_shape_functions(xi_eta[0], xi_eta[1])
     hess_fn = jax.jacfwd(jax.jacrev(N_vec))
@@ -50,30 +57,55 @@ def _build_ref_hessians():
     ])
 
 
+@lru_cache(maxsize=None)
+def _reference_data(order):
+    """(quad_pts, quad_wts, N_ref, dN_ref) for a quadrature order -- also purely
+    a property of the reference element, so cached for the same reason."""
+    quad_pts, quad_wts = get_gauss_quadrature_triangle(order=order)
+    quad_pts_np = np.array(quad_pts)
+    quad_wts_np = np.array(quad_wts)
+    N_ref, dN_ref = _precompute_reference_data(quad_pts_np, quad_wts_np)
+    return quad_pts_np, quad_wts_np, N_ref, dN_ref
+
+
+def _element_jacobians(nodes, elements):
+    """Batched (area, A) for every element, where A = inv(Jac).T maps reference
+    gradients to physical ones. Jac rows are the two edge vectors from vertex 0,
+    matching the per-element convention this module has always used."""
+    xy = nodes[elements[:, :3]]                        # (ne, 3, 2)
+    Jac = np.stack([xy[:, 1] - xy[:, 0], xy[:, 2] - xy[:, 0]], axis=1)   # (ne,2,2)
+    det = Jac[:, 0, 0] * Jac[:, 1, 1] - Jac[:, 0, 1] * Jac[:, 1, 0]
+    area = np.abs(det) / 2.0
+    A = np.linalg.inv(Jac).transpose(0, 2, 1)          # (ne,2,2) == inv(Jac).T
+    return area, A
+
+
+def _coo_from_element_blocks(vals, elements, n_nodes):
+    """Scatter per-element (ne, 10, 10) blocks into a sparse matrix."""
+    ne = len(elements)
+    I = np.repeat(elements, 10, axis=1).ravel()        # row index varies slowest
+    J = np.tile(elements, (1, 10)).ravel()
+    return sp.coo_matrix((vals.ravel(), (I, J)), shape=(n_nodes, n_nodes)).tocsr()
+
+
 def _assemble_shear_ops(nodes, elements, H_ref):
-    """Build sparse shear operators S1 and S2 via nodal-averaged element Hessians."""
+    """Build sparse shear operators S1 and S2 via nodal-averaged element Hessians.
+
+    Vectorised over elements: the old form ran a 10x10 Python loop per element,
+    which dominated mesh setup. H_phys[e,n,j] is the physical Hessian of shape
+    function j at evaluation node n of element e."""
     n_nodes = len(nodes)
-    max_nnz = len(elements) * 100
-    I1 = np.zeros(max_nnz, dtype=np.int32); J1 = np.zeros(max_nnz, dtype=np.int32); D1 = np.zeros(max_nnz)
-    I2 = np.zeros(max_nnz, dtype=np.int32); J2 = np.zeros(max_nnz, dtype=np.int32); D2 = np.zeros(max_nnz)
-    idx    = 0
-    counts = np.zeros(n_nodes, dtype=np.int32)
-    for elem in elements:
-        x0,y0=nodes[elem[0]]; x1,y1=nodes[elem[1]]; x2,y2=nodes[elem[2]]
-        Jac = np.array([[x1-x0, y1-y0], [x2-x0, y2-y0]])
-        A   = np.linalg.inv(Jac).T
-        for li in range(10):
-            H_phys = np.einsum('ja,kb,njk->nab', A, A, H_ref[li])
-            row    = elem[li]
-            for lj in range(10):
-                col       = elem[lj]
-                I1[idx]   = row; J1[idx] = col; D1[idx] = 0.5*(H_phys[lj,0,0]-H_phys[lj,1,1])
-                I2[idx]   = row; J2[idx] = col; D2[idx] = H_phys[lj,0,1]
-                idx += 1
-            counts[row] += 1
-    S1r = sp.coo_matrix((D1[:idx], (I1[:idx], J1[:idx])), shape=(n_nodes, n_nodes)).tocsr()
-    S2r = sp.coo_matrix((D2[:idx], (I2[:idx], J2[:idx])), shape=(n_nodes, n_nodes)).tocsr()
-    sc  = sp.diags(1.0 / np.maximum(counts, 1))
+    _, A = _element_jacobians(nodes, elements)
+
+    # H_phys[e,n,j,a,b] = sum_kl A[e,k,a] A[e,l,b] H_ref[n,j,k,l]
+    H_phys = np.einsum('eka,elb,njkl->enjab', A, A, H_ref, optimize=True)
+    D1 = 0.5 * (H_phys[..., 0, 0] - H_phys[..., 1, 1])      # (ne, 10, 10)
+    D2 = H_phys[..., 0, 1]
+
+    S1r = _coo_from_element_blocks(D1, elements, n_nodes)
+    S2r = _coo_from_element_blocks(D2, elements, n_nodes)
+    counts = np.bincount(elements.ravel(), minlength=n_nodes)
+    sc = sp.diags(1.0 / np.maximum(counts, 1))
     return (sc @ S1r).tocsr(), (sc @ S2r).tocsr()
 
 
@@ -82,26 +114,15 @@ def _assemble_recovery_blocks(nodes, elements, quad_wts_np, dN_ref):
     Bxy[i,j] = int N_i,x N_j,y -- the pieces of the variational (weak-form) shear
     recovery in build_recovered_shear_ops."""
     n_nodes = len(nodes)
-    max_nnz = len(elements) * 100
-    I = np.zeros(max_nnz, dtype=np.int32); J = np.zeros(max_nnz, dtype=np.int32)
-    Dx = np.zeros(max_nnz); Dy = np.zeros(max_nnz); Dxy = np.zeros(max_nnz)
-    entry = 0
-    for elem in elements:
-        xy   = nodes[elem[:3]]
-        Jac  = np.array([[xy[1, 0] - xy[0, 0], xy[1, 1] - xy[0, 1]],
-                         [xy[2, 0] - xy[0, 0], xy[2, 1] - xy[0, 1]]])
-        area = abs(np.linalg.det(Jac)) / 2.0
-        dN   = dN_ref @ np.linalg.inv(Jac).T           # (nq, 10, 2) physical grads
-        w    = quad_wts_np
-        Dx[entry:entry + 100]  = (area * np.einsum('q,qi,qj->ij', w, dN[:, :, 0], dN[:, :, 0])).ravel()
-        Dy[entry:entry + 100]  = (area * np.einsum('q,qi,qj->ij', w, dN[:, :, 1], dN[:, :, 1])).ravel()
-        Dxy[entry:entry + 100] = (area * np.einsum('q,qi,qj->ij', w, dN[:, :, 0], dN[:, :, 1])).ravel()
-        I[entry:entry + 100] = np.repeat(elem, 10)
-        J[entry:entry + 100] = np.tile(elem, 10)
-        entry += 100
-    mk = lambda d: sp.coo_matrix((d[:entry], (I[:entry], J[:entry])),
-                                 shape=(n_nodes, n_nodes)).tocsr()
-    return mk(Dx), mk(Dy), mk(Dxy)
+    area, A = _element_jacobians(nodes, elements)
+    # physical shape-function gradients at every quadrature point of every element
+    dN = np.einsum('qlb,eba->eqla', dN_ref, A, optimize=True)      # (ne, nq, 10, 2)
+    w = quad_wts_np
+    blk = lambda a, b: (area[:, None, None]
+                        * np.einsum('q,eqi,eqj->eij', w, dN[..., a], dN[..., b],
+                                    optimize=True))
+    mk = lambda v: _coo_from_element_blocks(v, elements, n_nodes)
+    return mk(blk(0, 0)), mk(blk(1, 1)), mk(blk(0, 1))
 
 
 class RecoveredShear:
@@ -134,10 +155,9 @@ class RecoveredShear:
         mesh = ops.mesh
         nodes = np.asarray(mesh.nodes, np.float64)
         elements = np.asarray(mesh.elements)
-        quad_pts, quad_wts = get_gauss_quadrature_triangle(order=5)
-        _, dN_ref = _precompute_reference_data(np.array(quad_pts), np.array(quad_wts))
+        _, quad_wts_np, _, dN_ref = _reference_data(5)
         Bx, By, Bxy = _assemble_recovery_blocks(nodes, elements,
-                                                np.array(quad_wts), dN_ref)
+                                                quad_wts_np, dN_ref)
         self.ops = ops
         self.A1 = (0.5 * (By - Bx)).tocsc()
         self.A2 = (-0.5 * (Bxy + Bxy.T)).tocsc()
@@ -263,34 +283,17 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
     if verbose:
         print(f"  {n_nodes} nodes, {len(elements)} elements, {len(boundary)} boundary DOFs")
 
-    quad_pts, quad_wts = get_gauss_quadrature_triangle(order=5)
-    quad_pts_np = np.array(quad_pts)
-    quad_wts_np = np.array(quad_wts)
-    N_ref, dN_ref = _precompute_reference_data(quad_pts_np, quad_wts_np)
+    quad_pts_np, quad_wts_np, N_ref, dN_ref = _reference_data(5)
 
     # Neumann stiffness - no Dirichlet row modifications
     if verbose:
         print("  assembling K (Neumann)...")
-    t1      = time.perf_counter()
-    max_nnz = len(elements) * 100
-    I_k = np.zeros(max_nnz, dtype=np.int32)
-    J_k = np.zeros(max_nnz, dtype=np.int32)
-    K_d = np.zeros(max_nnz, dtype=np.float64)
-    entry = 0
-    for elem in elements:
-        xy      = nodes[elem[:3]]
-        Jac     = np.array([[xy[1,0]-xy[0,0], xy[1,1]-xy[0,1]],
-                             [xy[2,0]-xy[0,0], xy[2,1]-xy[0,1]]])
-        area    = abs(np.linalg.det(Jac)) / 2.0
-        J_inv_T = np.linalg.inv(Jac).T
-        dN_phys = dN_ref @ J_inv_T
-        Ke      = area * np.einsum('q,qia,qja->ij', quad_wts_np, dN_phys, dN_phys)
-        I_k[entry:entry+100] = np.repeat(elem, 10)
-        J_k[entry:entry+100] = np.tile(elem, 10)
-        K_d[entry:entry+100] = Ke.ravel()
-        entry += 100
-    K = sp.coo_matrix((K_d[:entry], (I_k[:entry], J_k[:entry])),
-                      shape=(n_nodes, n_nodes)).tocsr()
+    t1 = time.perf_counter()
+    area, A = _element_jacobians(nodes, elements)
+    dN_phys = np.einsum('qlb,eba->eqla', dN_ref, A, optimize=True)   # (ne,nq,10,2)
+    Ke = area[:, None, None] * np.einsum('q,eqia,eqja->eij', quad_wts_np,
+                                         dN_phys, dN_phys, optimize=True)
+    K = _coo_from_element_blocks(Ke, elements, n_nodes)
     if verbose:
         print(f"  K: {K.shape}, nnz={K.nnz}  ({time.perf_counter()-t1:.1f}s)")
 
@@ -298,22 +301,11 @@ def _assemble_operators_from_mesh(mesh, verbose=True, t0=None, boundary_extracto
     if verbose:
         print("  assembling M...")
     t2 = time.perf_counter()
-    I_m = np.zeros(max_nnz, dtype=np.int32)
-    J_m = np.zeros(max_nnz, dtype=np.int32)
-    M_d = np.zeros(max_nnz, dtype=np.float64)
-    entry = 0
-    for elem in elements:
-        xy   = nodes[elem[:3]]
-        Jac  = np.array([[xy[1,0]-xy[0,0], xy[1,1]-xy[0,1]],
-                          [xy[2,0]-xy[0,0], xy[2,1]-xy[0,1]]])
-        area = abs(np.linalg.det(Jac)) / 2.0
-        Me   = area * np.einsum('q,qi,qj->ij', quad_wts_np, N_ref, N_ref)
-        I_m[entry:entry+100] = np.repeat(elem, 10)
-        J_m[entry:entry+100] = np.tile(elem, 10)
-        M_d[entry:entry+100] = Me.ravel()
-        entry += 100
-    M = sp.coo_matrix((M_d[:entry], (I_m[:entry], J_m[:entry])),
-                      shape=(n_nodes, n_nodes)).tocsr()
+    # N_ref does not depend on the element, so the reference block is assembled
+    # once and every element block is just area * M_ref.
+    M_ref = np.einsum('q,qi,qj->ij', quad_wts_np, N_ref, N_ref, optimize=True)
+    Me = area[:, None, None] * M_ref[None, :, :]
+    M = _coo_from_element_blocks(Me, elements, n_nodes)
     if verbose:
         print(f"  M: {M.shape}, nnz={M.nnz}  ({time.perf_counter()-t2:.1f}s)")
 

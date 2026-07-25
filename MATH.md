@@ -845,6 +845,163 @@ rate:
   recovered values on the boundary ring are not meaningful unless $\psi$ and
   $\nabla\psi$ vanish there (as they do for the compactly supported test field).
 
+### 18.3a $C^1$ elements: removing the second-derivative penalty entirely
+
+The $O(h^2)$ ceiling above is a property of the *element*, not of the problem. A
+degree-$k$ element gives $O(h^{k-1})$ in the second derivative, so the ceiling
+lifts by going to a $C^1$ element of higher degree. `femmi/elements.py`
+implements two:
+
+| element | degree | DOF/tri | continuity | shear rate | measured |
+|---|---|---|---|---|---|
+| P3 Lagrange (current) | 3 | 10 | $C^0$ | $O(h^2)$ | 1.81 |
+| HCT macro-element | 3 | 12 | $C^1$ | $O(h^2)$ | 1.95 |
+| **Argyris** | **5** | **21** | $C^1$ | $O(h^4)$ | **3.89** |
+
+Measured by interpolating the manufactured potential and differentiating twice
+(`experiments.element_shear_convergence`, `examples/paper/element_comparison.py`).
+At $h = 0.156$ Argyris is **42× more accurate** than the current P3 nodal path.
+
+**The DOF count does not punish this.** "21 per triangle" is misleading: Argyris
+DOFs sit on vertices (6) and edges (1) and are shared, so the global count is
+$6(n_x{+}1)^2 + 3n_x^2 \approx 9n_x^2$ — essentially P3's $\approx 9n_x^2$.
+Measured ratios are $1.11\times$, $1.06\times$, $1.04\times$ at $n_x = 8, 16, 24$,
+tending to $1$. So Argyris buys two orders of convergence at parity cost.
+
+Three precise points, since "$C^1$" is easy to overstate:
+
+1. $C^1$ means a continuous **gradient**, not a continuous Hessian. Across an
+   edge interior the tangential-tangential second derivative is continuous
+   (differentiate the continuous gradient along the edge) but the normal-normal
+   one jumps — measured, and asserted, in `tests/test_elements.py`.
+2. What matters for FEMMI is narrower and stronger: Argyris carries
+   $\{u_{xx}, u_{xy}, u_{yy}\}$ as **vertex DOFs**, so the Hessian *at a node* is
+   single-valued across every adjacent element. Nodal shear extraction becomes
+   well posed — no averaging (`_assemble_shear_ops`), no recovery
+   (`RecoveredShear`), no reason to zero the boundary ring.
+3. HCT gets (1) but not (2): its vertex DOFs stop at the gradient, so its Hessian
+   is still multivalued at vertices, and being cubic it stays $O(h^2)$. Its
+   appeal is cost — it is *cheaper* than P3 ($0.69\times$ the DOFs) — not shear
+   accuracy, where its constant is in fact worse than P3's.
+
+Both elements are constructed in physical coordinates by inverting the
+DOF-functional matrix (Argyris is not affine-equivalent, so the usual reference
+pullback would mis-transform its derivative DOFs — the classic implementation
+trap). Shared-edge normals are oriented from the global vertex indices; get that
+wrong and the space is silently non-conforming.
+
+### 18.3b Argyris from a solve, and what still blocks it
+
+The rates in 18.3a are *interpolation* rates. Solving the lensing Poisson problem
+$\nabla^2\psi = 2\kappa$ on the Argyris space (`femmi/c1_assembly.py`,
+`solved_shear_convergence`) reproduces them: local orders
+$3.52 \to 3.17 \to 4.02 \to 3.94$, i.e. $O(h^4)$ from an actual solve.
+
+Two implementation notes that matter for reproducing this:
+
+* **Quadrature.** `femmi.assembly` tops out at a degree-7 rule. Argyris mass
+  integrands are degree 10 and stiffness integrands degree 8, so that rule would
+  cap the measured order through quadrature error alone. `c1_assembly._quad`
+  generates conical-product Gauss rules of arbitrary degree instead, verified
+  exact to machine precision through degree 10.
+* **Shear extraction becomes a selection.** With Hessian DOFs at the vertices,
+  $\gamma_1 = \tfrac12(u_{xx} - u_{yy})$ and $\gamma_2 = u_{xy}$ are read
+  directly off the DOF vector (`c1_shear_at_vertices`). There is no assembly, no
+  averaging over adjacent elements, and nothing to zero on the boundary — $S_1$
+  and $S_2$ collapse to index selection.
+
+**What is not done: the FEM–BEM coupling.** The exterior problem couples through
+the boundary trace, and a $C^1$ space has a richer trace than P3 — the
+normal-derivative DOFs on boundary edges must be matched against the
+Steklov–Poincaré operator. Until that lands, $C^1$ solves use Dirichlet
+conditions, which are *exact* for a compactly supported field (hence valid for
+the manufactured convergence study above) and *wrong* for an isolated-field
+reconstruction. So Argyris is a validated element and solver, not yet a drop-in
+replacement for `build_operators`.
+
+### 18.3c Hierarchical compression of the BEM operator
+
+`bem.assemble_single_layer` is dense: $O(N_b^2)$ memory and work, and profiling a
+build at $n_x = 20$ puts 2.3s of a 2.6s total in BEM assembly. The single-layer
+kernel $G = \tfrac{1}{2\pi}\log|x-y|$ is asymptotically smooth, so blocks between
+well-separated boundary pieces are numerically low rank. `femmi/aca.py` builds a
+binary cluster tree, applies the admissibility test
+$\min(\mathrm{diam}\,s, \mathrm{diam}\,t) \le \eta\,\mathrm{dist}(s,t)$, and
+compresses admissible blocks with partially-pivoted ACA.
+
+Measured on a circular boundary, tolerance $10^{-6}$:
+
+| $N_b$ | stored fraction | max block rank | matvec rel. error |
+|---|---|---|---|
+| 60 | 1.000 | – | $1.4\times10^{-16}$ |
+| 120 | 1.000 | – | $1.9\times10^{-16}$ |
+| 240 | 0.750 | 5 | $2.3\times10^{-9}$ |
+| 480 | 0.383 | 5 | $4.4\times10^{-10}$ |
+
+The block rank stays at 5 while $N_b$ grows, which is the defining H-matrix
+property; the stored fraction therefore roughly halves per doubling. At small
+$N_b$ it correctly declines to compress and falls back to dense.
+
+This compresses and applies the operator; it does not yet replace the dense
+assembly inside `build_operators`, because the coupled solve LU-factorises a
+dense $A_{\rm coupled}$. Consuming an H-matrix requires the iterative solver plus
+Calderón preconditioning.
+
+### 18.3d Matrix-free coupled solves, and what the BEM block needs
+
+Consuming the H-matrix of 18.3c requires never assembling $A_{\rm coupled}$.
+`femmi/iterative.py` applies it as an operator,
+
+$$A x \;=\; K x \;+\; \mathrm{scatter}\!\left(C\,\mathrm{gather}(x)\right), \qquad C = -M_b V_{\rm eff}^{-1} X_m,$$
+
+with the gauge row imposed explicitly, so the BEM is reached only through matvecs
+and one $V_{\rm eff}$ solve — which a `v_solve` callable can route through ACA.
+Measured against the assembled matrix: matvec and transpose agree to $10^{-16}$,
+GMRES with an ILU($K$) preconditioner converges in **20–21 iterations, flat in
+mesh size** ($n_x = 10, 14, 18$), and the solution matches the direct LU to
+$10^{-12}$. With the BEM supplied by the H-matrix, the coupled solve still
+reproduces the dense result to $1.0\times10^{-10}$.
+
+Two corrections this exposed, both worth recording:
+
+* **The transpose is not the obvious thing.** The gauge fix zeroes *row* $g$ but
+  leaves *column* $g$ populated, so $(A^{\top}x)_g$ is the whole of column $g$ —
+  the gauge term must be *added* to the column contribution, not written over it.
+  Overwriting passes a casual check and corrupts the adjoint at the $10^{-4}$
+  level, which would silently degrade every MAP gradient.
+* **Far-field quadrature must not be used on near blocks.** The ACA entry
+  evaluator uses plain Gauss–Legendre, valid across separated clusters but wrong
+  where the $\log$ singularity lives. Applying it to inadmissible blocks builds a
+  *different* operator — a 69% error in the coupled solve — so `build_hmatrix`
+  takes a separate `near_block` evaluator.
+
+**Not Calderón preconditioning.** Calderón preconditioning of $V$ uses the
+hypersingular operator $W$ and the identity that $VW$ is a compact perturbation of
+$-I/4$; `femmi.bem` assembles $V$, $K$ and $M_b$ but not $W$, so the ingredient
+does not exist yet. (`bem.calderon_matrix` is the *coupling* operator
+$V^{-1}(\tfrac12 M_b + K_h)$ — an easy name to misread.) Assembling $W$ is what
+would make the iteration count provably mesh-independent.
+
+### 18.3e Choosing $\lambda$ when the discrepancy principle does not apply
+
+Morozov selects $\lambda$ from the root of $D(\lambda) = \|F\kappa_\lambda -
+\gamma\| - \delta$. Two failures were found by running the benchmark grid:
+
+1. **Selection was skipped for non-quadratic priors.** Nothing about the
+   discrepancy requires quadratic structure — it is evaluated by solving the MAP
+   problem at each trial $\lambda$ — but the prior was never threaded through, so
+   TV/sparsity/max-entropy silently ran at a fixed `lam_reg`. Fixing this moved
+   them from shape-$L^2$ $2.7$–$3.8$ to $0.8$–$1.5$ on an NFW field.
+
+2. **No root $\Rightarrow$ the worst possible answer.** If $D(\lambda_{\min}) > 0$
+   the model cannot reach the assumed noise level at *any* $\lambda$, and the old
+   code returned $\lambda_{\min}$ — the least-regularised solution, i.e. maximal
+   noise amplification. On a tapered log-normal field this gave shape $L^2 = 1.55$
+   where the best $\lambda$ gave $0.46$ and even $\lambda_{\max}$ gave $0.77$.
+   When the residual floor sits above $\delta$, the correct response is *more*
+   regularisation, not less. The fallback is now the **L-curve corner**
+   (`lcurve_lambda`), which needs no bracket and no reliable $\delta$.
+
 ### 18.4 Why $O(h^2)$ is the wrong expectation for catalog-native data
 
 $O(h^2)$ is the correct theory and a poor guide to practice, because the same

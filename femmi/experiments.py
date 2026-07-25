@@ -54,12 +54,23 @@ def femmi_forward_shear(ops, kappa):
     return np.asarray(g1), np.asarray(g2)
 
 
-def femmi_map(ops, g1, g2, noise_std, wiener_length=0.5, lam=None, weight=None):
-    """FEMMI MAP reconstruction (Morozov-selected lambda when lam is None)."""
+def femmi_map(ops, g1, g2, noise_std, wiener_length=0.5, lam=None, weight=None,
+              prior=None, prior_kw=None):
+    """FEMMI MAP reconstruction (Morozov-selected lambda when lam is None).
+
+    prior: None for the default Wiener/Matern prior, or a kind string accepted by
+    priors.make_prior ('tv', 'sparse', 'maxent', ...), or a Prior instance. Note
+    that Morozov lambda-selection applies to the Wiener prior only; custom priors
+    run at the fixed lam_reg, matching catalog.reconstruct_catalog.
+    """
     fwd = DifferentiableForward(ops, lam_reg=(1e-2 if lam is None else lam))
+    prior_obj = prior
+    if isinstance(prior, str):
+        from .priors import make_prior
+        prior_obj = make_prior(prior, ops, **(prior_kw or {}))
     rec = MAPReconstructor(fwd, wiener_length=wiener_length,
                            noise_std=(noise_std if lam is None else None),
-                           data_weight=weight, callback_every=0)
+                           data_weight=weight, prior=prior_obj, callback_every=0)
     k, _ = rec.reconstruct(g1, g2, verbose=False)
     return np.asarray(k)
 
@@ -386,6 +397,80 @@ def shear_convergence(nxs=(16, 24, 32, 40), half_width=2.5, R=1.5, p=6):
     return dict(h=hs, err_nodal=e_nod, err_recovered=e_rec,
                 order_nodal=fit(e_nod), order_recovered=fit(e_rec),
                 local_nodal=loc(e_nod), local_recovered=loc(e_rec))
+
+
+# --------------------------------------------------------------------------- #
+# C^1 elements -- shear extraction without the second-derivative problem
+# --------------------------------------------------------------------------- #
+def manufactured_potential_derivs(p, dx=0, dy=0, R=1.5, c=1.0, pw=6):
+    """The compactly-supported manufactured potential of manufactured_potential,
+    plus its first and second partials -- the DOF data a C^1 element needs.
+
+    psi = c u^pw, u = 1 - r^2/R^2 (and 0 outside r=R)."""
+    x, y = float(p[0]), float(p[1])
+    r2 = x * x + y * y
+    if r2 >= R * R:
+        return 0.0
+    u = 1.0 - r2 / R**2
+    if (dx, dy) == (0, 0):
+        return c * u**pw
+    if (dx, dy) == (1, 0):
+        return c * pw * u**(pw - 1) * (-2 * x / R**2)
+    if (dx, dy) == (0, 1):
+        return c * pw * u**(pw - 1) * (-2 * y / R**2)
+    if (dx, dy) == (2, 0):
+        return c * pw * (4 * (pw - 1) * x * x / R**4 * u**(pw - 2)
+                         - 2 / R**2 * u**(pw - 1))
+    if (dx, dy) == (0, 2):
+        return c * pw * (4 * (pw - 1) * y * y / R**4 * u**(pw - 2)
+                         - 2 / R**2 * u**(pw - 1))
+    if (dx, dy) == (1, 1):
+        return 4 * c * pw * (pw - 1) * x * y / R**4 * u**(pw - 2)
+    raise ValueError(f"unsupported derivative ({dx}, {dy})")
+
+
+def element_shear_convergence(kind="argyris", nxs=(8, 12, 16, 24, 32),
+                              half_width=2.5, R=1.5, pw=6, quad_order=5):
+    """L2 convergence of the shear extracted from a C^1 element ('argyris' or
+    'hct'), by interpolating the manufactured potential and differentiating twice.
+
+    This is the element's own approximation power, isolated from any solve -- the
+    direct counterpart of shear_convergence for P3, and measured the same way
+    (true L2 norm, here by quadrature over every element).
+
+    Expected rates: a degree-k element gives O(h^(k-1)) in the second derivative,
+    so HCT (cubic) matches P3 at O(h^2) while ARGYRIS (quintic) reaches O(h^4).
+    Returns dict with h, err, fitted order, and local orders.
+    """
+    from .elements import C1Space, structured_triangulation
+    from .assembly import get_gauss_quadrature_triangle
+
+    qp, qw = get_gauss_quadrature_triangle(order=quad_order)
+    qp = np.asarray(qp); qw = np.asarray(qw)
+    f = lambda p, dx=0, dy=0: manufactured_potential_derivs(p, dx, dy, R=R, pw=pw)
+
+    hs, errs = [], []
+    for nx in nxs:
+        verts, tris = structured_triangulation(nx, half_width)
+        S = C1Space(verts, tris, kind=kind)
+        u = S.interpolate(f)
+        num = den = 0.0
+        for t in range(len(tris)):
+            v = verts[tris[t]]
+            area = abs(np.linalg.det(np.array([v[1] - v[0], v[2] - v[0]]))) / 2.0
+            pts = v[0] + qp[:, 0:1] * (v[1] - v[0]) + qp[:, 1:2] * (v[2] - v[0])
+            a1, a2 = S.eval_shear(u, t, pts)
+            e1 = np.array([0.5 * (f(q, 2, 0) - f(q, 0, 2)) for q in pts])
+            e2 = np.array([f(q, 1, 1) for q in pts])
+            num += area * np.sum(qw * ((a1 - e1)**2 + (a2 - e2)**2))
+            den += area * np.sum(qw * (e1**2 + e2**2))
+        hs.append(2.0 * half_width / nx)
+        errs.append(np.sqrt(num / (den + 1e-300)))
+
+    hs = np.array(hs); errs = np.array(errs)
+    return dict(h=hs, err=errs, kind=kind,
+                order=float(np.polyfit(np.log(hs), np.log(errs), 1)[0]),
+                local=np.log(errs[1:] / errs[:-1]) / np.log(hs[1:] / hs[:-1]))
 
 
 # --------------------------------------------------------------------------- #

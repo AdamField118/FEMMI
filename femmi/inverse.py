@@ -187,15 +187,18 @@ class MAPReconstructor:
 
         Returns (kappa_map, ReconstructionResult).
         """
-        if self.noise_std is not None and self.prior is not None and not self.prior.is_quadratic:
-            if verbose:
-                print(f"Morozov lambda-selection is only defined for the quadratic "
-                      f"(Wiener) prior; using fixed lambda={self.fwd.lam_reg:.2e} for "
-                      f"prior={self.prior.name}.")
-        elif self.noise_std is not None:
+        if self.noise_std is not None:
+            # Morozov selection applies to ANY prior. The discrepancy is measured
+            # by solving the MAP problem at each trial lambda and comparing the
+            # residual to the noise level -- nothing in that requires the prior to
+            # be quadratic. This used to bail out for non-quadratic priors and
+            # leave them at a fixed lam_reg, which left TV/sparsity/max-entropy
+            # badly mis-scaled (shape L2 2.7-3.8 against Wiener's 0.31).
             from .regularization import MorozovSelector
             if verbose:
-                print(f"Auto-selecting lambda (noise_std={self.noise_std:.3e})...")
+                kind = "Wiener" if self.prior is None else self.prior.name
+                print(f"Auto-selecting lambda (noise_std={self.noise_std:.3e}, "
+                      f"prior={kind})...")
             selector = MorozovSelector(
                 self.ops,
                 noise_std=self.noise_std,
@@ -203,6 +206,7 @@ class MAPReconstructor:
                 maxiter_inner=min(150, self.maxiter),
                 verbose=verbose,
                 data_weight=self.data_weight,
+                prior=self.prior,
             )
             lam_star = selector.select(gamma1_obs, gamma2_obs)
             if verbose:

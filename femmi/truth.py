@@ -177,15 +177,66 @@ def massivenus_truth(nodes, data_dir, half_width, n_pix=256, kappa_std=None,
 # --------------------------------------------------------------------------- #
 # dispatch
 # --------------------------------------------------------------------------- #
+def lognormal_truth(nodes, half_width, n_pix=256, kappa_std=0.35, slope=2.5,
+                    sigma_g=0.9, seed=0, shift=True, taper=0.65):
+    """A shifted-log-normal convergence field with APERIODIC shear -- a
+    non-Gaussian independent truth.
+
+    catalog.lognormal_shear already builds this field but takes its shear from
+    FEMMI's own forward, which is an inverse crime. Here the shear comes from the
+    continuum kernel (aperiodic_shear_from_kappa), so neither method generated it.
+
+    Why it matters for the benchmark: a single smooth NFW halo is precisely the
+    case a Gaussian/Wiener prior is designed to win, so ranking priors on it says
+    little. Log-normal fields are peaked and non-Gaussian -- the regime where TV,
+    sparsity and learned priors are supposed to pay off -- so this is the fair
+    field for discriminating between them.
+    """
+    from .neural_prior.data import lognormal_kappa_maps      # pure numpy
+    from .catalog import _grid_to_nodes_bilinear
+
+    m = lognormal_kappa_maps(1, n_pix, slope=slope, sigma_g=sigma_g,
+                             kappa_std=kappa_std, seed=int(seed))[0]
+    patch = np.asarray(m, np.float64)
+    if shift:
+        # give it a genuine nonzero mean, as a real convergence field has
+        patch = patch - patch.min()
+
+    hw = float(half_width)
+    if taper:
+        # A raw log-normal map fills the whole box, so kappa is NOT zero at the
+        # boundary and FEMMI's isolated-field (far-field-zero) assumption is
+        # violated outright -- Morozov then drives lambda to its ceiling and every
+        # prior collapses to the same over-smoothed answer, which says nothing
+        # about the priors. A smooth radial taper to compact support keeps the
+        # peaked, non-Gaussian structure that actually discriminates priors while
+        # respecting the assumption both methods are entitled to.
+        c = (np.arange(n_pix) + 0.5) * (2.0 * hw / n_pix) - hw
+        X, Y = np.meshgrid(c, c)
+        r = np.hypot(X, Y) / hw
+        w = np.clip((1.0 - r / taper) / (1.0 - 0.0), 0.0, None)
+        w = np.where(r < taper, 0.5 * (1.0 - np.cos(np.pi * np.clip(w, 0, 1))), 0.0)
+        patch = patch * w
+    g1g, g2g = aperiodic_shear_from_kappa(patch, pix=2.0 * hw / n_pix)
+    ext = (-hw, hw, -hw, hw)
+    nodes = np.asarray(nodes, np.float64)
+    return (_grid_to_nodes_bilinear(patch, nodes, ext),
+            _grid_to_nodes_bilinear(g1g, nodes, ext),
+            _grid_to_nodes_bilinear(g2g, nodes, ext))
+
+
 def independent_truth(nodes, source="nfw", half_width=2.5, seed=0, **kw):
     """Return (kappa, g1, g2) from an independent (non-FEMMI, non-FFT) truth.
 
     source='nfw'        analytic GalSim NFW halo(s)      [default; always available]
+    source='lognormal'  non-Gaussian log-normal field + aperiodic shear
     source='massivenus' a MassiveNuS map + aperiodic shear  [needs data_dir=...]
     """
     if source == "nfw":
         return galsim_nfw_truth(nodes, **kw)
+    if source == "lognormal":
+        return lognormal_truth(nodes, half_width=half_width, seed=seed, **kw)
     if source == "massivenus":
         return massivenus_truth(nodes, half_width=half_width, seed=seed, **kw)
     raise ValueError(f"unknown independent-truth source {source!r} "
-                     "(expected 'nfw' or 'massivenus')")
+                     "(expected 'nfw', 'lognormal' or 'massivenus')")

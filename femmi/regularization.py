@@ -35,15 +35,23 @@ def estimate_noise_level(gamma_obs, method='mad'):
 
 def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
                 maxiter_inner=150, wiener_length=0.5, gtol_inner=1e-6,
-                data_weight=None):
+                data_weight=None, prior=None):
     """
     Compute D(lambda) = ||F kappa_lambda - gamma_obs|| - c * delta.
 
-    D(lambda) is strictly monotone decreasing:
-      - large lambda -> over-smoothed -> D > 0
-      - small lambda -> over-fitted   -> D < 0
+    D(lambda) is monotone INCREASING in lambda:
+      - large lambda -> over-smoothed -> residual large -> D > 0
+      - small lambda -> over-fitted   -> residual small -> D < 0
 
     The Morozov parameter lambda* is the unique root D(lambda*) = 0.
+
+    prior : optional non-Gaussian Prior (femmi.priors). NOTHING here needs the
+    prior to be quadratic -- the discrepancy is evaluated by actually solving the
+    MAP problem at each lambda and measuring the residual, which works for TV,
+    sparsity, max-entropy or a learned score prior just as well as for Wiener.
+    (Before this was threaded through, custom priors silently ran at a fixed
+    lam_reg and were badly mis-scaled: TV/sparse/maxent scored 2.7-3.8 in shape
+    L2 against Wiener's 0.31 in the benchmark grid.)
 
     data_weight : optional per-node weight; when given (e.g. a binary galaxy
     selection for a catalog-native mesh), the residual RMS is taken over the
@@ -55,7 +63,7 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
     fwd = DifferentiableForward(ops, lam_reg=lam)
     rec = MAPReconstructor(fwd, maxiter=maxiter_inner, gtol=gtol_inner,
                            callback_every=0, wiener_length=wiener_length,
-                           data_weight=data_weight)
+                           data_weight=data_weight, prior=prior)
     kappa_lam, _ = rec.reconstruct(gamma1_obs, gamma2_obs, verbose=False)
 
     g1_pred, g2_pred = ops.forward(kappa_lam)
@@ -71,6 +79,55 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
     return float(np.sqrt(num / max(n_data, 1))) - c * delta
 
 
+def lcurve_lambda(ops, gamma1_obs, gamma2_obs, lam_grid=None, wiener_length=0.5,
+                  maxiter_inner=150, data_weight=None, prior=None, verbose=False):
+    """Select lambda by the L-curve corner -- the maximum-curvature point of
+    (log residual, log solution norm) as lambda varies.
+
+    This is the fallback for when the discrepancy principle is INAPPLICABLE: if
+    the smallest lambda in the bracket already leaves a residual above the assumed
+    noise level, the model cannot explain the data to that tolerance and there is
+    no root to find. Morozov's own guard then returns lam_min, which is the worst
+    possible answer -- an essentially unregularised fit that amplifies noise. On a
+    tapered log-normal field this measured 3.4x worse than the best lambda, and
+    2x worse than simply taking lam_max.
+
+    The L-curve needs no bracket and no reliable noise estimate; it just costs one
+    MAP solve per grid point.
+    """
+    from .inverse import MAPReconstructor
+    from .forward import DifferentiableForward
+
+    lam_grid = np.asarray(lam_grid if lam_grid is not None
+                          else np.logspace(-6, 1, 12), float)
+    res, sol = [], []
+    for lam in lam_grid:
+        fwd = DifferentiableForward(ops, lam_reg=float(lam))
+        rec = MAPReconstructor(fwd, maxiter=maxiter_inner, gtol=1e-6,
+                               callback_every=0, wiener_length=wiener_length,
+                               data_weight=data_weight, prior=prior)
+        k, _ = rec.reconstruct(gamma1_obs, gamma2_obs, verbose=False)
+        g1, g2 = ops.forward(k)
+        r1 = g1 - gamma1_obs; r2 = g2 - gamma2_obs
+        if data_weight is not None:
+            w = np.asarray(data_weight, float)
+            r = np.sqrt(np.dot(w * r1, r1) + np.dot(w * r2, r2))
+        else:
+            r = np.sqrt(np.dot(r1, r1) + np.dot(r2, r2))
+        res.append(max(r, 1e-300)); sol.append(max(np.linalg.norm(k), 1e-300))
+
+    x = np.log(np.asarray(res)); y = np.log(np.asarray(sol))
+    # discrete curvature of the (x, y) trace; endpoints cannot be corners
+    dx = np.gradient(x); dy = np.gradient(y)
+    ddx = np.gradient(dx); ddy = np.gradient(dy)
+    curv = np.abs((dx * ddy - dy * ddx) / np.power(dx**2 + dy**2 + 1e-300, 1.5))
+    curv[0] = curv[-1] = -np.inf          # endpoints are not corners (after abs)
+    lam_star = float(lam_grid[int(np.argmax(curv))])
+    if verbose:
+        print(f"  L-curve corner: lambda* = {lam_star:.4e}")
+    return lam_star
+
+
 class MorozovSelector:
     """
     Select lambda by Morozov's discrepancy principle using Brent's method.
@@ -84,7 +141,7 @@ class MorozovSelector:
 
     def __init__(self, ops, noise_std=None, c=1.0, lam_min=1e-8, lam_max=10.0,
                  wiener_length=0.5, maxiter_inner=150, verbose=True,
-                 data_weight=None):
+                 data_weight=None, prior=None):
         self.ops           = ops
         self.noise_std     = noise_std
         self.c             = c
@@ -94,6 +151,7 @@ class MorozovSelector:
         self.maxiter_inner = maxiter_inner
         self.verbose       = verbose
         self.data_weight   = data_weight
+        self.prior         = prior
 
     def _D(self, lam, gamma1_obs, gamma2_obs, delta):
         t0  = time.perf_counter()
@@ -101,7 +159,7 @@ class MorozovSelector:
                           delta=delta, c=self.c,
                           maxiter_inner=self.maxiter_inner,
                           wiener_length=self.wiener_length,
-                          data_weight=self.data_weight)
+                          data_weight=self.data_weight, prior=self.prior)
         if self.verbose:
             print(f"    lambda={lam:.3e}  D={val:+.4f}  ({time.perf_counter()-t0:.1f}s)")
         return val
@@ -128,9 +186,21 @@ class MorozovSelector:
         D_hi    = self._D(self.lam_max, gamma1_obs, gamma2_obs, delta)
 
         if D_lo > 0:
+            # No root: even the least-regularised solution leaves a residual above
+            # the assumed noise, i.e. MODEL error dominates and the discrepancy
+            # principle does not apply. Returning lam_min here (the old behaviour)
+            # is the worst available answer -- it hands back an essentially
+            # unregularised fit that amplifies noise. Measured on a tapered
+            # log-normal field: lam_min gave 1.55 shape L2 against 0.46 at the
+            # best lambda, and even lam_max would have given 0.77. Fall back to
+            # the L-curve corner, which needs no bracket.
             if self.verbose:
-                print("  D(lam_lo) > 0 - returning lam_min")
-            return self.lam_min
+                print("  D(lam_lo) > 0: discrepancy target unreachable (model "
+                      "error > assumed noise); falling back to the L-curve")
+            return lcurve_lambda(
+                self.ops, gamma1_obs, gamma2_obs, wiener_length=self.wiener_length,
+                maxiter_inner=self.maxiter_inner, data_weight=self.data_weight,
+                prior=self.prior, verbose=self.verbose)
         if D_hi < 0:
             if self.verbose:
                 print("  D(lam_hi) < 0 - returning lam_max")

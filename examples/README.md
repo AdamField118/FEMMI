@@ -18,6 +18,7 @@ All scripts run from the repo root, e.g. `python examples/quickstart.py`.
 | `plot_npz.py` | Plot the `.npz` a `femmi run` writes (truth / kappa / std / samples). |
 | `compare_runs.py` | Head-to-head of several runs on one field (Wiener vs neural vs hybrid): L2 table + side-by-side means + appearance-frequency maps. |
 | `paper_artifacts.py` | Flagship: reproduces the Remy et al. 2020 figure structure, config-driven. |
+| `benchmark_grid.py` | Runs the {element} × {prior} × {method} grid on one independent truth and ranks the results — accuracy, DC-removed shape error, DOFs and wall-clock, with KS as the automatic baseline. The "which combination wins" command. |
 
 The recommended path into the library, though, is the CLI + a config file:
 
@@ -39,6 +40,7 @@ each is a standalone figure backed by `femmi.experiments`.
 | `paper/injectivity.py` | the DC mode at the operator level: FEMMI's forward observes a uniform sheet (`‖F·1‖>0`); the KS/FFT forward annihilates it. Operator-level fact, and it holds — but see the caveat below. |
 | `paper/forward_convergence.py` | the potential ψ converges at the P3 theory rate `O(h⁴)` — the forward operator's validation. |
 | `paper/shear_recovery.py` | shear extraction reaches `O(h²)`; variational recovery beats nodal sampling by ~1.8× in constant; and noise amplified by `h⁻²` makes that rate unreachable catalog-native. |
+| `paper/element_comparison.py` | **element choice for shear**: P3 nodal / P3 recovered / HCT / Argyris on one plot. Argyris reaches `O(h⁴)` — 42× more accurate at `h=0.156` for `1.04×` the DOFs. |
 
 **Scope of the mass-sheet claim.** `‖F·1‖ > 0` is true and KS's is exactly zero,
 so the DC mode is formally observable to FEMMI and formally invisible to KS. But
