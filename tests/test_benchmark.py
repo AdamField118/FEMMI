@@ -52,13 +52,35 @@ def test_sweep_includes_the_ks_baseline_and_ranks_results():
     assert "element" in to_table(rows)
 
 
-def test_unimplemented_element_is_reported_not_skipped():
-    """C^1 elements are validated but have no FEM-BEM coupling yet; the sweep must
-    say so instead of dropping the row."""
+def test_argyris_runs_in_the_grid_and_reports_its_observation_count():
+    """The C^1 path is now complete end to end, so the grid must actually run it
+    -- and must report n_obs, since that is the axis where Argyris wins."""
     rows = sweep(dict(element=["argyris"], prior=["wiener"], method=["map"]),
-                 nx=10, include_ks=False, verbose=False)
+                 nx=6, include_ks=False, verbose=False)
+    assert len(rows) == 1 and "error" not in rows[0]
+    r = rows[0]
+    assert r["n_obs"] < r["dofs"]              # 6 DOFs per vertex, 1 observation
+    assert np.isfinite(r["rel_l2"])
+
+
+def test_unsupported_c1_prior_is_reported_not_skipped():
+    """Non-Gaussian priors are still P3-only; say so rather than silently
+    running a Wiener reconstruction under a TV label."""
+    rows = sweep(dict(element=["argyris"], prior=["maxent"], method=["map"]),
+                 nx=6, include_ks=False, verbose=False)
     assert len(rows) == 1
-    assert "error" in rows[0] and "coupling" in rows[0]["error"]
+    assert "error" in rows[0] and "C^1" in rows[0]["error"]
+
+
+def test_c1_supports_tv_and_sparse_priors():
+    """TV and sparsity are now defined against the C^1 DOF vector, so the grid
+    must actually run them rather than reporting them unsupported."""
+    rows = sweep(dict(element=["argyris"], prior=["tv", "sparse"], method=["map"]),
+                 nx=6, include_ks=False, verbose=False)
+    assert len(rows) == 2
+    for r in rows:
+        assert "error" not in r, r.get("error")
+        assert np.isfinite(r["rel_l2"])
 
 
 def test_a_failing_cell_does_not_abort_the_sweep():

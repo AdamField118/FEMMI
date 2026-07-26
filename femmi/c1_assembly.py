@@ -201,6 +201,7 @@ def solved_shear_convergence(kind="argyris", nxs=(4, 6, 8, 12), half_width=2.5,
         errs.append(np.sqrt(num / (den + 1e-300)))
 
     hs = np.array(hs); errs = np.array(errs)
+    from .convergence import fit_order, local_orders
     return dict(h=hs, err=errs, kind=kind,
-                order=float(np.polyfit(np.log(hs), np.log(errs), 1)[0]),
-                local=np.log(errs[1:] / errs[:-1]) / np.log(hs[1:] / hs[:-1]))
+                order=fit_order(hs, errs, what="C^1 solved shear"),
+                local=local_orders(hs, errs))

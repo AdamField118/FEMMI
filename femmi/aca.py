@@ -300,3 +300,89 @@ def single_layer_entry_fn(bnd, n_quad=12):
         return out
 
     return pts, entry_block
+
+
+def near_field_entry_fn(bnd, degree=3, n_quad=25):
+    """Return (points, near_block) evaluating the single layer with the CORRECT
+    singular treatment, for near/self blocks.
+
+    `single_layer_entry_fn` uses plain Gauss-Legendre and is only valid across
+    separated clusters; feeding it to inadmissible blocks builds a different
+    operator (it cost a 69% error in the coupled solve). Until now the only fix
+    was to look entries up in an exactly assembled dense V_h -- which defeats the
+    purpose, since the dense assembly is exactly what ACA is meant to avoid.
+
+    This computes near blocks directly: element pairs that share no support use
+    the same smooth quadrature, and pairs on the SAME element use the Duffy /
+    log-Gauss-Jacobi decomposition from bem_hp. Only the O(N) near blocks are ever
+    touched, so no dense N_b x N_b matrix is ever formed.
+    """
+    from .bem_hp import boundary_basis, assemble_single_layer_hp
+    from .bem import _gauss_legendre
+
+    elems = np.asarray(bnd.elements)
+    nodes = np.asarray(bnd.nodes)
+    L = np.asarray(bnd.element_lengths)
+    N_b = bnd.n_boundary_dofs
+    nd = degree + 1
+
+    xi, w = _gauss_legendre(n_quad)
+    phi = boundary_basis(degree, xi)
+    p0 = nodes[elems[:, 0]]; p1 = nodes[elems[:, -1]]
+    xq = p0[:, None, :] + xi[None, :, None] * (p1 - p0)[:, None, :]
+
+    owner = [[] for _ in range(N_b)]
+    for e, el in enumerate(elems):
+        for a, d in enumerate(el):
+            owner[int(d)].append((e, a))
+
+    tnodes = np.linspace(0.0, 1.0, nd)
+    pts = np.zeros((N_b, 2))
+    for d in range(N_b):
+        e, a = owner[d][0]
+        pts[d] = p0[e] + tnodes[a] * (p1[e] - p0[e])
+
+    # Per-element self blocks, computed once. Assembling a single-element boundary
+    # mesh would be circular, so reuse the same Duffy/log-Gauss expression.
+    from .bem import log_gauss_jacobi_points
+    xi_lj, w_lj = log_gauss_jacobi_points(n_quad)
+    self_blocks = np.zeros((bnd.n_elements, nd, nd))
+    for e in range(bnd.n_elements):
+        L_e = L[e]
+        Vd = np.zeros((nd, nd))
+        for q, (sig, wq) in enumerate(zip(xi, w)):
+            phi_s = phi[q]
+            logs = np.log(L_e * sig)
+            for v, wv in zip(xi, w):
+                phi_t = boundary_basis(degree, np.array([sig * (1.0 - v)]))[0]
+                pre = L_e**2 / (2.0 * np.pi) * sig * logs * wq * wv
+                Vd += pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
+            for v, wv_lj in zip(xi_lj, w_lj):
+                phi_t = boundary_basis(degree, np.array([sig * (1.0 - v)]))[0]
+                pre = L_e**2 / (2.0 * np.pi) * sig * wq * wv_lj
+                Vd -= pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
+        self_blocks[e] = Vd
+
+    def near_block(rows, cols):
+        rows = np.atleast_1d(rows); cols = np.atleast_1d(cols)
+        out = np.zeros((len(rows), len(cols)))
+        for ri, i in enumerate(rows):
+            for e, a in owner[int(i)]:
+                wi = L[e] * w * phi[:, a]
+                for cj, j in enumerate(cols):
+                    for f, b in owner[int(j)]:
+                        if e == f:
+                            out[ri, cj] += self_blocks[e][a, b]
+                            continue
+                        d2 = np.sum((xq[e][:, None, :] - xq[f][None, :, :]) ** 2,
+                                    axis=-1)
+                        G = np.log(np.maximum(d2, 1e-300)) / (4.0 * np.pi)
+                        out[ri, cj] += wi @ G @ (L[f] * w * phi[:, b])
+        return out
+
+    # the assembled operator is symmetrised, so mirror that here
+    def near_block_sym(rows, cols):
+        rows = np.atleast_1d(rows); cols = np.atleast_1d(cols)
+        return 0.5 * (near_block(rows, cols) + near_block(cols, rows).T)
+
+    return pts, near_block_sym

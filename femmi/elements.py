@@ -431,6 +431,135 @@ class C1Space:
         return el.value(np.asarray(u)[self.local_dofs(t)], pts)
 
 
+def circular_triangulation(n_boundary, radius=2.5, n_rings=None, center=(0.0, 0.0)):
+    """Vertices + triangles of a DISK, with every boundary vertex exactly on the
+    circle and the boundary loop in order.
+
+    Why this matters more than it looks: on the square, once the exterior BEM
+    coupling is active the reentrant corner singularity caps convergence at
+    O(h^{5/3}) no matter how good the element is (MATH.md 18.5, and measured in
+    18.3f -- coupled Argyris fell from O(h^4) to ~O(h^1.2)). A polygon
+    approximating a circle has interior angles tending to pi, so there is no
+    reentrant corner and no such cap.
+
+    Concentric rings plus a Delaunay triangulation, mirroring
+    mesh.generate_p3_circular_mesh but returning the P1 vertex/triangle level,
+    which is all a C^1 element needs (its extra DOFs live on those vertices and
+    edges).
+    """
+    from scipy.spatial import Delaunay
+
+    cx, cy = center
+    if n_rings is None:
+        n_rings = max(3, n_boundary // 6)
+
+    pts = [[cx, cy]]
+    for k in range(1, n_rings):
+        r_k = radius * k / n_rings
+        n_k = max(6, int(round(n_boundary * k / n_rings)))
+        for a in np.linspace(0.0, 2.0 * np.pi, n_k, endpoint=False):
+            pts.append([cx + r_k * np.cos(a), cy + r_k * np.sin(a)])
+    n_int = len(pts)
+    ang = np.linspace(0.0, 2.0 * np.pi, n_boundary, endpoint=False)
+    for a in ang:
+        pts.append([cx + radius * np.cos(a), cy + radius * np.sin(a)])
+
+    verts = np.array(pts, float)
+    tri = Delaunay(verts)
+    simp = tri.simplices.copy()
+
+    # keep only triangles inside the disk (Delaunay fills the convex hull, which
+    # for a polygon boundary is the polygon -- the tolerance guards round-off)
+    cent = verts[simp].mean(axis=1) - np.array([cx, cy])
+    simp = simp[(cent ** 2).sum(axis=1) <= (radius * 1.001) ** 2]
+
+    v0, v1, v2 = verts[simp[:, 0]], verts[simp[:, 1]], verts[simp[:, 2]]
+    cross = ((v1[:, 0] - v0[:, 0]) * (v2[:, 1] - v0[:, 1])
+             - (v1[:, 1] - v0[:, 1]) * (v2[:, 0] - v0[:, 0]))
+    simp = simp[np.abs(cross) > 1e-14]
+    cross = cross[np.abs(cross) > 1e-14]
+    simp[cross < 0] = simp[cross < 0][:, [0, 2, 1]]      # consistent orientation
+    return verts, simp.astype(int)
+
+
+def catalog_triangulation(x, y, radius=None, center=None, n_boundary=None,
+                          pad=0.12, dedup=None):
+    """Triangulation with vertices AT GALAXY POSITIONS, plus a circular guard ring.
+
+    This is what makes the C^1 observation-efficiency result testable on real
+    survey geometry rather than a structured grid. Every galaxy becomes a vertex,
+    and on an Argyris space a vertex carries the full Hessian -- so one galaxy
+    yields one complete shear observation with no averaging over neighbours.
+
+    The ring vertices carry no data (they exist to give the BEM a clean circular
+    boundary), so a reconstruction must weight them out; `ring_mask` in the return
+    marks them.
+
+    Returns (vertices, triangles, ring_mask, gal_index) where gal_index maps each
+    input galaxy to its vertex, and is -1 for galaxies dropped as duplicates.
+    """
+    from scipy.spatial import Delaunay
+
+    x = np.asarray(x, float).ravel(); y = np.asarray(y, float).ravel()
+    pts = np.stack([x, y], axis=1)
+    if center is None:
+        center = pts.mean(axis=0)
+    center = np.asarray(center, float)
+    if radius is None:
+        radius = float(np.hypot(*(pts - center).T).max()) * (1.0 + pad)
+    if n_boundary is None:
+        n_boundary = max(16, int(round(2.0 * np.sqrt(len(pts)))))
+
+    # Delaunay degenerates on near-coincident points, which a real catalog has.
+    if dedup is None:
+        dedup = 0.02 * radius / max(np.sqrt(len(pts)), 1.0)
+    keep, gal_index = [], np.full(len(pts), -1, int)
+    if dedup > 0:
+        from scipy.spatial import cKDTree
+        tree = cKDTree(pts)
+        taken = np.zeros(len(pts), bool)
+        for i in range(len(pts)):
+            if taken[i]:
+                continue
+            grp = tree.query_ball_point(pts[i], dedup)
+            for j in grp:
+                taken[j] = True
+                gal_index[j] = len(keep)
+            keep.append(i)
+    else:
+        keep = list(range(len(pts)))
+        gal_index[:] = np.arange(len(pts))
+
+    inner = pts[keep]
+    # keep galaxies strictly inside the ring so the boundary stays clean
+    inside = np.hypot(*(inner - center).T) < radius * 0.995
+    inner = inner[inside]
+
+    ang = np.linspace(0.0, 2.0 * np.pi, n_boundary, endpoint=False)
+    ring = center + radius * np.stack([np.cos(ang), np.sin(ang)], 1)
+    verts = np.vstack([inner, ring])
+    ring_mask = np.zeros(len(verts), bool)
+    ring_mask[len(inner):] = True
+
+    tri = Delaunay(verts)
+    simp = tri.simplices.copy()
+    cent = verts[simp].mean(axis=1) - center
+    simp = simp[(cent ** 2).sum(axis=1) <= (radius * 1.001) ** 2]
+
+    v0, v1, v2 = verts[simp[:, 0]], verts[simp[:, 1]], verts[simp[:, 2]]
+    cross = ((v1[:, 0] - v0[:, 0]) * (v2[:, 1] - v0[:, 1])
+             - (v1[:, 1] - v0[:, 1]) * (v2[:, 0] - v0[:, 0]))
+    good = np.abs(cross) > 1e-14
+    simp, cross = simp[good], cross[good]
+    simp[cross < 0] = simp[cross < 0][:, [0, 2, 1]]
+
+    # remap gal_index through the inside-filter
+    remap = np.full(len(keep), -1, int)
+    remap[np.where(inside)[0]] = np.arange(inside.sum())
+    gal_index = np.where(gal_index >= 0, remap[np.clip(gal_index, 0, None)], -1)
+    return verts, simp.astype(int), ring_mask, gal_index
+
+
 def structured_triangulation(nx, half_width=2.5):
     """Vertices + triangles of a uniform right-triangle mesh on the square
     [-half_width, half_width]^2 -- the same geometry femmi.mesh uses, but at the

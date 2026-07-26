@@ -304,7 +304,8 @@ def forward_convergence(nxs=(8, 12, 16, 24, 32, 40), half_width=2.5, R=1.5, p=6)
         errs.append(np.linalg.norm(dm(psi) - dm(pt)) / (np.linalg.norm(dm(pt)) + 1e-30))
         hs.append(2.0 * half_width / nx)
     hs, errs = np.array(hs), np.array(errs)
-    order = float(np.polyfit(np.log(hs), np.log(errs), 1)[0])
+    from .convergence import fit_order
+    order = fit_order(hs, errs, what="psi (forward operator)")
     return hs, errs, order
 
 
@@ -392,8 +393,9 @@ def shear_convergence(nxs=(16, 24, 32, 40), half_width=2.5, R=1.5, p=6):
         hs.append(2.0 * half_width / nx)
 
     hs = np.array(hs); e_nod = np.array(e_nod); e_rec = np.array(e_rec)
-    fit = lambda e: float(np.polyfit(np.log(hs), np.log(e), 1)[0])
-    loc = lambda e: np.log(e[1:] / e[:-1]) / np.log(hs[1:] / hs[:-1])
+    from .convergence import fit_order, local_orders
+    fit = lambda e: fit_order(hs, e, what="shear extraction")
+    loc = lambda e: local_orders(hs, e)
     return dict(h=hs, err_nodal=e_nod, err_recovered=e_rec,
                 order_nodal=fit(e_nod), order_recovered=fit(e_rec),
                 local_nodal=loc(e_nod), local_recovered=loc(e_rec))
@@ -468,9 +470,10 @@ def element_shear_convergence(kind="argyris", nxs=(8, 12, 16, 24, 32),
         errs.append(np.sqrt(num / (den + 1e-300)))
 
     hs = np.array(hs); errs = np.array(errs)
+    from .convergence import fit_order, local_orders
     return dict(h=hs, err=errs, kind=kind,
-                order=float(np.polyfit(np.log(hs), np.log(errs), 1)[0]),
-                local=np.log(errs[1:] / errs[:-1]) / np.log(hs[1:] / hs[:-1]))
+                order=fit_order(hs, errs, what=f"{kind} shear"),
+                local=local_orders(hs, errs))
 
 
 # --------------------------------------------------------------------------- #

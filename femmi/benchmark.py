@@ -58,7 +58,7 @@ def _metrics(kappa_rec, kappa_true, weak=None):
 # configurations
 # --------------------------------------------------------------------------- #
 DEFAULT_GRID = dict(
-    element=["p3"],                       # + "argyris"/"hct" once BEM coupling lands
+    element=["p3"],                       # "argyris" also works (C^1, circular)
     prior=["wiener", "tv", "sparse", "maxent"],
     method=["map"],                       # + "rto", "langevin" for sampling runs
 )
@@ -72,13 +72,39 @@ def _run_one(element, prior, method, *, nx, half_width, noise_std, seed,
 
     t0 = time.perf_counter()
 
+    if element == "argyris":
+        # Full C^1 path: circular domain, BEM far-field coupling, MAP with the
+        # adjoint, and Wiener / TV / sparsity priors defined on the C^1 DOF
+        # vector (c1_inverse.make_c1_prior). max-entropy is still P3-only.
+        if prior not in ("wiener", "-", "tv", "sparse"):
+            return dict(element=element, prior=prior, method=method,
+                        error=f"prior {prior!r} not yet defined on the C^1 DOF vector")
+        if method != "map":
+            return dict(element=element, prior=prior, method=method,
+                        error=f"method {method!r} not available for C^1 yet")
+        from .elements import C1Space, circular_triangulation
+        from .c1_inverse import C1MAPReconstructor
+
+        # match the square mesh's DOF budget roughly, so the grid rows compare
+        v, t = circular_triangulation(max(12, 3 * nx), radius=half_width)
+        S = C1Space(v, t, kind="argyris")
+        kt, g1t, g2t = independent_truth(v, source=source, half_width=half_width,
+                                         seed=seed, **truth_kw)
+        rng = np.random.default_rng(seed)
+        g1 = g1t + rng.normal(0, noise_std, len(g1t))
+        g2 = g2t + rng.normal(0, noise_std, len(g2t))
+        rec = C1MAPReconstructor(S, lam=0.3, wiener_length=wiener_length,
+                                 prior=(None if prior in ("wiener", "-") else prior))
+        k, _ = rec.reconstruct(g1, g2)
+        out = dict(element=element, prior=prior, method=method, source=source,
+                   dofs=int(S.n_dofs), n_obs=int(S.n_vertices),
+                   seconds=time.perf_counter() - t0)
+        out.update(_metrics(rec.kappa_at_vertices(k), kt, kt < 1.0))
+        return out
+
     if element != "p3":
-        # C^1 elements exist and are validated (femmi.elements, femmi.c1_assembly)
-        # but do not yet have the FEM-BEM coupling, so they cannot run the
-        # isolated-field reconstruction this benchmark scores. Reported honestly
-        # rather than silently skipped.
         return dict(element=element, prior=prior, method=method,
-                    error="no FEM-BEM coupling yet (Dirichlet only)")
+                    error=f"unknown element {element!r} (expected 'p3' or 'argyris')")
 
     ops = square_ops(nx, half_width)
     nodes = np.array(ops.mesh.nodes)
@@ -100,7 +126,8 @@ def _run_one(element, prior, method, *, nx, half_width, noise_std, seed,
                     error=f"unknown method {method!r}")
 
     out = dict(element=element, prior=prior, method=method, source=source,
-               dofs=int(ops.n_nodes), seconds=time.perf_counter() - t0)
+               dofs=int(ops.n_nodes), n_obs=int(len(nodes)),
+               seconds=time.perf_counter() - t0)
     out.update(_metrics(rec, kt, weak))
     return out
 
@@ -145,12 +172,13 @@ def to_table(rows, sort_by="rel_l2_dc_removed"):
     ok.sort(key=lambda r: r.get(sort_by, np.inf))
 
     hdr = (f"{'element':<9}{'prior':<9}{'method':<8}{'rel L2':>9}"
-           f"{'shape L2':>10}{'mean err':>10}{'DOFs':>8}{'sec':>8}")
+           f"{'shape L2':>10}{'mean err':>10}{'DOFs':>8}{'n_obs':>8}{'sec':>8}")
     lines = [hdr, "-" * len(hdr)]
     for r in ok:
         lines.append(f"{r['element']:<9}{r['prior']:<9}{r['method']:<8}"
                      f"{r['rel_l2']:>9.4f}{r['rel_l2_dc_removed']:>10.4f}"
-                     f"{r['mean_err']:>10.4f}{r['dofs']:>8d}{r['seconds']:>8.1f}")
+                     f"{r['mean_err']:>10.4f}{r['dofs']:>8d}"
+                     f"{r.get('n_obs', r['dofs']):>8d}{r['seconds']:>8.1f}")
     for r in bad:
         lines.append(f"{r['element']:<9}{r['prior']:<9}{r['method']:<8}  -- {r['error']}")
     return "\n".join(lines)
