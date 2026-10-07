@@ -34,9 +34,8 @@ survey's shear sign and response convention. Select masks explicitly with
 `FlatCatalog.select`; the estimator never silently drops observations.
 
 Inputs are calibrated **shear**, for one effective source plane. Reduced shear
-and per-source redshifts are rejected rather than silently interpreted as shear.
-If a catalogue contains redshifts, any effective-plane approximation must be
-made explicitly before constructing `FlatCatalog` for this estimator.
+is rejected. Redshifts may accompany sources for selection and provenance but
+never change the forward operator or become per-source lensing efficiencies.
 
 The objective is
 
@@ -83,12 +82,16 @@ It includes mesh vertices/connectivity; load values directly for plotting or
 rebuild the mapper from saved catalogue/config to evaluate arbitrary positions.
 Setup and solve times are reported separately.
 
+For survey FITS input and astronomical image products, use the separate
+[SMPy-style survey API and CLI](survey-io.md):
+
 ```bash
-femmi map --catalogue catalogue.npz --config mapper.yaml --output mass-map.npz
+femmi map --catalogue shear.fits --config configs/survey.yaml --output-dir results
 ```
 
-The input NPZ contains `x,y,g1,g2,weight`, optionally `units` (default `arcmin`).
-A `z` array is rejected. Generate the YAML with `MapperConfig.save(path)`.
+`map_catalogue(flat, config)` is the one-call low-level estimator. Its `MassMap.save`
+method remains the portable NPZ export for numerical work. The production `map`
+command now uses FITS input and FITS/PNG output; there is no legacy NPZ CLI alias.
 `femmi run` remains the separate experimental prior/posterior workflow, including
 nonquadratic penalties and sampling. Those research capabilities and their JAX
 adjoints are retained; the production mapper is a NumPy/SciPy interface and

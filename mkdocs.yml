@@ -41,6 +41,7 @@ nav:
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Catalogue mapper: mapper.md
+  - Survey FITS workflow: survey-io.md
   - SMPy benchmarks: smpy-benchmarks.md
   - Production performance: production-performance.md
   - Configuration & CLI: configuration.md

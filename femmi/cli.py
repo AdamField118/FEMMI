@@ -53,16 +53,14 @@ def cmd_run(args):
 
 
 def cmd_map(args):
-    import numpy as np
-    from .mapping import MapperConfig, map_mass
-    from .io import FlatCatalog
-    with np.load(args.catalogue, allow_pickle=False) as data:
-        c = FlatCatalog(*(data[k] for k in ('x','y','g1','g2','weight')),
-            units=str(data['units']) if 'units' in data else 'arcmin',
-            z=data['z'] if 'z' in data else None)
-    result=map_mass(c,MapperConfig.from_file(args.config))
-    result.save(args.output)
-    print(result.diagnostics)
+    from .survey_config import load_survey_config
+    from .survey import map_mass
+    options = load_survey_config(args.config)
+    if args.catalogue: options['data'] = args.catalogue
+    if args.output_dir: options['output_dir'] = args.output_dir
+    if args.overwrite: options['overwrite'] = True
+    result = map_mass(**options)
+    print(result['metadata']['diagnostics'])
 
 
 def cmd_train_prior(args):
@@ -90,9 +88,10 @@ def build_parser():
                         help="override any config value, e.g. --set inverse.method=sample")
 
     m = sub.add_parser("map", help="production shear catalogue MAP (P3, Argyris or HCT)")
-    m.add_argument('--catalogue', required=True, help='NPZ: x,y,g1,g2,weight in arcmin')
-    m.add_argument('--config', required=True, help='explicit MapperConfig YAML')
-    m.add_argument('--output', required=True, help='output NPZ')
+    m.add_argument('--catalogue', help='FITS table; overrides general.input_path')
+    m.add_argument('--config', required=True, help='survey YAML using SMPy general/methods/plotting/snr sections')
+    m.add_argument('--output-dir', help='override general.output_directory')
+    m.add_argument('--overwrite', action='store_true', help='replace existing output products')
     m.set_defaults(func=cmd_map)
 
     r = sub.add_parser("run", help="build forward, get data, run MAP or sampling, save (the pipeline)")

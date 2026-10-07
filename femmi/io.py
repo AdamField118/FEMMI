@@ -53,6 +53,8 @@ def gnomonic_project(ra, dec, ra0, dec0):
     cos_dra, sin_dra = np.cos(dra), np.sin(dra)
 
     cosc = sin_d0 * sin_d + cos_d0 * cos_d * cos_dra
+    if np.any(cosc <= 0) or not np.all(np.isfinite(cosc)):
+        raise ValueError("coordinates lie outside the tangent-plane hemisphere")
     xi   = cos_d * sin_dra / cosc
     eta  = (cos_d0 * sin_d - sin_d0 * cos_d * cos_dra) / cosc
     return xi, eta
@@ -141,6 +143,9 @@ class FlatCatalog:
     center : tuple = (0.0, 0.0)      # (ra0, dec0) in degrees
     units  : str = "arcmin"
     name   : str = ""
+    meta   : dict = field(default_factory=dict)
+    row_index: Optional[np.ndarray] = None
+    object_id: Optional[np.ndarray] = None
 
     @property
     def n(self) -> int:
@@ -154,7 +159,9 @@ class FlatCatalog:
         z = None if self.z is None else self.z[mask]
         return FlatCatalog(self.x[mask], self.y[mask], self.g1[mask], self.g2[mask],
                            self.weight[mask], z=z, center=self.center,
-                           units=self.units, name=self.name)
+                           units=self.units, name=self.name, meta=dict(self.meta),
+                           row_index=None if self.row_index is None else self.row_index[mask],
+                           object_id=None if self.object_id is None else self.object_id[mask])
 
     def mask_core(self, r_inner):
         """Drop galaxies within r_inner of the centre (strong-lensing regime)."""
@@ -177,6 +184,8 @@ class ShearCatalog:
     z      : Optional[np.ndarray] = None
     name   : str = ""
     meta   : dict = field(default_factory=dict)
+    row_index: Optional[np.ndarray] = None
+    object_id: Optional[np.ndarray] = None
 
     @property
     def n(self) -> int:
@@ -198,10 +207,11 @@ class ShearCatalog:
 
     def center(self):
         """Weighted mean (ra0, dec0) in degrees, a reasonable default tangent point."""
-        w  = self.weight
-        ra0  = float(np.average(self.ra,  weights=w))
-        dec0 = float(np.average(self.dec, weights=w))
-        return ra0, dec0
+        ra, dec = np.deg2rad(self.ra), np.deg2rad(self.dec)
+        xyz = np.array([np.cos(dec)*np.cos(ra), np.cos(dec)*np.sin(ra), np.sin(dec)])
+        v = np.average(xyz, axis=1, weights=self.weight)
+        if np.linalg.norm(v)<1e-12: raise ValueError('catalogue has no unique sky centre')
+        return float(np.rad2deg(np.arctan2(v[1],v[0]))%360), float(np.rad2deg(np.arctan2(v[2],np.hypot(*v[:2]))))
 
     def to_tangent_plane(self, center=None, units="arcmin", flip_g2=False):
         """
@@ -220,15 +230,15 @@ class ShearCatalog:
 
         xi, eta = gnomonic_project(ra_r, dec_r, ra0, dec0)
         omega   = projection_rotation(ra_r, dec_r, ra0, dec0)
-        g1p, g2p = rotate_shear(self.g1, self.g2, omega)
-        if flip_g2:
-            g2p = -g2p
+        g1p, g2p = rotate_shear(self.g1, -self.g2 if flip_g2 else self.g2, omega)
 
         scale = {"rad": 1.0, "deg": np.rad2deg(1.0), "arcmin": ARCMIN_PER_RAD}[units]
         return FlatCatalog(
             x=xi * scale, y=eta * scale, g1=g1p, g2=g2p,
             weight=self.weight.copy(), z=None if self.z is None else self.z.copy(),
             center=center, units=units, name=self.name,
+            meta={**self.meta, "projection":"TAN", "flip_g2":bool(flip_g2)},
+            row_index=self.row_index, object_id=self.object_id,
         )
 
 
@@ -296,7 +306,10 @@ def _find_column(colnames_lower, candidates):
 
 def read_fits_catalog(path, column_map=None, hdu=1, name="",
                       response=None, shape_noise=DEFAULT_SHAPE_NOISE,
-                      g_cov_columns=None):
+                      g_cov_columns=None, *, ra_unit=None, dec_unit=None,
+                      input_kind='shear', id_col=None, selection=None,
+                      flag_col=None, reject_bits=0, z_col=None, z_range=None, max_shear=None,
+                      coord_system='radec'):
     """
     Read a weak-lensing shear catalog from a FITS binary table.
 
@@ -306,9 +319,10 @@ def read_fits_catalog(path, column_map=None, hdu=1, name="",
     column_map  : optional dict overriding column detection, e.g.
                   {"ra": "ALPHA_J2000", "g1": "g1_noshear", ...}.
     hdu         : table HDU index (default 1).
-    response    : metacal response (see apply_response). If None and per-object
-                  R columns are present, they are detected and applied; if no R
-                  is found, g1/g2 are taken as already-calibrated shear.
+    response    : explicit calibration (see apply_response). None leaves shear
+                  unchanged, including when R columns exist. Use "auto" to
+                  explicitly request response-column detection. Survey selection
+                  responses must be supplied by the caller, not inferred here.
     shape_noise : per-component intrinsic dispersion, used to build weights when
                   a covariance is available and no weight column exists.
     g_cov_columns : optional (var_g1_col, var_g2_col) names for per-component
@@ -327,8 +341,11 @@ def read_fits_catalog(path, column_map=None, hdu=1, name="",
         ) from exc
 
     column_map = dict(column_map or {})
+    if z_col is not None: column_map["z"] = z_col
     with fits.open(path) as hdul:
         tbl = hdul[hdu].data
+        if not isinstance(hdul[hdu], fits.BinTableHDU):
+            raise ValueError('select a FITS binary-table HDU')
         raw_names = list(tbl.columns.names)
         lower = {nm.lower(): nm for nm in raw_names}
 
@@ -345,51 +362,123 @@ def read_fits_catalog(path, column_map=None, hdu=1, name="",
                     f"{raw_names}. Pass column_map to override."
                 )
 
-        ra  = np.array(tbl[col["ra"]],  dtype=np.float64)
-        dec = np.array(tbl[col["dec"]], dtype=np.float64)
-        e1  = np.array(tbl[col["g1"]],  dtype=np.float64)
-        e2  = np.array(tbl[col["g2"]],  dtype=np.float64)
-        z   = np.array(tbl[col["z"]], dtype=np.float64) if col["z"] else None
+        def numeric(name):
+            values=np.array(tbl[name],dtype=np.float64)
+            null=tbl.columns[name].null
+            if null is not None:values[values==null]=np.nan
+            if values.ndim!=1:raise ValueError(f'{name} must contain scalar values per source')
+            return values
 
-        # metacal response
-        if response is None:
-            response = _detect_response(tbl, lower)
-        if response is not None:
-            g1, g2 = apply_response(e1, e2, response)
-        else:
-            g1, g2 = e1, e2
+        from astropy import units as u
+        def angle(key, override):
+            unit=override or tbl.columns[col[key]].unit or 'deg'
+            return (numeric(col[key])*u.Unit(unit)).to_value(u.deg), str(unit)
+        if coord_system=='radec':
+            ra,ru=angle('ra',ra_unit);dec,du=angle('dec',dec_unit)
+            if np.any(np.isfinite(dec)&(np.abs(dec)>90)):raise ValueError('declination outside [-90,90] degrees')
+            ra=ra%360
+        elif coord_system=='pixel':
+            ra=numeric(col['ra']);dec=numeric(col['dec'])
+            ru=du='pixel'
+        else:raise ValueError('coord_system must be radec or pixel')
+        e1  = numeric(col["g1"])
+        e2  = numeric(col["g2"])
+        z   = numeric(col["z"]) if col["z"] else None
 
+        if input_kind not in ('shear','ellipticity'):
+            raise ValueError('input_kind must be shear or ellipticity; reduced shear is unsupported')
+        if input_kind=='ellipticity' and response is None:
+            raise ValueError('ellipticity input requires explicit response calibration')
+        response_mode='none' if response is None else 'explicit'
+        if isinstance(response,str):
+            if response != 'auto':raise ValueError("response string must be 'auto'")
+            response = _detect_response(tbl, lower, numeric=numeric)
+            if response is None:raise ValueError('response columns were requested but not found')
+            response_mode='columns'
         # weights
         if col["weight"] is not None:
-            weight = np.array(tbl[col["weight"]], dtype=np.float64)
+            weight = numeric(col["weight"])
         elif g_cov_columns is not None:
-            v1 = np.array(tbl[g_cov_columns[0]], dtype=np.float64)
-            v2 = np.array(tbl[g_cov_columns[1]], dtype=np.float64)
+            v1 = numeric(g_cov_columns[0])
+            v2 = numeric(g_cov_columns[1])
+            if not np.isfinite(shape_noise) or shape_noise<=0 or np.any(v1<0) or np.any(v2<0):
+                raise ValueError('shape noise must be positive and shear variances nonnegative')
             weight = 1.0 / (shape_noise**2 + 0.5 * (v1 + v2))
         else:
             weight = np.ones_like(ra)
+        keep=np.ones(len(ra),bool);reasons={}
+        def cut(label,good):
+            good=np.asarray(good,dtype=bool)
+            if good.shape != keep.shape:raise ValueError('selection must have one boolean per row')
+            reasons[label]=np.flatnonzero(~good).tolist();keep[:] &= good
+        if selection is not None:cut('user_selection',selection)
+        if flag_col is not None:
+            flags=np.asarray(tbl[flag_col],dtype=np.int64)
+            good=(flags&int(reject_bits))==0
+            if tbl.columns[flag_col].null is not None:good &= flags!=tbl.columns[flag_col].null
+            cut('flags',good)
+        if z_range is not None:
+            if len(z_range)!=2 or not np.all(np.isfinite(z_range)) or z_range[0]>z_range[1]:
+                raise ValueError('z_range must be finite ordered endpoints')
+            if z is None:raise ValueError('redshift cut requires a redshift column')
+            cut('redshift',np.isfinite(z)&(z>=z_range[0])&(z<=z_range[1]))
+        cut('nonfinite',np.isfinite(ra)&np.isfinite(dec)&np.isfinite(e1)&np.isfinite(e2)&np.isfinite(weight))
+        cut('weight_or_amplitude',weight>0)
+        if response is not None:
+            R = np.asarray(response, dtype=float)
+            selected_R = R[keep] if R.ndim == 3 else R
+            if not np.all(np.isfinite(selected_R)):
+                raise ValueError('nonfinite response on selected rows')
+            if selected_R.ndim < 2 and np.any(selected_R == 0):
+                raise ValueError('response must be nonzero')
+            try:
+                a, b = apply_response(e1[keep], e2[keep], selected_R)
+            except np.linalg.LinAlgError as exc:
+                raise ValueError('singular response on selected rows') from exc
+            g1, g2 = e1.copy(), e2.copy()
+            g1[keep], g2[keep] = a, b
+        else:
+            g1, g2 = e1, e2
+        ids=np.asarray(tbl[id_col]).copy() if id_col else None
+        rows=np.arange(len(ra))
 
     cat = ShearCatalog(ra=ra, dec=dec, g1=g1, g2=g2, weight=weight, z=z,
                        name=name or str(path),
-                       meta={"resolved_columns": col, "source": str(path)})
-    return clean_catalog(cat)
+                       meta={"resolved_columns": col, "source": str(path), "hdu":hdu,
+                             "coordinate_units":dict(ra=ru,dec=du),"response":response_mode,
+                             "response_values":None if response is None else np.where(np.isfinite(response),response,None).tolist(),
+                             "input_kind":input_kind,"n_input":len(ra),"rejected_rows":reasons,
+                             "selection":dict(flag_col=flag_col,reject_bits=reject_bits,z_range=z_range,
+                                              max_shear=max_shear,id_col=id_col),
+                             "weight_model":"column" if col["weight"] else "shear_covariance_plus_shape_noise" if g_cov_columns else "unit"},
+                       row_index=rows,object_id=ids)
+    # Retain original row identity across every selection step.
+    cat=ShearCatalog(cat.ra[keep],cat.dec[keep],cat.g1[keep],cat.g2[keep],cat.weight[keep],
+        z=None if z is None else z[keep],name=cat.name,meta=cat.meta,
+        row_index=rows[keep],object_id=None if ids is None else ids[keep])
+    cat=clean_catalog(cat,max_shear=max_shear)
+    if coord_system=='pixel':
+        return FlatCatalog(cat.ra,cat.dec,cat.g1,cat.g2,cat.weight,z=cat.z,units='pixel',
+            name=cat.name,meta=cat.meta,row_index=cat.row_index,object_id=cat.object_id)
+    return cat
 
 
-def _detect_response(tbl, lower):
+def _detect_response(tbl, lower, numeric=None):
     """Return a (N,2,2) per-object response if R columns exist, else None."""
     found = {k: _find_column(lower, v) for k, v in _R_COLUMNS.items()}
     if found["R11"] is None or found["R22"] is None:
         return None
+    if numeric is None: numeric=lambda name: np.array(tbl[name],dtype=np.float64)
     n = len(tbl)
     R = np.zeros((n, 2, 2), dtype=np.float64)
-    R[:, 0, 0] = np.array(tbl[found["R11"]], dtype=np.float64)
-    R[:, 1, 1] = np.array(tbl[found["R22"]], dtype=np.float64)
-    R[:, 0, 1] = np.array(tbl[found["R12"]], dtype=np.float64) if found["R12"] else 0.0
-    R[:, 1, 0] = np.array(tbl[found["R21"]], dtype=np.float64) if found["R21"] else 0.0
+    R[:, 0, 0] = numeric(found["R11"])
+    R[:, 1, 1] = numeric(found["R22"])
+    R[:, 0, 1] = numeric(found["R12"]) if found["R12"] else 0.0
+    R[:, 1, 0] = numeric(found["R21"]) if found["R21"] else 0.0
     return R
 
 
-def clean_catalog(cat, max_shear=2.0):
+def clean_catalog(cat, max_shear=None):
     """
     Drop galaxies with non-finite or non-physical entries.
 
@@ -399,11 +488,20 @@ def clean_catalog(cat, max_shear=2.0):
     finite = (np.isfinite(cat.ra) & np.isfinite(cat.dec) &
               np.isfinite(cat.g1) & np.isfinite(cat.g2) &
               np.isfinite(cat.weight))
-    physical = (np.hypot(cat.g1, cat.g2) <= max_shear) & (cat.weight > 0)
+    physical = cat.weight > 0
+    if max_shear is not None:
+        if not np.isfinite(max_shear) or max_shear<=0:raise ValueError('max_shear must be positive')
+        physical &= np.hypot(cat.g1,cat.g2)<=max_shear
     keep = finite & physical
     z = None if cat.z is None else cat.z[keep]
+    rows=np.arange(cat.n) if cat.row_index is None else cat.row_index
+    rejected=dict(cat.meta.get('rejected_rows',{}))
+    rejected['nonfinite']=sorted(set(rejected.get('nonfinite',[])+rows[~finite].tolist()))
+    rejected['weight_or_amplitude']=sorted(set(rejected.get('weight_or_amplitude',[])+rows[~physical].tolist()))
     return ShearCatalog(
         ra=cat.ra[keep], dec=cat.dec[keep], g1=cat.g1[keep], g2=cat.g2[keep],
         weight=cat.weight[keep], z=z, name=cat.name,
-        meta={**cat.meta, "n_dropped": int((~keep).sum())},
+        meta={**cat.meta,"rejected_rows":rejected,
+              "n_dropped":int(cat.meta.get('n_input',cat.n)-keep.sum())},
+        row_index=rows[keep],object_id=None if cat.object_id is None else cat.object_id[keep],
     )

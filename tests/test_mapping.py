@@ -2,7 +2,7 @@ import json
 from dataclasses import replace
 import numpy as np
 import pytest
-from femmi import FlatCatalog, MapperConfig, FEMMapper, map_mass
+from femmi import FlatCatalog, MapperConfig, FEMMapper, map_catalogue as map_mass
 from femmi.catalog import analytic_gaussian_catalog
 
 
@@ -52,7 +52,7 @@ def test_fail_fast_config_and_catalogue(tmp_path):
     for kw in [dict(observable='reduced_shear'),dict(lam=0),dict(length=-1),dict(rtol=.1)]:
         with pytest.raises(ValueError):replace(cfg,**kw)
     c=catalogue()
-    for bad in [replace(c,units='degrees'),replace(c,z=np.ones(24)),
+    for bad in [replace(c,units='degrees'),
                 replace(c,weight=-c.weight),replace(c,g1=np.full(24,np.nan)),
                 replace(c,x=np.ones(24),y=np.ones(24))]:
         with pytest.raises(ValueError):FEMMapper(bad,cfg)
@@ -75,16 +75,8 @@ def test_gaussian_reconstruction():
     assert np.corrcoef(result.kappa[inner],c['kappa_true'][inner])[0,1]>.85
 
 
-def test_cli_round_trip_and_repeated_input_persistence(tmp_path):
-    from femmi.cli import main
+def test_repeated_input_persistence(tmp_path):
     c=catalogue(); cfg=MapperConfig('p3',.3,.6,1.)
-    cfg.save(tmp_path/'mapper.yaml')
-    np.savez(tmp_path/'input.npz',**{k:getattr(c,k) for k in ('x','y','g1','g2','weight')})
-    main(['map','--catalogue',str(tmp_path/'input.npz'),'--config',str(tmp_path/'mapper.yaml'),
-          '--output',str(tmp_path/'output.npz')])
-    with np.load(tmp_path/'output.npz') as data:
-        assert len(data['kappa'])==c.n
-        assert json.loads(str(data['metadata']))['diagnostics']['relative_residual']<1e-6
     result=FEMMapper(c,cfg).reconstruct(-c.g1,-c.g2)
     result.save(tmp_path/'repeated.npz')
     with np.load(tmp_path/'repeated.npz') as data:

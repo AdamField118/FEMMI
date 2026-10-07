@@ -12,7 +12,7 @@ New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass
 
 ## Current catalogue API
 
-Use `FEMMapper` / `map_mass` with an explicit `MapperConfig` for P3, Argyris or
+Use `FEMMapper` / `map_catalogue` with an explicit `MapperConfig` for P3, Argyris or
 HCT quadratic MAP. See [the catalogue guide](docs/mapper.md) for weights,
 coordinates, saved maps and held-out shear selection. The production solver uses
 prior-preconditioned CG and checks a fresh normal-equation residual.
@@ -283,14 +283,13 @@ kappa_map, result = rec.reconstruct(g1_obs, g2_obs)
 ```
 
 ```python
-from femmi import read_fits_catalog, MapperConfig, map_mass
+from femmi import map_mass
 
-flat = read_fits_catalog("shear_catalog.fits").to_tangent_plane(units="arcmin")
-# Explicit example settings; select/tune for your catalogue before science use.
-config = MapperConfig(method="hct", lam=0.3, length=0.6, radius=3.)
-result = map_mass(flat, config)
-result.save("mass-map.npz")
-kappa_at_galaxies = result.kappa
+# SMPy-style FITS workflow. Prior settings illustrate syntax; calibrate for your survey.
+result = map_mass("shear_catalog.fits", method="hct", pixel_scale=0.4,
+                  lam=0.3, length=0.6, mode=["E", "B"], weight_col="weight",
+                  create_counts_map=True, save_fits=True, output_dir="results")
+kappa_image = result["maps"]["E"]
 ```
 
 ```python
@@ -301,6 +300,9 @@ from femmi.catalog import load_frontier_model, field_to_catalog
 field = load_frontier_model("data/abell2744/cats_v4.1", source="psi", downsample=6)
 cat   = field_to_catalog(field, n_gal=3000, shape_noise=0.05, kappa_max=1.0)
 ```
+
+For FITS catalogue units, response calibration, WCS, masks, provenance and
+reproducible SNR products, see [Survey FITS workflow](docs/survey-io.md).
 
 Notes for the cluster maps: (1) use `source="psi"` -- `source="kappa"` synthesises
 shear by FFT and imposes *periodic* boundaries, KS's own assumption, which

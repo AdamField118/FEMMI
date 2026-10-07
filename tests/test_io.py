@@ -148,7 +148,7 @@ def test_clean_catalog():
     g1  = np.array([0.1, np.nan, 5.0, 0.2, 0.3])     # idx1 nan, idx2 too large
     g2  = np.array([0.0, 0.0, 0.0, 0.0, np.inf])     # idx4 inf
     cat = ShearCatalog.from_arrays(ra, dec, g1, g2)
-    cleaned = clean_catalog(cat)
+    cleaned = clean_catalog(cat, max_shear=2)
     assert cleaned.n == 2
     assert cleaned.meta["n_dropped"] == 3
 
@@ -269,7 +269,7 @@ def test_read_fits_catalog():
     path = os.path.join(tmp, "mock_catalog.fits")
     fits.BinTableHDU.from_columns(cols).writeto(path, overwrite=True)
 
-    cat = read_fits_catalog(path)
+    cat = read_fits_catalog(path, response="auto", max_shear=2)
     # auto-detected RA/Dec/shear, dropped the 2 bad rows
     assert cat.n == n - 2
     assert cat.meta["n_dropped"] == 2

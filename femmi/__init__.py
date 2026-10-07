@@ -144,5 +144,6 @@ __all__ = [
 
 __version__ = "0.1.0"
 
-from .mapping import MapperConfig, FEMMapper, MassMap, map_mass
-__all__ += ["MapperConfig", "FEMMapper", "MassMap", "map_mass"]
+from .mapping import MapperConfig, FEMMapper, MassMap, map_catalogue
+from .survey import map_mass
+__all__ += ["MapperConfig", "FEMMapper", "MassMap", "map_mass", "map_catalogue"]

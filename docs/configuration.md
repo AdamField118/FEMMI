@@ -1,6 +1,7 @@
 # Configuration & CLI
 
-The production `femmi map` command uses an explicit [MapperConfig](mapper.md).
+The production `femmi map` command uses the [survey FITS configuration](survey-io.md).
+`MapperConfig` remains the low-level Python estimator configuration.
 
 The experimental prior/sampling workflow uses a separate YAML config. The
 `femmi run` command loads it, builds the forward operator, gets the data, builds

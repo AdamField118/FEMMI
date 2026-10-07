@@ -59,8 +59,6 @@ def validated_catalogue(catalogue):
     """Snapshot inputs; reject implicit selection, nonfinite data and duplicates."""
     if getattr(catalogue, 'units', 'arcmin') != 'arcmin':
         raise ValueError('convert catalogue coordinates to arcmin first')
-    if getattr(catalogue, 'z', None) is not None:
-        raise ValueError('per-source redshifts are not modeled; explicitly construct an effective-plane catalogue')
     arrays = [np.array(getattr(catalogue, key), dtype=np.float64, copy=True)
               for key in ('x', 'y', 'g1', 'g2', 'weight')]
     if any(a.ndim != 1 or len(a) != len(arrays[0]) for a in arrays) or len(arrays[0]) < 3:
@@ -75,7 +73,9 @@ def validated_catalogue(catalogue):
     for a in arrays:
         a.flags.writeable = False
     return FlatCatalog(*arrays, center=getattr(catalogue, 'center', (0., 0.)),
-                       name=getattr(catalogue, 'name', ''))
+                       name=getattr(catalogue, 'name', ''),z=getattr(catalogue,'z',None),
+                       meta=dict(getattr(catalogue,'meta',{})),row_index=getattr(catalogue,'row_index',None),
+                       object_id=getattr(catalogue,'object_id',None))
 
 
 @dataclass
@@ -238,6 +238,6 @@ class FEMMapper:
                     criterion='held-out weighted shear MSE; no convergence truth')
 
 
-def map_mass(catalogue, config):
+def map_catalogue(catalogue, config):
     """Convenience entry point; use FEMMapper directly to reuse the setup."""
     return FEMMapper(catalogue, config).reconstruct()

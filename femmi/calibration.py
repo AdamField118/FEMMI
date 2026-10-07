@@ -219,7 +219,7 @@ def calibrate_and_evaluate(config,output):
         write_json(output/'calibration.json',report)
         print(method,report['calibrations'][method]['parameters'],
               'edge',report['calibrations'][method]['boundary_unresolved'],flush=True)
-        del models
+        models.clear()
     if any(r['boundary_unresolved'] for r in report['calibrations'].values()) and not config.get('allow_unresolved',False):
         raise CalibrationFailure('expand unresolved calibration grids before evaluation', report['calibrations'])
     rows=[]

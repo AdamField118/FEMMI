@@ -18,10 +18,10 @@ held-out shear selection, units, source-plane assumptions and spatial evaluation
 The result includes source convergence, full FE coefficients, predicted shear,
 mesh geometry and solver diagnostics. No plot or file is generated unless asked.
 
-For NPZ catalogue input and saved configuration:
+For survey FITS input and [SMPy-style output](survey-io.md):
 
 ```bash
-femmi map --catalogue catalogue.npz --config mapper.yaml --output mass-map.npz
+femmi map --catalogue shear.fits --config configs/survey.yaml --output-dir results
 ```
 
 The separate [research pipeline](configuration.md) supports nonquadratic priors

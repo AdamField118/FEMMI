@@ -1,0 +1,67 @@
+# SMPy's survey configuration vocabulary; method-specific FEM settings are explicit.
+# lam and length below are syntax examples, not survey calibration.
+general:
+  input_path: shear_catalog.fits
+  input_hdu: 1
+  coordinate_system: radec
+  radec:
+    resolution: 0.4 # arcmin per output pixel (maximum bin width)
+    coord1: ra
+    coord2: dec
+  pixel:
+    downsample_factor: 1
+    coord1: X_IMAGE
+    coord2: Y_IMAGE
+    pixel_axis_reference: catalog
+    pixel_scale_arcmin: 0.003 # required only for pixel input; replace with real value
+  g1_col: g1
+  g2_col: g2
+  weight_col: null # exactly SMPy's unit-weight default
+  method: p3
+  mode: [E, B]
+  output_directory: results
+  output_base_name: cluster
+  save_fits: true
+  save_plots: true
+  create_counts_map: true
+  overlay_counts_map: false
+  create_snr: false
+  print_timing: true
+methods:
+  p3:
+    lam: 0.3
+    length: 0.6 # arcmin; calibrate jointly with lam
+    smoothing: {type: null, sigma: null}
+  argyris: {lam: 0.3, length: 0.6}
+  hct: {lam: 0.3, length: 0.6}
+catalogue:
+  shear_convention: smpy # g2 -> -g2 for RA/Dec; unchanged for pixels
+  projection: smpy # SMPy cos(Dec) flattening; 'tan' enables TAN + spin rotation
+  input_kind: shear
+  response: null # no implicit metacal correction; 'auto' explicitly reads R columns
+  source_plane: effective
+  id_col: null
+  z_col: null # retained metadata, never per-source lensing efficiency
+  flag_col: null
+  reject_bits: 0
+  max_shear: null # no implicit amplitude cut
+  masks: [] # optional [x,y,r] circles in computational arcmin
+snr:
+  shuffle_type: spatial
+  num_shuffles: 100
+  seed: 0
+  smoothing: {type: gaussian, sigma: 2.0}
+  plot_title: Signal-to-Noise Map
+plotting:
+  figsize: [12, 8]
+  fontsize: 15
+  cmap: viridis
+  plot_title: Mass Map
+  gridlines: true
+  xray_contours:
+    ctr_file: null
+    show_on_convergence: false
+    show_on_snr: false
+    color: cyan
+    linewidth: 0.8
+    alpha: 0.7
