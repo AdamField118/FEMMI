@@ -132,20 +132,26 @@ class MAPReconstructor:
         # behaviour. A custom Prior (femmi.priors) overrides it -- TV, sparsity,
         # maximum entropy, or a learned score prior.
         self.prior          = prior
+        if prior is not None and not getattr(prior, "has_energy", True):
+            raise ValueError("MAP requires a consistent prior value and gradient; "
+                             "use score-based sampling for a score-only prior")
 
         if wiener_length > 0.0:
             self._R = build_wiener_regularizer(fwd.ops, wiener_length)
         else:
             self._R = fwd.ops.K
 
-    def _make_obj_and_grad(self, gamma1_obs, gamma2_obs):
+    def _make_obj_and_grad(self, gamma1_obs, gamma2_obs, data_weight=None):
         ops  = self.ops
         M    = ops.M
         S1   = ops.S1
         S2   = ops.S2
         lam  = self.fwd.lam_reg
         R    = self._R
-        w    = self.data_weight
+        from .observations import prepare_observations
+        gamma1_obs, gamma2_obs, w = prepare_observations(
+            gamma1_obs, gamma2_obs, ops.n_nodes,
+            self.data_weight if data_weight is None else data_weight)
 
         loss_history = []
 
@@ -187,6 +193,9 @@ class MAPReconstructor:
 
         Returns (kappa_map, ReconstructionResult).
         """
+        from .observations import prepare_observations
+        g1_obs, g2_obs, weight = prepare_observations(
+            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight, mask)
         if self.noise_std is not None:
             # Morozov selection applies to ANY prior. The discrepancy is measured
             # by solving the MAP problem at each trial lambda and comparing the
@@ -205,10 +214,10 @@ class MAPReconstructor:
                 wiener_length=self.wiener_length,
                 maxiter_inner=min(150, self.maxiter),
                 verbose=verbose,
-                data_weight=self.data_weight,
+                data_weight=weight,
                 prior=self.prior,
             )
-            lam_star = selector.select(gamma1_obs, gamma2_obs)
+            lam_star = selector.select(g1_obs, g2_obs)
             if verbose:
                 print(f"lambda* = {lam_star:.4e}\n")
             self.fwd.lam_reg = lam_star
@@ -219,14 +228,8 @@ class MAPReconstructor:
 
         ops    = self.ops
         n      = ops.n_nodes
-        g1_obs = gamma1_obs.copy()
-        g2_obs = gamma2_obs.copy()
-        if mask is not None:
-            g1_obs[mask] = 0.0
-            g2_obs[mask] = 0.0
-
         kappa0 = np.zeros(n) if kappa_init is None else kappa_init.copy()
-        obj_grad, loss_history = self._make_obj_and_grad(g1_obs, g2_obs)
+        obj_grad, loss_history = self._make_obj_and_grad(g1_obs, g2_obs, weight)
 
         if verbose:
             if self.prior is not None:
@@ -371,21 +374,15 @@ class MAPReconstructor:
         kappa_E, kappa_B, _, _ = self.reconstruct_eb(
             gamma1_obs, gamma2_obs, mask=mask, verbose=verbose)
 
-        g1 = np.asarray(gamma1_obs, dtype=np.float64)
-        g2 = np.asarray(gamma2_obs, dtype=np.float64)
+        from .observations import prepare_observations, weighted_rms, noise_scale
+        g1, g2, weight = prepare_observations(
+            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight, mask)
 
         # Restrict every shear-space statistic to the data-carrying nodes. On a
         # catalog mesh the non-galaxy (guard/boundary) nodes hold no shear but a
         # nonzero fitted shear, which would otherwise pollute the RMS estimates.
-        active = (slice(None) if self.data_weight is None
-                  else np.asarray(self.data_weight) > 0)
-        n_active = (g1.size if self.data_weight is None
-                    else int(np.count_nonzero(active)))
-        n2 = 2 * n_active
-
         def _rms2(a, b):
-            aa, bb = a[active], b[active]
-            return float(np.sqrt((np.dot(aa, aa) + np.dot(bb, bb)) / max(n2, 1)))
+            return weighted_rms(a, b, weight)
 
         # Fitted shear for each mode.
         e1, e2 = (np.asarray(a, dtype=np.float64) for a in self.ops.forward(kappa_E))
@@ -398,9 +395,7 @@ class MAPReconstructor:
         # in the 45-deg-rotated frame; rotate it back (rot^-1: (a,b)->(-b,a)) to
         # subtract it in the original frame. What remains is incoherent noise.
         delta_noise = _rms2(g1 - e1 - (-b2), g2 - e2 - b1)
-        from .regularization import estimate_noise_level
-        delta_mad = estimate_noise_level(
-            np.concatenate([g1[active], g2[active]]), method='mad')
+        delta_mad = noise_scale(g1, g2, weight)
 
         bmode_snr = bmode_shear_rms / (delta_noise + 1e-30)
         if bmode_snr < clean_snr:
@@ -448,20 +443,16 @@ class MAPReconstructor:
             rec.noise_std = delta
             kappa, res = rec.reconstruct(g1, g2)   # Morozov now targets delta
         """
-        from .regularization import estimate_noise_level
+        from .observations import prepare_observations, noise_scale
+        g1, g2, weight = prepare_observations(
+            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight, mask)
         saved_noise = self.noise_std
         saved_iter  = self.maxiter
         if maxiter is not None:
             self.maxiter = maxiter
 
         # active-node MAD -> a sensible lambda for the E/B fits
-        w = self.data_weight
-        if w is None:
-            g_active = np.concatenate([np.asarray(gamma1_obs), np.asarray(gamma2_obs)])
-        else:
-            a = np.asarray(w) > 0
-            g_active = np.concatenate([np.asarray(gamma1_obs)[a], np.asarray(gamma2_obs)[a]])
-        self.noise_std = estimate_noise_level(g_active, method='mad')
+        self.noise_std = noise_scale(g1, g2, weight)
         try:
             diag, _, _ = self.bmode_diagnostics(
                 gamma1_obs, gamma2_obs, mask=mask, verbose=verbose)

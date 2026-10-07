@@ -1,5 +1,10 @@
 # FEMMI
 
+The [observation model and numerical checks](observation-model.md) define the
+current estimator contract. Historical numerical comparisons require
+recalibration after the correctness fixes; they are not current release claims.
+
+
 **Finite Element Mass Map Inversion** — a P3 finite-element / boundary-element
 pipeline for reconstructing the projected mass (convergence, $\kappa$) of a lens
 from weak-lensing shear, with a differentiable forward operator that powers both
@@ -10,7 +15,7 @@ MAP reconstruction and full posterior uncertainty quantification.
 - **Catalog-native.** FEM nodes are placed at galaxy positions, so the data term
   is evaluated exactly where you have measurements — no gridding/binning of the
   shear before inversion.
-- **Symmetric FEM–BEM coupling.** The exterior mass-sheet mode is handled with a
+- **FEM–BEM coupling.** The exterior logarithmic normalization uses a
   Steinbach Steklov–Poincaré coupling; the forward runs in float64 where it needs
   the precision to converge.
 - **A menu of priors.** Wiener (default), total-variation, sparsity, maximum

@@ -27,6 +27,7 @@ kappa_g = np.exp(-(x**2 + y**2) / (2 * SIGMA**2))
 kappa_0 = np.zeros(ops.n_nodes)
 
 results = []
+checked_results = []
 
 def record(name, ok, detail=""):
     tag = "PASS" if ok else "FAIL"
@@ -34,6 +35,7 @@ def record(name, ok, detail=""):
     if detail:
         print(f"       {detail}")
     results.append((name, ok))
+    checked_results.append((name, ok, detail))
 
 
 # BEM matrices
@@ -66,6 +68,11 @@ _C_norm      = np.linalg.norm(C)
 record("C @ 1 small relative to ||C||", _C_ones_norm < 0.5 * _C_norm,
        f"||C@1||={_C_ones_norm:.2e}  ||C||={_C_norm:.2e}")
 
+from scipy.spatial.distance import pdist
+w_b = M_b @ ones_b
+sigma = float(pdist(bnd.nodes).max())
+V_eff = V_h - np.log(sigma)/(2*np.pi) * np.outer(w_b, w_b)
+C = -M_b @ np.linalg.solve(V_eff, 0.5*M_b - K_h)
 diff_C = np.linalg.norm(C - ops.C_dense) / (np.linalg.norm(C) + 1e-20)
 record("ops.C_dense matches recomputed C", diff_C < 1e-10, f"diff={diff_C:.2e}")
 
@@ -134,6 +141,11 @@ if xaxis_mask.sum() > 3:
     record("gamma1 < 0 along x-axis",
            float(np.mean(g1_g[xaxis_mask])) < 0,
            f"mean(gamma1 on x-axis)={np.mean(g1_g[xaxis_mask]):.4f}")
+
+
+def test_recorded_invariants():
+    failures = [f"{name}: {detail}" for name, ok, detail in checked_results if not ok]
+    assert not failures, "\n".join(failures)
 
 
 if __name__ == "__main__":

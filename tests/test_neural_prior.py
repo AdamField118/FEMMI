@@ -147,7 +147,7 @@ def test_early_stopping_restores_best(tmp_path):
 
 
 @pytest.mark.slow
-def test_neural_prior_scores_and_reconstructs(tmp_path):
+def test_neural_prior_scores_and_samples(tmp_path):
     from femmi.neural_prior.prior import NeuralScorePrior
     from femmi.forward import DifferentiableForward
     from femmi.inverse import MAPReconstructor
@@ -160,13 +160,20 @@ def test_neural_prior_scores_and_reconstructs(tmp_path):
     nodes = np.array(ops.mesh.nodes)
     kt, g1, g2 = analytic_gaussian_shear(nodes, sigma=0.5)
 
-    phi, grad = prior.value_grad(kt)
-    assert phi == 0.0 and np.all(np.isfinite(grad)) and grad.shape == (ops.n_nodes,)
-
+    score = prior.score(kt)
+    assert np.all(np.isfinite(score)) and score.shape == (ops.n_nodes,)
+    with pytest.raises(ValueError, match="consistent MAP energy"):
+        prior.value_grad(kt)
     fwd = DifferentiableForward(ops, lam_reg=1e-2)
-    rec = MAPReconstructor(fwd, maxiter=30, callback_every=0, prior=prior)
-    k, res = rec.reconstruct(g1, g2, verbose=False)
-    assert np.all(np.isfinite(k)) and res.n_iter > 0
+    with pytest.raises(ValueError, match="consistent prior value"):
+        MAPReconstructor(fwd, prior=prior)
+    from femmi.sampling import sample_posterior
+    result = sample_posterior(fwd, g1, g2, .1, prior=prior, lam=.1,
+                              method="langevin", n_steps=10, burnin=2, thin=2,
+                              step=1e-7, verbose=False)
+    assert np.all(np.isfinite(result.samples))
+    assert result.info["map_kind"] == "initialization"
+
 
 
 if __name__ == "__main__":

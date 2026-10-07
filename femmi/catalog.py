@@ -103,10 +103,17 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
 
     dw = np.zeros(n)
     if use_weights and weight is not None:
-        w = np.asarray(weight, np.float64)[si]
-        dw[gn] = w / (np.mean(w) + 1e-30)
+        from .observations import observation_weights
+        w = observation_weights(len(x), weight)[si]
+        active = w > 0
+        if not active.any():
+            raise ValueError("no positive-weight sources remain in the catalogue mesh")
+        dw[gn] = w / np.mean(w[active])
     else:
         dw[gn] = 1.0
+
+    from .observations import prepare_observations, noise_scale
+    g1n, g2n, dw = prepare_observations(g1n, g2n, n, dw)
 
     if wiener_length is None:
         wiener_length = 0.2 * cm.radius
@@ -133,8 +140,7 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
             if verbose:
                 print(f"  delta_noise = {noise_std:.4e}")
         else:
-            noise_std = estimate_noise_level(
-                np.concatenate([g1n[gn], g2n[gn]]), method='mad')
+            noise_std = noise_scale(g1n, g2n, dw)
 
     rec.noise_std = noise_std if use_morozov else None
     kappa, result = rec.reconstruct(g1n, g2n, verbose=verbose)

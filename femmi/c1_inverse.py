@@ -5,8 +5,8 @@ MAP reconstruction on the C^1 spaces -- the inverse half of the Argyris path.
 `c1_coupling` gives the forward map kappa -> psi with the exact exterior
 condition. This closes the loop: shear observations -> kappa, by minimising
 
-    L(kappa) = || W (S psi - gamma_obs) ||^2  +  lam * kappa^T R kappa,
-    psi      = A^{-1} (-2 M kappa),
+    L(kappa) = (S psi - gamma_obs)^T W (S psi - gamma_obs)  +  lam * kappa^T R kappa,
+    psi      = A^{-1} Q (-2 M kappa),
 
 with A the coupled FEM-BEM operator, M the C^1 mass matrix, and S the shear
 observation operator.
@@ -26,7 +26,7 @@ operator that took a page of assembly on P3 is three lines here.
 
 The gradient follows the same adjoint structure as the P3 path,
 
-    dL/dkappa = -4 M^T A^{-T} ( S1^T W r1 + S2^T W r2 ) + 2 lam R kappa,
+    dL/dkappa = -4 M^T Q A^{-T} ( S1^T W r1 + S2^T W r2 ) + 2 lam R kappa,
 
 and A^{-T} is available from the same LU factorisation (the coupled operator is
 NOT symmetric -- the BEM double layer is not -- so the transpose solve is
@@ -68,51 +68,39 @@ def shear_selection_operators(space):
 
 
 def shear_evaluation_operators(space):
-    """(S1, S2) for a C^1 space whose vertices do NOT carry the Hessian (HCT).
+    """Area-weighted vertex Hessian traces for HCT.
 
-    THE POINT OF THE COMPARISON. Argyris gets its shear for free -- the Hessian
-    is literally three of its DOFs, so S is a selection with one or two entries
-    per row and no quadrature. HCT is C^1 too, so its Hessian is still CONTINUOUS
-    at a vertex and can be evaluated unambiguously from any element meeting
-    there; it just is not a degree of freedom, so the operator has to be built.
-
-    That difference is the whole reason HCT is worth testing: it costs 12 DOF per
-    element against Argyris's 21 and inverts a 12x12 Vandermonde instead of a
-    21x21, which is the direct answer to the sliver-conditioning caveat. If the
-    accuracy survives at ~half the DOFs, HCT is the cheaper claim to defend.
-
-    Unlike the P3 case there is no averaging over adjacent elements and no
-    boundary special case: C^1 continuity means every element meeting a vertex
-    gives the SAME Hessian there, so picking one is exact rather than a choice.
+    C1 continuity does not fix a Hessian at a vertex. Average both incident
+    subtriangle traces in every incident macro triangle; this explicit recovery
+    convention is independent of triangle ordering. Argyris uses its shared
+    Hessian DOFs instead.
     """
     nv = space.n_vertices
-    verts = space.vertices
-    owner = {}
+    rows, cols, vals1, vals2 = [], [], [], []
+    total = np.zeros(nv)
     for t, tri in enumerate(space.triangles):
-        for v in tri:
-            owner.setdefault(int(v), t)          # any element will do -- C^1
-    r1 = []; c1 = []; v1 = []
-    r2 = []; c2 = []; v2 = []
-    for v in range(nv):
-        t = owner.get(v)
-        if t is None:                            # isolated vertex, no element
-            continue
         el = space.element(t)
-        p = verts[v][None, :]
-        bxx = el.basis(p, 2, 0)[0]
-        bxy = el.basis(p, 1, 1)[0]
-        byy = el.basis(p, 0, 2)[0]
+        v = el.verts
+        area = abs(np.linalg.det(np.array([v[1]-v[0], v[2]-v[0]]))) / 2.0
         idx = space.local_dofs(t)
-        g1 = 0.5 * (bxx - byy)
-        nz = np.abs(g1) > 1e-14
-        r1.extend([v] * int(nz.sum())); c1.extend(idx[nz].tolist())
-        v1.extend(g1[nz].tolist())
-        nz = np.abs(bxy) > 1e-14
-        r2.extend([v] * int(nz.sum())); c2.extend(idx[nz].tolist())
-        v2.extend(bxy[nz].tolist())
+        for lv, vertex in enumerate(tri):
+            point = v[lv:lv+1]
+            for sub in range(3):
+                if lv == sub:  # T_sub has the OTHER two vertices
+                    continue
+                xx = el.basis_on_subtriangle(point, sub, 2, 0)[0]
+                yy = el.basis_on_subtriangle(point, sub, 0, 2)[0]
+                xy = el.basis_on_subtriangle(point, sub, 1, 1)[0]
+                weight = area / 3.0
+                rows.extend([vertex] * len(idx)); cols.extend(idx)
+                vals1.extend(weight * 0.5 * (xx-yy)); vals2.extend(weight * xy)
+                total[vertex] += weight
+    if np.any(total == 0):
+        raise ValueError("shear evaluation requires every vertex to belong to a triangle")
+    scale = sp.diags(1.0 / total)
     shape = (nv, space.n_dofs)
-    return (sp.coo_matrix((v1, (r1, c1)), shape=shape).tocsr(),
-            sp.coo_matrix((v2, (r2, c2)), shape=shape).tocsr())
+    return tuple((scale @ sp.coo_matrix((values, (rows, cols)), shape=shape)).tocsr()
+                 for values in (vals1, vals2))
 
 
 def shear_operators(space):
@@ -182,7 +170,9 @@ class C1Sparsity:
         self.eps = float(eps)
         nv = space.n_vert_dofs
         self.idx = np.arange(0, space.n_vertices * nv, nv)
-        self.w = np.asarray(ops.M @ np.ones(space.n_dofs)).ravel()[self.idx]
+        constant = np.zeros(space.n_dofs)
+        constant[self.idx] = 1.0
+        self.w = np.asarray(ops.M @ constant).ravel()[self.idx]
         self.w = np.abs(self.w)
         self.n = space.n_dofs
 
@@ -219,14 +209,17 @@ class C1MAPReconstructor:
         self.S1, self.S2 = shear_operators(space)
         self.lam = float(lam)
         self.maxiter = int(maxiter)
-        self.w = (np.ones(space.n_vertices) if data_weight is None
-                  else np.asarray(data_weight, float))
+        from .observations import observation_weights
+        self.w = observation_weights(space.n_vertices, data_weight)
         # Wiener/Matern-style regulariser on the C^1 DOF vector, matching the
         # P3 path's R = M + l^2 K. A non-Gaussian prior (string or object)
         # replaces it; see make_c1_prior.
-        self.R = (self.ops.M + (wiener_length ** 2) * self.ops.K).tocsr()
+        self.R = ((self.ops.M + (wiener_length ** 2) * self.ops.K).tocsr()
+                  if wiener_length > 0 else self.ops.K)
         self.prior = (make_c1_prior(prior, space, self.ops, **(prior_kw or {}))
                       if isinstance(prior, str) else prior)
+        if self.prior is not None and not getattr(self.prior, "has_energy", True):
+            raise ValueError("MAP requires a consistent prior value and gradient")
 
     # -- forward / adjoint ------------------------------------------------- #
     def psi_of(self, kappa):
@@ -237,10 +230,13 @@ class C1MAPReconstructor:
         return self.S1 @ psi, self.S2 @ psi
 
     def _obj_grad(self, kappa, g1_obs, g2_obs):
+        from .observations import prepare_observations
+        g1_obs, g2_obs, weight = prepare_observations(
+            g1_obs, g2_obs, self.space.n_vertices, self.w)
         psi = self.psi_of(kappa)
         r1 = self.S1 @ psi - g1_obs
         r2 = self.S2 @ psi - g2_obs
-        wr1, wr2 = self.w * r1, self.w * r2
+        wr1, wr2 = weight * r1, weight * r2
         data = float(np.dot(wr1, r1) + np.dot(wr2, r2))
 
         # psi = A^{-1}(P b) with P the gauge projector (zeroes component g of the

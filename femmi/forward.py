@@ -89,7 +89,7 @@ class DifferentiableForward:
 
     def rhs_from_kappa(self, kappa):
         rhs = -2.0 * self._M_mv(kappa)
-        idx = int(self.ops.bnd_mesh.node_indices[0])
+        idx = self.ops._rhs_zero_nodes()
         return rhs.at[idx].set(0.0)
 
     def psi_from_kappa(self, kappa):
@@ -153,6 +153,9 @@ class DifferentiableForward:
         return {'max_rel_error': max_rel, 'passed': passed, 'rel_errors': rel_errors}
 
     def hvp(self, kappa, v, g1_obs, g2_obs):
-        """Hessian-vector product H*v without forming H."""
-        f = lambda k: self.loss_fn(k, g1_obs, g2_obs)
-        return jax.jvp(jax.grad(f), (kappa,), (v,))[1]
+        """Quadratic loss Hessian action; avoids JVP through pure callbacks."""
+        ops = self.ops
+        vector = np.asarray(v, dtype=np.float64)
+        g1, g2 = ops.forward(vector)
+        return jnp.asarray(2.0 * ops.adjoint_rhs(g1, g2)
+                           + 2.0 * self.lam_reg * (build_laplacian(ops) @ vector))

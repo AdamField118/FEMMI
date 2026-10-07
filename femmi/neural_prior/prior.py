@@ -9,8 +9,7 @@ regular grid (where convolutions make sense). This class is the bridge:
 
 and returns grad_phi = -s(nodes), so it plugs straight into MAPReconstructor and
 the Langevin/HMC sampler exactly like any other Prior. It exposes the score, so
-it is most natural with the score-based sampler (femmi.sampling), but also works
-for MAP.
+it is most natural with the score-based sampler (femmi.sampling), and is not accepted by energy-based MAP without a consistent energy.
 
 'One flag away': constructing it with no checkpoint trains a small default model
 on synthetic non-Gaussian maps (train.get_or_train) and caches it -- no external
@@ -182,7 +181,7 @@ class NeuralScorePrior(Prior):
         return self.taper * (self.gather @ s_grid.reshape(-1).astype(np.float64))
 
     def value_grad(self, kappa):
-        # grad of phi = -log p is -score; phi itself has no closed form -> 0.0 proxy
-        # (valid for the score-based sampler and for gradient descent; the reported
-        # MAP loss then omits the prior term, as documented for ScorePrior).
-        return 0.0, -np.asarray(self.score(kappa), dtype=np.float64)
+        raise ValueError("NeuralScorePrior supplies a score, not a consistent MAP energy; "
+                         "use score-based sampling")
+
+    has_energy = False

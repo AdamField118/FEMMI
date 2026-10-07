@@ -1,5 +1,11 @@
 # Priors & sampling
 
+See [the observation model](observation-model.md) for mask/weight conventions,
+MAP-to-sampling normalization, score-only restrictions, and sampler limitations.
+Only Gaussian RTO has the exact Gaussian interpretation (up to numerical solve
+error); finite-step Langevin and annealed score HMC remain approximate.
+
+
 ## The prior menu
 
 Set `prior.kind` in the config (or `prior=...` in the API). Every prior exposes
@@ -49,8 +55,9 @@ With `lam` unset, FEMMI calibrates it automatically:
   $\lambda_{\text{MAP}}$, then converts to the sampler's noise-normalised
   convention, $\lambda = \lambda_{\text{MAP}} / (2\sigma_n^2)$. The RTO posterior
   then reproduces the MAP reconstruction.
-- **Neural / score prior** — the network already encodes a properly normalised
-  log-prior, so the Bayesian coefficient is $1.0$.
+- **Other priors** — default to coefficient 1.0. This is a convention, not a
+  measured calibration of neural, TV, sparse or entropy priors. Tune and validate
+  those strengths independently for the intended data.
 
 You can still pass an explicit `lam` to override.
 

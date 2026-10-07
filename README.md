@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and inverse-scattering support recovery.
+Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and catalogue reconstruction.
 
 New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass map from a shear catalog in about a dozen lines.
 
@@ -14,24 +14,33 @@ New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass
 
 FEMMI reconstructs the projected mass density $\kappa(\boldsymbol{\theta})$ of a gravitational lens from observed weak-lensing shear $(\gamma_1, \gamma_2)$. The lensing potential $\psi$ satisfies
 
-$$\nabla^2\psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi(\boldsymbol{\theta}) \to 0 \text{ as } |\boldsymbol{\theta}| \to \infty,$$
+$$\nabla^2\psi = 2\kappa \quad \text{in } \mathbb{R}^2,$$
 
 with shear components
 
 $$\gamma_1 = \tfrac{1}{2}\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \partial\theta_2}.$$
 
-The central methodological claim is that the standard practice of truncating this problem to a finite domain with Dirichlet boundary conditions ($\psi = 0$ on $\partial\Omega$) encodes the wrong continuous operator: the true $\psi$ decays only logarithmically and is nonzero at any finite boundary. The resulting systematic error propagates throughout the interior by the maximum principle. FEMMI replaces this with an exact exterior representation via boundary elements, enforcing the correct far-field condition without approximation.
+FEMMI couples a finite-element interior to a boundary-element representation
+of a harmonic exterior. This specifies an isolated-source boundary model;
+unobserved exterior mass remains a modeling limitation. For nonzero total mass,
+the two-dimensional potential grows logarithmically at infinity. Boundary
+normalization and a potential gauge do not establish inverse uniqueness.
+
+The current implementation has corrected adjoints, missing-data handling,
+weighted posterior perturbations, and HCT observations/quadrature. Numerical
+benchmark values and figures below predate those corrections and require
+recalibration and regeneration before use in a publication.
 
 | Feature | Kaiser-Squires (1993) | FEMMI |
 |---|---|---|
-| Far-field boundary condition | Periodic / Dirichlet (wrong) | Exact exterior via BEM |
+| Far-field boundary condition | Fourier-grid boundary assumptions | Harmonic exterior represented by BEM |
 | Regularisation parameter | Manual smoothing kernel | Morozov discrepancy principle |
-| DC / mass-sheet mode | In $F$'s null space (exactly) | Observable ($\|F\mathbf{1}\|>0$) — but see the scope note below |
+| DC / mass-sheet mode | In $F$'s null space (exactly) | Response depends on discretization and exterior assumptions |
 | Inverse method | Direct FFT | MAP + L-BFGS, Matérn prior |
 | Masked / missing data | Unreliable near mask | Inpainting via prior covariance |
 | E/B-mode null test | 45-deg rotation | 45-deg rotation (same solver) |
 | Source positions | Binned grid | Catalog-native (raw galaxy positions) |
-| Element order | N/A | P3 cubic (required for $\nabla^2\psi$) |
+| Element order | N/A | P3 cubic; C¹ Argyris and HCT paths also available |
 
 ---
 
@@ -39,23 +48,28 @@ The central methodological claim is that the standard practice of truncating thi
 
 Full derivations are in [`MATH.md`](MATH.md). The key ideas:
 
-**FEM-BEM coupling.** A P3 FEM interior solves $\nabla^2\psi = 2\kappa$ in $\Omega$ while a boundary element method encodes $\nabla^2\psi = 0$ in the exterior and $\psi \to 0$ at infinity. The coupled stiffness matrix is assembled via Schur complement reduction:
+**FEM-BEM coupling.** A P3 FEM interior solves $\nabla^2\psi = 2\kappa$ in $\Omega$ while a boundary element method encodes $\nabla^2\psi = 0$ in the exterior under the chosen far-field normalization. The coupled stiffness matrix is assembled via Schur complement reduction:
 
 $$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = -M_b\, V_\sigma^{-1}\left(\tfrac{1}{2}M_b - K_h\right),$$
 
-where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, $P$ the DOF restriction to $\partial\Omega$, and $V_\sigma = V_h - \tfrac{\ln\sigma}{2\pi} \mathbf{w}\mathbf{w}^\top$ ($\mathbf{w}=M_b\mathbf{1}$, $\sigma=\mathrm{diam}(\partial\Omega)$) the $\sigma$-scaled single layer. This is the **symmetric Steinbach coupling**: the Galerkin $M_b$ pairing makes it scale-free and the rank-one $\sigma$-scaling repairs the 2D $n=0$ log-capacity mode, giving a scale- and translation-invariant far-field condition that beats a Dirichlet truncation near the mass (see [`MATH.md`](MATH.md) §6.5). The coupling $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
+where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, $P$ the DOF restriction to $\partial\Omega$, and $V_\sigma = V_h - \tfrac{\ln\sigma}{2\pi} \mathbf{w}\mathbf{w}^\top$ ($\mathbf{w}=M_b\mathbf{1}$, $\sigma=\mathrm{diam}(\partial\Omega)$) the $\sigma$-scaled single layer. This is the implemented **scaled FEM–BEM coupling**: the Galerkin $M_b$ pairing makes it scale-free and the rank-one $\sigma$-scaling repairs the 2D $n=0$ log-capacity mode, giving a scale- and translation-invariant far-field condition that beats a Dirichlet truncation near the mass (see [`MATH.md`](MATH.md) §6.5). The coupling $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
 
-**Why P3 elements.** Shear is the Hessian of $\psi$: $\gamma_1 = \frac{1}{2}(\partial^2\psi/\partial x^2 - \partial^2\psi/\partial y^2)$, $\gamma_2 = \partial^2\psi/\partial x\partial y$. P1 elements give identically zero second derivatives; P2 gives piecewise-constant second derivatives with no convergence. P3 gives piecewise-linear second derivatives and $O(h^2)$ shear convergence. The 10-node P3 Lagrange element used here achieves $O(h^4)$ in $L^2$ for the Poisson solve.
+**Element choice.** Shear uses second derivatives of the potential. P3 uses
+averaged element Hessians; Argyris has shared Hessian vertex DOFs. HCT is C¹ but
+does not have a unique vertex Hessian: its observation operator explicitly
+averages incident subtriangle traces. HCT integrals are evaluated separately on
+those polynomial subtriangles. Approximation rates and reconstruction errors
+must be measured for the full solve and observation operator.
 
 **MAP reconstruction.** The estimate minimises
 
 $$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\,\phi(\kappa), \qquad \phi_{\mathrm{Wiener}}(\kappa) = \kappa^\top R\kappa, \quad R = M + \ell^2 K \text{ (Matérn-}\tfrac{1}{2}\text{ prior, default)}.$$
 
-**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov $\lambda$-selection applies to the quadratic Wiener prior; the others take a fixed $\lambda$. `examples/prior_comparison.py` and `examples/diagnostics/prior_bakeoff.py` (λ-tuned) compare them.
+**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov selection can also be evaluated for custom penalties, but its target and optimizer convergence must be checked. `examples/prior_comparison.py` and `examples/diagnostics/prior_bakeoff.py` (λ-tuned) compare them.
 
-**Learned neural prior** (`femmi/neural_prior/`, one flag away). `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the *same* learned score drives posterior sampling.
+**Learned neural prior** (`femmi/neural_prior/`, one flag away). For experimental score sampling (`inverse.method: sample`), `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the learned score drives approximate sampling. It supplies no consistent MAP energy and is rejected by L-BFGS MAP.
 
-**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and the paper's **annealed HMC** (tempered, noise-conditional score + score-integral Metropolis) for non-Gaussian/neural priors, with single-temperature Langevin as a fallback. The prior weight is **auto-calibrated** by default (`inverse.lam: null`): the Wiener posterior reuses the MAP's Morozov selection (converted to the sampler's noise-normalised convention, `lam = lam_MAP / 2σ_n²`), and the neural score prior gets the proper Bayesian coefficient 1.0 — leaving `lam` uncalibrated makes the data term (weight `1/σ_n²`) swamp the prior and the posterior collapses to noise. `examples/uncertainty_demo.py`; `examples/paper_artifacts.py` reproduces the Remy et al. figure structure (truth · mask · KS · posterior mean · uncertainty · samples) on masked, noisy data.
+**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and experimental **annealed HMC** (tempered, noise-conditional score + score-integral Metropolis) for non-Gaussian/neural priors, with single-temperature Langevin as a fallback. The prior weight is **auto-calibrated** by default (`inverse.lam: null`): the Wiener posterior reuses the MAP's Morozov selection (converted to the sampler's noise-normalised convention, `lam = lam_MAP / 2σ_n²`), while other priors default to coefficient 1.0, which still needs calibration — leaving `lam` uncalibrated makes the data term (weight `1/σ_n²`) swamp the prior and the posterior collapses to noise. `examples/uncertainty_demo.py`; `examples/paper_artifacts.py` reproduces the Remy et al. figure structure (truth · mask · KS · posterior mean · uncertainty · samples) on masked, noisy data.
 
 $\lambda$ is selected automatically by Brent's method on the discrepancy functional 
 
@@ -63,15 +77,21 @@ $$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\de
 
 (Morozov 1966; C&L Thm 10.4), using 15-25 MAP solves. The gradient is computed via the adjoint: 
 
-$$\partial\mathcal{L} / \partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
+$$\partial\mathcal{L} / \partial\kappa = -4M^T Q A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
 
-**Injectivity and the mass-sheet degeneracy — with its scope.** The BEM far-field normalization removes the $\kappa \to \kappa + c$ mode from the null space of $F$, where every FFT-based method has it identically ($\|F_{\rm KS}\mathbf{1}\| = 0$ exactly, because the $1/k^2$ kernel is singular at $k=0$ and is zeroed there). A single-node gauge condition removes the remaining scalar null space (the additive constant in $\psi$).
+**Observation model and limitations.** The estimator fits linear shear, with
+one common source-efficiency normalization implicit in the input convergence
+and shear. It does not currently fit reduced shear or individual source
+redshifts. Using galaxy shape estimates as shear therefore requires the weak
+approximation and calibrated inputs. Masks exclude observations; they do not
+measure zero shear. Weights are relative inverse variances, with component
+variance `noise_std**2 / weight` on active positions. See
+[the observation model](docs/observation-model.md) for the precise conventions.
 
-That is an operator-level statement and it is the correct one to make. It does **not** mean the absolute normalisation is recovered in practice, and measurement says it is not: ~99.9% of $\|F\mathbf{1}\|^2$ sits in the corners of the square domain and *grows* under refinement rather than converging, and on ground truth that FEMMI did not itself generate its mean-$\kappa$ error is $0.047$ against Kaiser–Squires' $0.049$. The much larger gap sometimes quoted comes from generating the test shear with FEMMI's own forward — an inverse crime. See `MATH.md` §6.3a and `examples/paper/independent_truth.py`.
-
-What *does* survive on neutral truth is the boundary claim: FEMMI's exact far-field condition gives ~1.7× lower error than KS near the domain edge, with the margin growing outward.
-
-**Inverse scattering connection.** The forward operator $F: L^2(\Omega) \to L^2(\Omega)^2$ is compact, placing the lensing problem in the same mathematical framework as the Born approximation in acoustic inverse scattering (C&K Ch. 8, 10). FEMMI implements the Kirsch factorization method and linear sampling method for parameter-free support recovery from the truncated SVD of $F$.
+A fixed potential solve does not guarantee a unique mass map. The existing
+nodal SVD uses Euclidean coefficient norms. The legacy factorization and linear
+sampling indicators depend only on operator geometry, not on observed shear;
+they are not validated mass-support estimators.
 
 ---
 
@@ -133,7 +153,7 @@ tests/
 ├── test_fem_bem_coupling.py    # BEM matrices (V_h, K_h, M_b, Calderon)
 ├── test_coupled_pipeline.py    # FEM-BEM pipeline invariants
 ├── test_morozov.py             # Morozov lambda selection, monotonicity
-├── test_factorization.py       # SVD, Picard, support recovery
+├── test_factorization.py       # SVD and geometry diagnostics
 ├── test_convergence_p3.py      # O(h^4) L2 Poisson convergence
 ├── test_convergence.py         # Forward operator gamma convergence
 ├── test_eb_modes.py            # E/B decomposition, rotation identity, null test
@@ -303,7 +323,7 @@ print(diag.summary())            # flag, coherent B/E, B-mode SNR, delta cross-c
 ```
 
 ```python
-# SVD and support recovery (Kirsch factorization method)
+# Discrete nodal SVD and a legacy geometry diagnostic (not mass support)
 from femmi.svd_analysis import compute_svd, FactorizationIndicator
 
 svd = compute_svd(ops, n_singular=40)
@@ -312,7 +332,7 @@ fi  = FactorizationIndicator(ops, svd_result=svd)
 import numpy as np
 XX, YY    = np.meshgrid(np.linspace(-2.5, 2.5, 64), np.linspace(-2.5, 2.5, 64))
 test_pts  = np.column_stack([XX.ravel(), YY.ravel()])
-W         = fi.indicator_map(test_pts).reshape(64, 64)  # large inside supp(kappa)
+W         = fi.indicator_map(test_pts).reshape(64, 64)  # data-independent geometry score
 ```
 
 ---
@@ -321,9 +341,11 @@ W         = fi.indicator_map(test_pts).reshape(64, 64)  # large inside supp(kapp
 
 **Forward solve** (two SuperLU solves per MAP iteration):
 
-$$\mathbf{f} = -2M\kappa, \qquad A_{\mathrm{coupled}}\psi = \mathbf{f}, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
+$$\mathbf{f} = -2QM\kappa, \qquad A_{\mathrm{coupled}}\psi = \mathbf{f}, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
 
-**Adjoint gradient** (for L-BFGS):
+Here $Q$ zeroes gauge/Dirichlet load entries.
+
+**Adjoint gradient** (unit weights, quadratic prior):
 
 $$\mathbf{r} = (\gamma_1 - \gamma_{1,\mathrm{obs}}, \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
 

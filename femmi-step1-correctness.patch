@@ -1,0 +1,2581 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AdamField118 <adfield@wpi.edu>
+Date: Wed, 07 Oct 2026 05:58:57 -0000
+Subject: [PATCH] Correct FEMMI observations, adjoints and posterior consistency
+
+Base: 9762fd457d40fae88129805a0917b72c40b6cb16
+
+Correct the P3 projected transpose and JAX Dirichlet RHS/Hessian action;
+use consistent masks and relative-precision weights through MAP, Morozov,
+B-mode diagnostics, catalogue reconstruction and posterior sampling.
+Repair weighted RTO perturbations and report failed posterior solves.
+Use the supplied energy prior in HMC; reject score-only L-BFGS objectives
+while retaining explicitly approximate score sampling.
+
+Define order-independent HCT vertex recovery and integrate HCT mass,
+stiffness and loads over its polynomial subtriangles. Align C1 prior
+conventions and fix constant-field coefficients in its sparsity weights.
+Make legacy diagnostic failures visible to pytest. Check both SVD equations
+and correct unsupported support-recovery, compactness, far-field and gauge
+claims. Preserve historical benchmark values as explicitly stale pending
+recalibration, rather than inventing replacement measurements.
+
+Validation (CPU, OPENBLAS_NUM_THREADS=1, OMP_NUM_THREADS=1):
+- Untouched base: FEMMI_REQUIRE_OPTIONAL=1 python -m pytest -q
+  239 passed, 2 warnings, 538.34 s.
+- Corrected full suite: FEMMI_REQUIRE_OPTIONAL=1 python -m pytest -q FEMMI/tests
+  262 passed, 2 warnings in 531.86s (0:08:51).
+- Eight additional sampler checks added after full-suite collection: all pass.
+- Final C1 assembly/HCT checks: 9 pass.
+- compileall and git diff --check pass.
+- No numerical quality thresholds relaxed to accommodate changed results.
+
+Environment: Python 3.12; NumPy 2.3.5; SciPy 1.17.0; JAX/JAXlib 0.11.2;
+pytest 9.1.1; Flax 0.12.10; Optax 0.2.8; GalSim 2.8.5; Astropy 8.0.1.
+All required optional dependencies were present; no optional skips allowed.
+
+Compatibility: score-only neural priors now require sampling; energy-based
+MAP must receive a consistent scalar penalty and gradient. Score samplers
+remain experimental and mark a zero initial field instead of claiming it is
+a posterior MAP. Non-binary weighted uncertainty and HCT results change.
+The estimator remains linear-shear with a specified exterior model; this
+patch does not establish continuum uniqueness or real-data validity.
+
+Step 2 (Numba acceleration), recalibration and publication benchmarks are
+intentionally separate. No unpublished draft text or results are included.
+
+---
+diff --git a/MATH.md b/MATH.md
+index 55e41e7..0396da0 100644
+--- a/MATH.md
++++ b/MATH.md
+@@ -33,6 +33,11 @@ each formula.
+ 18. [Convergence Theory](#18-convergence-theory)
+ 
+ 
++> **Validation status:** the benchmark numbers below predate the corrected P3
++> transpose, missing-data handling, weighted sampler, and HCT observation and
++> quadrature rules. They are historical measurements, not validated results for
++> the current implementation. Recalibrate all arms before regenerating them.
++
+ ## 1. Weak Lensing Forward Physics
+ 
+ ### 1.1 The lensing potential
+@@ -45,7 +50,7 @@ $$\kappa(\boldsymbol{\theta}) = \frac{\Sigma(\boldsymbol{\theta})}{\Sigma_{\rm c
+ where $\Sigma_{\rm cr}$ is the critical surface density. The lensing potential $\psi$ satisfies
+ the **2D Poisson equation on all of $\mathbb{R}^2$**:
+ 
+-$$\nabla^2 \psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi \to 0 \text{ as } |\boldsymbol{\theta}| \to \infty$$
++$$\nabla^2 \psi = 2\kappa \quad \text{in } \mathbb{R}^2$$
+ 
+ ### 1.2 Shear from second derivatives of $\psi$
+ 
+@@ -53,11 +58,10 @@ The complex shear $\gamma = \gamma_1 + i\gamma_2$ is related to $\psi$ by:
+ 
+ $$\gamma_1 = \frac{1}{2}\left(\frac{\partial^2\psi}{\partial x^2} - \frac{\partial^2\psi}{\partial y^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial x \partial y}$$
+ 
+-This is the **fundamental reason P3 elements are necessary**: computing $\gamma$
+-requires second derivatives of $\psi$. P1 (linear) elements have identically zero
+-second derivatives. P2 (quadratic) elements have piecewise-constant second
+-derivatives, giving no convergence with refinement. P3 (cubic) elements have
+-piecewise-linear second derivatives, giving $O(h^2)$ convergence for $\gamma$.
++Shear requires second derivatives. P1 has zero elementwise Hessians;
++P2 has piecewise-constant Hessians, which can approximate a varying field under
++refinement. P3 offers higher approximation order, but nodal Hessian recovery
++and boundary treatment must be tested separately from potential convergence.
+ 
+ ### 1.3 The Green's Function and Exact Solution
+ 
+@@ -65,10 +69,17 @@ The 2D Laplacian fundamental solution satisfying $\nabla^2_y G(x,y) = \delta(x-y
+ 
+ $$G(\mathbf{x}, \mathbf{y}) = \frac{1}{2\pi} \ln|\mathbf{x} - \mathbf{y}|$$
+ 
+-The exact solution on $\mathbb{R}^2$ satisfying $\psi \to 0$ at infinity is the volume potential:
++A full-plane solution, up to an additive constant, is the volume potential:
+ 
+ $$\psi(\mathbf{x}) = \frac{1}{\pi}\int_{\mathbb{R}^2} \ln|\mathbf{x} - \mathbf{y}|\kappa(\mathbf{y})d^2y$$
+ 
++For compact support and $m=\int\kappa\,d^2y$, its asymptotic behavior is
++$\psi(x)=(m/\pi)\log|x|+O(|x|^{-1})$ in this normalization.
++A nonzero total mass is therefore incompatible with $\psi\to0$.
++Exterior harmonicity assumes no exterior convergence; it does not model arbitrary
++unobserved exterior mass. The implemented scaled BEM and node pin define a
++specific discrete boundary model whose consistency is tested numerically.
++
+ The properties of such fundamental solutions are developed in **[C\&K \S2.1]**.
+ Under the **compact support assumption** ($\kappa = 0$ outside bounded $\Omega$), this is
+ equivalent to the FEM-BEM formulation derived in Sections 3--6.
+@@ -79,7 +90,7 @@ equivalent to the FEM-BEM formulation derived in Sections 3--6.
+ ### 2.1 The systematic error
+ 
+ A standard approach truncates to $\Omega = [-L, L]^2$ and imposes $\psi = 0$ on $\partial\Omega$. For
+-a Gaussian lens, the true $\psi$ decays only logarithmically and is nonzero at any
++a Gaussian lens, the true $\psi$ grows logarithmically at large radius and is nonzero at any
+ finite boundary. Forcing $\psi = 0$ introduces a systematic error $e = \psi_{\rm true} - \psi_{\rm FEM}$
+ satisfying:
+ 
+@@ -115,7 +126,7 @@ Decompose the plane into:
+ 
+ The governing equations in each region:
+ 
+-$$\nabla^2\psi = 2\kappa \quad \text{in } \Omega, \qquad \nabla^2\psi = 0 \quad \text{in } \Omega_{\rm ext}, \qquad \psi \to 0 \text{ as } |\mathbf{x}| \to \infty$$
++$$\nabla^2\psi = 2\kappa \quad \text{in } \Omega, \qquad \nabla^2\psi = 0 \quad \text{in } \Omega_{\rm ext}$$
+ 
+ ### 3.2 Transmission Conditions
+ 
+@@ -163,7 +174,7 @@ Assembled in `operators.py`, function `_assemble_operators_from_mesh`.
+ 
+ ### 5.1 Green's Representation Formula
+ 
+-In $\Omega_{\rm ext}$, $\psi$ is harmonic with $\psi \to 0$ at infinity. Applying Green's second
++In $\Omega_{\rm ext}$, $\psi$ is harmonic with the appropriate logarithmic far-field term. Applying Green's second
+ identity in $\Omega_{\rm ext}$ yields the **Somigliana identity** for $\mathbf{x} \in \Omega_{\rm ext}$:
+ 
+ $$\psi(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\mathbf{y})t(\mathbf{y})ds(\mathbf{y}) - \int_{\partial\Omega} \psi(\mathbf{y})\frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})ds(\mathbf{y})$$
+@@ -179,10 +190,10 @@ $$\text{Single layer: } (Vt)(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\m
+ 
+ $$\text{Double layer: } (K\psi)(\mathbf{x}) = \mathrm{P.V.}\int_{\partial\Omega} \frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})\psi(\mathbf{y})ds(\mathbf{y})$$
+ 
+-Key properties: $V$ is symmetric; on the unit square (logarithmic capacity
+-$\approx 0.59 < 1$) $V$ is negative-definite, but remains invertible. $K$ is compact
+-(**[C\&K Thm 3.4]**). Implemented in `bem.py` functions `assemble_single_layer`
+-and `assemble_double_layer`.
++The single layer is symmetric. Signs depend on the chosen fundamental solution
++and boundary orientation; the implemented exterior pairing is specified in
++Section 6. Compactness statements for smooth boundaries cannot be applied
++unqualified to polygonal boundaries. Implemented in `bem.py`.
+ 
+ ### 5.3 The Boundary Integral Equation
+ 
+@@ -195,9 +206,10 @@ Discretized with $N_b$ boundary nodes (P3 traces on boundary edges):
+ 
+ $$\left(\tfrac{1}{2}M_b + K_h\right)\psi_b = V_ht_b$$
+ 
+-where $M_b$ is the boundary Gram matrix assembled in `bem.py`,
+-`assemble_boundary_mass`. The solvability follows from the Fredholm alternative
+-applied to the compact perturbation, as in **[C\&K \S3.2, Thm 3.9]**.
++Here $M_b$ is the boundary Gram matrix. This plus-sign relation uses the
++interior trace convention; the implemented exterior relation uses the minus
++sign shown in Section 6. Do not substitute this equation into the exterior
++Schur complement without checking normals and jump conventions.
+ 
+ Diagonal blocks of $V_h$ require logarithmic-singular integrals; FEMMI uses
+ Gauss-Jacobi quadrature with weight $w(t) = -\ln(t)$ via `log_gauss_jacobi_points`
+@@ -237,50 +249,23 @@ $C = -M_b\,V_\sigma^{-1}(\tfrac{1}{2}M_b - K_h)$ is stored in
+ `K[bnd_idx, bnd_idx] += C_dense` produces $A_{\rm coupled}$ as a sparse CSR matrix.
+ The symmetric Steinbach coupling and its $\sigma$-scaling are derived in \S6.5.
+ 
+-By the Calderon identity, $({\tfrac{1}{2}M_b - K_h})\mathbf{1} \approx 0$, so
+-$C_{\rm dense}\mathbf{1} \approx 0$ and $A_{\rm coupled}$ retains
+-$\mathrm{span}\{\mathbf{1}\}$ as its null space. One scalar gauge condition is
+-therefore required.
++The discrete matrix need not retain an exact constant null vector under this
++scaled exterior normalization. Its nonsymmetry also means a symmetric bordered
++mean constraint cannot be assumed to be an equivalent gauge treatment.
+ 
+ ### 6.3 Gauge Choice: Single-Node Pin
+ 
+-The null space of $A_{\rm coupled}$ is exactly $\mathrm{span}\{\mathbf{1}\}$: adding any
+-constant to $\psi$ leaves all shear components unchanged (second derivatives
+-annihilate constants). This one-dimensional degeneracy is the discrete counterpart
+-of the **mass-sheet degeneracy** — the physical freedom to add a uniform
+-$\kappa_0$ to the convergence field.
+-
+-One might hope that the B-mode constraint $\gamma_B = 0$ could fix this
+-degeneracy. It cannot. For any $\psi$, the B-mode curl condition
+-$\partial_x\gamma_2 - \partial_y\gamma_1 = 0$ reduces to an identity via commutativity
+-of mixed partial derivatives. Adding a constant to $\psi$ changes neither
+-$\gamma_1$ nor $\gamma_2$, so the B-mode condition carries no information about
+-the additive constant.
+-
+-A mean gauge condition $\mathbf{1}^\top\boldsymbol{\psi} = 0$ via a bordered system 
+-
+-$$\begin{pmatrix}A & \mathbf{1}\\\mathbf{1}^\top & 0\end{pmatrix}$$ 
+-
+-is the mathematically cleanest fix, but fails in practice because $A_{\rm coupled}$ is
+-**not symmetric** ($K_h$ is asymmetric). The Fredholm consistency condition
+-requires the RHS to be orthogonal to the left null vector of $A_{\rm coupled}$,
+-which is not $\mathbf{1}$ when $A_{\rm coupled} \neq A_{\rm coupled}^\top$. The
+-Lagrange multiplier $\mu$ then modifies the PDE rather than purely fixing the
+-gauge, producing a 3.5% interior Poisson residual in tests.
+-
+-FEMMI instead uses a **single-node pin**: one boundary node $j^{\ast}$ has its
+-row replaced by an identity row, forcing $\psi_{j^{\ast}} = 0$. The factored system
+-is stored in `FEMOperators.A_coupled_lu`. To prevent the artificially pinned
+-value from contaminating shear at adjacent interior nodes (via the columns of
+-$S_1$, $S_2$), those columns are zeroed after assembly:
++The current implementation replaces one boundary row by an identity row and
++zeros the corresponding load, imposing $\psi_{j^*}=0$. This operation is part of
++the specified discrete model. Its transpose must include the load projection
++(Section 12). Potential offsets leave shear unchanged, but this freedom is
++not the convergence mass-sheet ambiguity: a sheet changes the potential
++quadratically, not by a constant. No inverse-uniqueness claim follows from
++pinning the potential.
+ 
+-```python
+-S1_lil[:, idx_gauge] = 0;  S2_lil[:, idx_gauge] = 0
+-```
+-
+-The gauge node is placed at angle $3\pi/4$ on $\partial\Omega$ (upper-left diagonal),
+-where $\gamma_1 = 0$ for any centred radially-symmetric lens, minimising the
+-visible artifact in shear plots.
++The original shear columns are retained. Boundary output rows are zeroed for
++P3 because nodal Hessian recovery is unreliable there; these rows should not
++be treated as measured shear. Catalogue guard nodes have zero likelihood weight.
+ 
+ ### 6.3a How far the mass-sheet claim actually goes
+ 
+@@ -322,26 +307,22 @@ and measurement says it does not.** Two findings scope the claim:
+    with FEMMI's *own* forward, which is an inverse crime: there the DC component
+    is exactly in the range of $F$ by construction.
+ 
+-The honest statement is therefore: **FEMMI removes the DC mode from the forward
+-operator's null space; it does not thereby break the mass-sheet degeneracy in
+-practice.** The multiplicative degeneracy $\kappa \to \lambda\kappa + (1-\lambda)$
+-is untouched by any pure shear inverter, FEMMI included.
+-
+-What *does* survive on neutral truth is the boundary claim: FEMMI's exact
+-far-field condition gives a smaller DC-removed error than KS at every radius, by
+-$\approx 1.7\times$ in the corner region and growing outward
+-(`examples/paper/independent_truth.py`).
++A nonzero response to a constant coefficient vector is a property of this
++finite-domain discretization and its exterior assumptions. It is not evidence
++that shear observations determine absolute convergence. For linear shear,
++adding a global convergence sheet leaves shear unchanged; for reduced shear,
++$(\kappa,\gamma)\mapsto(\lambda\kappa+1-\lambda,\lambda\gamma)$ leaves
++$g=\gamma/(1-\kappa)$ unchanged (single source plane). These are different
++observation models. Benchmark edge-error measurements above must also be rerun
++after operator corrections.
+ 
+-### 6.4 Guarantees
++### 6.4 Scope of the solve
+ 
+-Solving the gauged system gives $\psi$ satisfying:
+-1. $\nabla^2\psi = 2\kappa$ in $\Omega$ (interior residual $< 10^{-13}$ of RHS)
+-2. $\nabla^2\psi = 0$ in $\Omega_{\rm ext}$ (encoded in the BEM Green's representation)
+-3. $\psi \to 0$ as $|\mathbf{x}| \to \infty$ (the logarithmic representation decays correctly)
+-4. $\psi$ and $\partial\psi/\partial n$ continuous across $\partial\Omega$
+-5. $\psi_{j^*} = 0$ (single-node pin at the gauge node)
+-
+-Uniqueness follows from **[C\&K \S3.3, Thm 3.12]**.
++The gauged finite system enforces its assembled weak equations with a projected
++load and a pinned potential coefficient. BEM represents a harmonic exterior under
++the chosen isolated-source model, subject to discretization and quadrature error.
++A small algebraic residual verifies the solve; it does not prove that the boundary
++model is exact for a given catalogue or that the shear inverse is injective.
+ 
+ ### 6.5 Derivation of the Coupling: Galerkin Pairing and $\sigma$-Scaling
+ 
+@@ -529,7 +510,7 @@ The complete map from $\kappa$ to $(\gamma_1, \gamma_2)$ is:
+ 
+ $$\kappa \xrightarrow{-2M} \mathbf{f} \xrightarrow{A_{\rm coupled}^{-1}} \psi \xrightarrow{S} (\gamma_1, \gamma_2)$$
+ 
+-Writing this as a single operator: $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$, where
++Writing this as a single operator: $F = S \cdot A_{\rm coupled}^{-1} Q \cdot (-2M)$, where
+ $S = (S_1; S_2)$ stacks the two shear operators.
+ 
+ In `operators.py`: `FEMOperators.psi_from_kappa` solves the gauged system;
+@@ -537,47 +518,54 @@ In `operators.py`: `FEMOperators.psi_from_kappa` solves the gauged system;
+ `FEMOperators.forward` chains both. The JAX-differentiable wrapper lives
+ in `forward.py`, `DifferentiableForward`.
+ 
+-### 10.2 Compactness
+-
+-$F$ is a compact operator from $L^2(\Omega)$ to $L^2(\Omega)^2$:
+-- $-2M$ maps $L^2 \to H^1$ (integration gains smoothness)
+-- $A_{\rm coupled}^{-1}$ maps $H^{-1} \to H^1$ (elliptic solve gains two derivatives)
+-- $S$ maps $H^1 \to L^2$ (Hessian)
+-- The embedding $H^1 \hookrightarrow L^2$ is compact by Rellich's theorem
++### 10.2 Continuum order and discrete diagnostics
+ 
+-Compactness is the mathematical reason the inverse problem is ill-posed
+-(**[C\&K \S10.1]**).
++The ideal full-plane shear map is an order-zero Fourier multiplier. For
++$k\ne0$, its components are $(k_1^2-k_2^2)/|k|^2$ and $2k_1k_2/|k|^2$;
++their squared magnitudes sum to one. Taking two derivatives of the inverse
++Laplacian cancels its two-derivative smoothing. The previous compactness
++argument was therefore invalid. The mass matrix is a discrete integration
++pairing, not a continuum smoothing operator.
+ 
+-### 10.3 Injectivity and null space
++`compute_svd` uses Euclidean coefficient norms and all nodal output rows.
++Its leading modes describe that finite matrix, not a physically normalized
++catalogue information spectrum. Masks, sampling and noise govern the actual
++likelihood; no continuum uniqueness conclusion follows from its finite rank.
+ 
+-The FEM-BEM system with the single-node gauge has trivial null space. The
+-boundary condition $\psi \to 0$ at infinity (encoded by the BEM) fixes the
+-far-field normalization of $\psi$, and the single-node pin removes the remaining
+-additive constant. Adding a uniform sheet
+-$\kappa \to \kappa + c$ changes $\mathbf{f} \to \mathbf{f} - 2Mc$, which changes $\psi$, which
+-changes $\gamma$. The map $F$ is injective in contrast to Kaiser-Squires, where
+-the Fourier kernel vanishes at $\mathbf{k} = \mathbf{0}$.
++### 10.3 Forward solvability versus inverse identifiability
+ 
++An invertible potential solve does not imply an injective shear map. The shear
++operator and observation selection can discard directions. Gauge fixing and
++exterior assumptions specify a model; priors can select among compatible maps.
++None of these operations supplies missing measurements.
+ 
+ ## 11. MAP Reconstruction and Tikhonov Regularization
+ 
+ ### 11.1 The Tikhonov functional
+ 
+-Tikhonov regularization replaces the ill-posed problem $F\kappa = \gamma_{\rm obs}$ with:
++The implemented linear-shear objective is
++
++$$J(\kappa)=\sum_{a=1}^2\sum_{i:w_i>0}w_i(F_a\kappa-d_a)_i^2
++                 +\lambda\phi(\kappa).$$
+ 
+-$$\kappa_\lambda = \arg\min_{\kappa} \lbrace\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \rbrace\}$$
++Weights are nonnegative relative precisions with
++$\mathrm{Var}(n_{a,i})=\sigma_n^2/w_i$. Masked observations have zero weight.
++A missing value is not an observation of zero shear. For a quadratic prior,
++$\phi=\kappa^T R\kappa$; positive `wiener_length` gives $R=M+\ell^2K$,
++while zero retains the historical gradient penalty $R=K$.
+ 
+-This is exactly the **MAP estimator** with Gaussian likelihood and Gaussian
+-prior. Existence, uniqueness, and convergence are established in
+-**[C\&K \S10.2, Thm 10.2]**. Implemented in `inverse.py`, `MAPReconstructor`.
++The Gaussian likelihood is the data term divided by $2\sigma_n^2$.
++Sampling therefore uses $\lambda_{\rm sample}=\lambda_{\rm MAP}/(2\sigma_n^2)$
++for the same penalty and posterior mode. A proper posterior additionally
++requires positive precision on every retained direction.
+ 
+ ### 11.2 Choosing the regularization operator $R$
+ 
+ - **$H^1$ ($R = K$):** Penalizes $\|\nabla\kappa\|^2$. Smoothness prior.
+ - **Matern-Wiener ($R = M + \ell^2 K$):** Penalizes $\|\kappa\|^2 + \ell^2\|\nabla\kappa\|^2$. **Recommended.**
+ 
+-The **Matern-Wiener prior** $R = M + \ell^2 K$ has Green's function
+-$G(r) \approx e^{-r/\ell}$, a Matern-1/2 covariance with correlation length $\ell$.
++The **Wiener prior** $R = M + \ell^2 K$ is a discrete mass-plus-gradient
++precision. It is not, in two dimensions, automatically a Matérn-1/2 covariance.
+ Setting $\ell = \sigma_{\rm lens}$ matches the prior to the expected spatial scale of $\kappa$.
+ 
+ Assembled in `operators.py`, `build_wiener_regularizer`. Selected by
+@@ -593,36 +581,26 @@ suppressed). This filter interpretation is discussed in **[C\&K \S10.2]**.
+ 
+ ## 12. The Adjoint Gradient
+ 
+-### 12.1 The adjoint of $F$
++### 12.1 The discrete transpose
+ 
+-Recall $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$. Using the symmetry of $M$ and noting
+-that $A_{\rm coupled}$ is not symmetric ($K_h$ is asymmetric), the $L^2$ adjoint is:
++Let $Q$ zero the gauge (or prescribed Dirichlet) load entries. Then
+ 
+-$$F^* = (-2M)A_{\rm coupled}^{-T}S^\top$$
++$$F=-2SA^{-1}QM,\qquad F^T=-2M^TQA^{-T}S^T.$$
+ 
+-### 12.2 The gradient of the MAP loss
++$Q$ acts before the forward solve and after the transpose solve. The transpose
++is with respect to Euclidean coefficient coordinates, not an unqualified
++finite-element $L^2$ adjoint. JAX's custom VJP and the NumPy gradient implement
++the same composition.
+ 
+-Define residuals $r_a = S_a\psi - \gamma_{a,\rm obs}$. The gradient of
+-$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa$ is:
++### 12.2 The weighted gradient
+ 
+-$$\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4MA_{\rm coupled}^{-T}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\kappa$$
++For residuals $r_a=S_a\psi-d_a$ and $W=\mathrm{diag}(w)$,
+ 
+-The term $A_{\rm coupled}^{-T}(S_1^\top r_1 + S_2^\top r_2)$ is the **adjoint solve**
+-using `trans='T'` in the SuperLU factorisation, with the gauge node zeroed in
+-the RHS.
+-
+-Per-iteration algorithm in `inverse.py`, `MAPReconstructor._make_obj_and_grad`:
+-
+-1. Forward: $\mathbf{f} = -2M\kappa$ (gauge node zeroed), solve $A_{\rm coupled}\psi = \mathbf{f}$, compute $\gamma_a = S_a\psi$
+-2. Residuals: $r_a = \gamma_a - \gamma_{a,\rm obs}$
+-3. Loss: $\mathcal{L} = \sum_a\|r_a\|^2 + \lambda\kappa^\top R\kappa$
+-4. Adjoint RHS: $\mathbf{q} = S_1^\top r_1 + S_2^\top r_2$ (gauge node zeroed)
+-5. Adjoint solve: $A_{\rm coupled}^{-T}\phi = \mathbf{q}$ via `A_coupled_lu.solve(..., trans='T')`
+-6. Gradient: $\partial\mathcal{L}/\partial\kappa = -4M\phi + 2\lambda R\kappa$
+-
+-Total cost per iteration: **two $A_{\rm coupled}$ solves** (forward + adjoint),
+-reusing the factored SuperLU object.
++$$\nabla J=-4M^TQA^{-T}(S_1^TWr_1+S_2^TWr_2)+\lambda\nabla\phi.$$
+ 
++The forward and transpose solves reuse one SuperLU factorization. Tests compare
++both transpose actions and weighted gradients against an explicitly assembled
++small forward matrix, including boundary coefficients and Dirichlet projection.
+ 
+ ## 13. Regularization Parameter Selection: Morozov's Principle
+ 
+@@ -655,117 +633,49 @@ $$\delta = 1.4826 \cdot \mathrm{median}\left(|\gamma - \mathrm{median}(\gamma)|\
+ 
+ ## 14. The Inverse Scattering Connection
+ 
+-### 14.1 Structural Equivalence with the Born Approximation
+-
+-The weak lensing forward problem is structurally identical to the Born
+-approximation in acoustic inverse scattering (**[C\&K \S8.1]**):
+-
+-| Acoustic scattering | Weak lensing |
+-|---|---|
+-| Scattered field $u_s$ | Shear $\gamma$ |
+-| Refractive contrast $n(\mathbf{x})$ | Convergence $\kappa(\mathbf{x})$ |
+-| Incident field $u_{\rm inc}$ | Uniform (constant) |
+-| Helmholtz Green's function | Lensing kernel $K(\mathbf{x},\mathbf{y})$ |
+-| Wavenumber $k > 0$ | $k \to 0$ (Poisson limit) |
+-
+-The $k \to 0$ limit places the lensing problem in the static scattering regime.
+-
+-### 14.2 Consequences of Compactness
++### 14.1 Relation to inverse scattering
+ 
+-Since $F$ is compact (**[C\&K \S10.1]**):
++FEMMI reconstructs a source under a fixed differential operator. Acoustic
++inverse scattering usually infers an operator coefficient from responses to
++incident waves. Shared regularization tools do not imply identical inverse
++problems or transferable support-recovery theorems.
+ 
+-1. **Resolution limit.** $\sigma_i \to 0$ imposes a fundamental minimum resolvable feature size.
+-2. **Range condition.** $F\kappa = \gamma_{\rm obs}$ has a solution only if $\gamma_{\rm obs}$ satisfies the Picard condition (Section 15.3).
+-3. **Regularization is necessary.** No bounded linear inversion can recover $\kappa$ stably for all right-hand sides.
++### 14.2 Practical conditioning
+ 
++Finite sampling, noise, masks, boundaries and the chosen basis can leave poorly
++constrained directions. Regularization controls these directions at the cost of
++prior dependence. This does not require a compact continuum shear operator.
+ 
+ ## 15. SVD, Ill-Posedness, and the Picard Condition
+ 
+-### 15.1 The SVD of $F$
+-
+-Since $F$ is compact, it admits the singular value decomposition:
+-
+-$$F = \sum_i \sigma_i \mathbf{u}_i \otimes \mathbf{v}_i^*, \qquad \sigma_1 \geq \sigma_2 \geq \cdots \to 0$$
+-
+-The singular values accumulate only at zero (**[C\&K \S10.1, Thm 10.6]**).
+-Computed in `svd_analysis.py`, `compute_svd` using randomised Lanczos on
+-the normal operator $F^*F$.
+-
+-### 15.2 Noise amplification
+-
+-With $\gamma_{\rm obs} = \gamma_{\rm true} + \eta$ (noise), the formal inversion
+-$\sum_i \sigma_i^{-1}\langle\eta, \mathbf{u}_i\rangle\mathbf{v}_i$
+-diverges since $\sigma_i^{-1} \to \infty$.
+-
+-### 15.3 The Picard Condition
+-
+-The equation $F\kappa = \gamma_{\rm true}$ has a solution $\kappa \in L^2(\Omega)$ if and only if:
+-
+-$$\sum_i \left(\frac{|\langle \gamma_{\rm true}, \mathbf{u}_i\rangle|}{\sigma_i}\right)^2 < \infty$$
+-
+-(**[C\&K \S10.1, Thm 10.7]**.) For smooth $\kappa$ this holds; for noisy data the
+-coefficients plateau at the noise floor while $\sigma_i$ continues to decay.
+-
+-### 15.4 The Picard Plot
+-
+-Plot the following three quantities versus mode index $i$:
+-
+-$$\log\sigma_i, \qquad \log\lvert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert, \qquad \log\frac{\lvert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert}{\sigma_i}$$
+-
+-When the second decays faster than the first, the Picard condition is satisfied. The crossover index gives the effective noise cutoff.
+-
+-Implemented in `svd_analysis.py`, `picard_plot`.
++`svd_analysis.compute_svd` computes leading singular triplets of a finite nodal
++matrix using dense SVD or Lanczos on $F^TF$. Returned residuals check both
++$Fv=\sigma u$ and $F^Tu=\sigma v$. Small singular values amplify noise in that
++matrix's coefficient norm. Leading modes alone do not characterize its kernel.
+ 
++The Picard plot is an exploratory coefficient diagnostic. A finite-window slope
++comparison is not a proof of the continuum Picard condition. For orthonormal
++left vectors and independent noise of standard deviation $\delta$, each noise
++coefficient has standard deviation $\delta$, not $\delta\sqrt{2n}$.
+ 
+ ## 16. The Factorization Method for Support Recovery
+ 
+-### 16.1 Motivation
+-
+-For applications where the goal is to determine only the **support** of $\kappa$,
+-the factorization method provides a parameter-free alternative.
+-
+-### 16.2 Range Characterization Theorem
+-
+-Define the point-source test function at $\mathbf{z} \in \Omega$:
+-
+-$$\boldsymbol{\Phi}_{\mathbf{z}} = F\delta_{\mathbf{z}} \qquad \text{(shear pattern from a unit point mass at } \mathbf{z}\text{)}$$
+-
+-**Theorem (Kirsch, 1998; [C\&K \S6.2, Thm 6.15]).**
+-
+-$$\mathbf{z} \in \mathrm{supp}(\kappa) \iff \boldsymbol{\Phi}_{\mathbf{z}} \in \mathrm{Range}\left(|F|^{1/2}\right)$$
+-
+-### 16.3 Numerical Implementation
+-
+-After computing the truncated SVD (modes with $\sigma_i > \delta$), for each test point $\mathbf{z}$:
+-
+-$$W(\mathbf{z}) = \left(\sum_{\sigma_i > \delta} \frac{|\langle \boldsymbol{\Phi}_{\mathbf{z}}, \mathbf{u}_i\rangle|^2}{\sigma_i}\right)^{-1}$$
+-
+-$W(\mathbf{z})$ is large where $\mathbf{z} \in \mathrm{supp}(\kappa)$ and small outside.
+-
+-Probe function computed in `svd_analysis.py`, `_probe_function`.
+-Indicator evaluated in `FactorizationIndicator.indicator_map`.
+-The probe function approximates $\Phi_\mathbf{z}$ by concentrating a unit mass at the
+-nearest mesh node, weighted by the diagonal mass matrix entry $M_{jj}$.
++The historical `FactorizationIndicator` name is retained for API compatibility.
++Its output depends only on the forward operator, probe location, and spectral
++cutoff. It never consumes the observed shear, so it cannot identify the support
++of an unknown lens. The scattering range characterization formerly quoted here
++has not been established for this source-recovery operator.
+ 
++The implemented diagnostic is the normalized sum
++$\sum_i |u_i^T\Phi_z|^2/\sigma_i$. It is not the reciprocal previously documented.
++Use it only to inspect operator geometry.
+ 
+ ## 17. The Linear Sampling Method
+ 
+-### 17.1 The Linear Sampling Equation
+-
+-For each test point $\mathbf{z}$, seek a density $g_\mathbf{z}$ satisfying $F g_\mathbf{z} = \Phi_\mathbf{z}$.
+-(**[C\&K \S5.5]**): if $\mathbf{z} \in \mathrm{supp}(\kappa)$, then $\Phi_\mathbf{z} \in \mathrm{Range}(F)$ and the equation has
+-a bounded solution; if $\mathbf{z} \notin \mathrm{supp}(\kappa)$, then $\|g_\mathbf{z}\| \to \infty$.
+-
+-### 17.2 The Indicator Functional
+-
+-Solve via Tikhonov regularization in SVD form:
+-
+-$$\|g_{\mathbf{z}}^\alpha\|^2 = \sum_i \left(\frac{\sigma_i}{\sigma_i^2 + \alpha}\right)^2 |\langle \boldsymbol{\Phi}_{\mathbf{z}}, \mathbf{u}_i\rangle|^2$$
+-
+-The support indicator is $\mathcal{I}(\mathbf{z}) = 1/\|g_\mathbf{z}^\alpha\|$, large inside $\mathrm{supp}(\kappa)$.
+-
+-Implemented in `svd_analysis.py`, `LinearSamplingIndicator.indicator_map`.
+-
++`LinearSamplingIndicator` likewise returns a data-independent geometry score:
++the normalized norm of the Tikhonov solution to $Fg=\Phi_z$. Its historical
++support-recovery interpretation is unsupported. Neither diagnostic should be
++used as a mass-map benchmark or publication claim.
+ 
+ ## 18. Convergence Theory
+ 
+@@ -1482,11 +1392,11 @@ claim to defend.
+ Taking it through the inverse path needed one new piece. Argyris gets shear for
+ free — the Hessian *is* three of its DOFs, so $S$ is a selection with one or two
+ entries per row. HCT's vertex block is only $\{u, u_x, u_y\}$, so the Hessian has
+-to be **evaluated**. It is still unambiguous: HCT is C¹, so every element meeting
+-a vertex returns the same Hessian there, and picking one is exact rather than an
+-average (`c1_inverse.shear_evaluation_operators`). Both operators are exact to
+-machine precision on a quadratic, which validates the evaluation path against the
+-selection path on a case with a known answer.
++to be **recovered**. C¹ does not imply a unique Hessian. The current operator
++uses an area-weighted average of all incident subtriangle traces. The old
++first-element convention depended on triangle order. HCT mass, stiffness and
++load quadrature is now split over its three polynomial pieces. The following
++table predates both corrections and must be regenerated after recalibration.
+ 
+ Three seeds, NFW truth, everything else as §18.3i:
+ 
+diff --git a/README.md b/README.md
+index 3cbb384..4d5b77a 100644
+--- a/README.md
++++ b/README.md
+@@ -4,7 +4,7 @@
+ [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+ [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+ 
+-Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and inverse-scattering support recovery.
++Weak gravitational lensing mass reconstruction via P3 FEM-BEM coupled boundary value problems, with automatic Morozov-regularised MAP inversion and catalogue reconstruction.
+ 
+ New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass map from a shear catalog in about a dozen lines.
+ 
+@@ -14,24 +14,33 @@ New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass
+ 
+ FEMMI reconstructs the projected mass density $\kappa(\boldsymbol{\theta})$ of a gravitational lens from observed weak-lensing shear $(\gamma_1, \gamma_2)$. The lensing potential $\psi$ satisfies
+ 
+-$$\nabla^2\psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi(\boldsymbol{\theta}) \to 0 \text{ as } |\boldsymbol{\theta}| \to \infty,$$
++$$\nabla^2\psi = 2\kappa \quad \text{in } \mathbb{R}^2,$$
+ 
+ with shear components
+ 
+ $$\gamma_1 = \tfrac{1}{2}\left(\frac{\partial^2\psi}{\partial\theta_1^2} - \frac{\partial^2\psi}{\partial\theta_2^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial\theta_1 \partial\theta_2}.$$
+ 
+-The central methodological claim is that the standard practice of truncating this problem to a finite domain with Dirichlet boundary conditions ($\psi = 0$ on $\partial\Omega$) encodes the wrong continuous operator: the true $\psi$ decays only logarithmically and is nonzero at any finite boundary. The resulting systematic error propagates throughout the interior by the maximum principle. FEMMI replaces this with an exact exterior representation via boundary elements, enforcing the correct far-field condition without approximation.
++FEMMI couples a finite-element interior to a boundary-element representation
++of a harmonic exterior. This specifies an isolated-source boundary model;
++unobserved exterior mass remains a modeling limitation. For nonzero total mass,
++the two-dimensional potential grows logarithmically at infinity. Boundary
++normalization and a potential gauge do not establish inverse uniqueness.
++
++The current implementation has corrected adjoints, missing-data handling,
++weighted posterior perturbations, and HCT observations/quadrature. Numerical
++benchmark values and figures below predate those corrections and require
++recalibration and regeneration before use in a publication.
+ 
+ | Feature | Kaiser-Squires (1993) | FEMMI |
+ |---|---|---|
+-| Far-field boundary condition | Periodic / Dirichlet (wrong) | Exact exterior via BEM |
++| Far-field boundary condition | Fourier-grid boundary assumptions | Harmonic exterior represented by BEM |
+ | Regularisation parameter | Manual smoothing kernel | Morozov discrepancy principle |
+-| DC / mass-sheet mode | In $F$'s null space (exactly) | Observable ($\|F\mathbf{1}\|>0$) — but see the scope note below |
++| DC / mass-sheet mode | In $F$'s null space (exactly) | Response depends on discretization and exterior assumptions |
+ | Inverse method | Direct FFT | MAP + L-BFGS, Matérn prior |
+ | Masked / missing data | Unreliable near mask | Inpainting via prior covariance |
+ | E/B-mode null test | 45-deg rotation | 45-deg rotation (same solver) |
+ | Source positions | Binned grid | Catalog-native (raw galaxy positions) |
+-| Element order | N/A | P3 cubic (required for $\nabla^2\psi$) |
++| Element order | N/A | P3 cubic; C¹ Argyris and HCT paths also available |
+ 
+ ---
+ 
+@@ -39,23 +48,28 @@ The central methodological claim is that the standard practice of truncating thi
+ 
+ Full derivations are in [`MATH.md`](MATH.md). The key ideas:
+ 
+-**FEM-BEM coupling.** A P3 FEM interior solves $\nabla^2\psi = 2\kappa$ in $\Omega$ while a boundary element method encodes $\nabla^2\psi = 0$ in the exterior and $\psi \to 0$ at infinity. The coupled stiffness matrix is assembled via Schur complement reduction:
++**FEM-BEM coupling.** A P3 FEM interior solves $\nabla^2\psi = 2\kappa$ in $\Omega$ while a boundary element method encodes $\nabla^2\psi = 0$ in the exterior under the chosen far-field normalization. The coupled stiffness matrix is assembled via Schur complement reduction:
+ 
+ $$A_{\mathrm{coupled}} = K + P^\top C P, \qquad C = -M_b\, V_\sigma^{-1}\left(\tfrac{1}{2}M_b - K_h\right),$$
+ 
+-where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, $P$ the DOF restriction to $\partial\Omega$, and $V_\sigma = V_h - \tfrac{\ln\sigma}{2\pi} \mathbf{w}\mathbf{w}^\top$ ($\mathbf{w}=M_b\mathbf{1}$, $\sigma=\mathrm{diam}(\partial\Omega)$) the $\sigma$-scaled single layer. This is the **symmetric Steinbach coupling**: the Galerkin $M_b$ pairing makes it scale-free and the rank-one $\sigma$-scaling repairs the 2D $n=0$ log-capacity mode, giving a scale- and translation-invariant far-field condition that beats a Dirichlet truncation near the mass (see [`MATH.md`](MATH.md) §6.5). The coupling $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
++where $K$ is the Neumann stiffness (no Dirichlet row modification), $V_h$ the single-layer BEM matrix, $K_h$ the double-layer matrix, $M_b$ the boundary mass matrix, $P$ the DOF restriction to $\partial\Omega$, and $V_\sigma = V_h - \tfrac{\ln\sigma}{2\pi} \mathbf{w}\mathbf{w}^\top$ ($\mathbf{w}=M_b\mathbf{1}$, $\sigma=\mathrm{diam}(\partial\Omega)$) the $\sigma$-scaled single layer. This is the implemented **scaled FEM–BEM coupling**: the Galerkin $M_b$ pairing makes it scale-free and the rank-one $\sigma$-scaling repairs the 2D $n=0$ log-capacity mode, giving a scale- and translation-invariant far-field condition that beats a Dirichlet truncation near the mass (see [`MATH.md`](MATH.md) §6.5). The coupling $C$ is assembled once and stored; each forward solve requires two SuperLU triangular solves (forward and adjoint).
+ 
+-**Why P3 elements.** Shear is the Hessian of $\psi$: $\gamma_1 = \frac{1}{2}(\partial^2\psi/\partial x^2 - \partial^2\psi/\partial y^2)$, $\gamma_2 = \partial^2\psi/\partial x\partial y$. P1 elements give identically zero second derivatives; P2 gives piecewise-constant second derivatives with no convergence. P3 gives piecewise-linear second derivatives and $O(h^2)$ shear convergence. The 10-node P3 Lagrange element used here achieves $O(h^4)$ in $L^2$ for the Poisson solve.
++**Element choice.** Shear uses second derivatives of the potential. P3 uses
++averaged element Hessians; Argyris has shared Hessian vertex DOFs. HCT is C¹ but
++does not have a unique vertex Hessian: its observation operator explicitly
++averages incident subtriangle traces. HCT integrals are evaluated separately on
++those polynomial subtriangles. Approximation rates and reconstruction errors
++must be measured for the full solve and observation operator.
+ 
+ **MAP reconstruction.** The estimate minimises
+ 
+ $$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\,\phi(\kappa), \qquad \phi_{\mathrm{Wiener}}(\kappa) = \kappa^\top R\kappa, \quad R = M + \ell^2 K \text{ (Matérn-}\tfrac{1}{2}\text{ prior, default)}.$$
+ 
+-**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov $\lambda$-selection applies to the quadratic Wiener prior; the others take a fixed $\lambda$. `examples/prior_comparison.py` and `examples/diagnostics/prior_bakeoff.py` (λ-tuned) compare them.
++**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov selection can also be evaluated for custom penalties, but its target and optimizer convergence must be checked. `examples/prior_comparison.py` and `examples/diagnostics/prior_bakeoff.py` (λ-tuned) compare them.
+ 
+-**Learned neural prior** (`femmi/neural_prior/`, one flag away). `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the *same* learned score drives posterior sampling.
++**Learned neural prior** (`femmi/neural_prior/`, one flag away). For experimental score sampling (`inverse.method: sample`), `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the learned score drives approximate sampling. It supplies no consistent MAP energy and is rejected by L-BFGS MAP.
+ 
+-**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and the paper's **annealed HMC** (tempered, noise-conditional score + score-integral Metropolis) for non-Gaussian/neural priors, with single-temperature Langevin as a fallback. The prior weight is **auto-calibrated** by default (`inverse.lam: null`): the Wiener posterior reuses the MAP's Morozov selection (converted to the sampler's noise-normalised convention, `lam = lam_MAP / 2σ_n²`), and the neural score prior gets the proper Bayesian coefficient 1.0 — leaving `lam` uncalibrated makes the data term (weight `1/σ_n²`) swamp the prior and the posterior collapses to noise. `examples/uncertainty_demo.py`; `examples/paper_artifacts.py` reproduces the Remy et al. figure structure (truth · mask · KS · posterior mean · uncertainty · samples) on masked, noisy data.
++**Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and experimental **annealed HMC** (tempered, noise-conditional score + score-integral Metropolis) for non-Gaussian/neural priors, with single-temperature Langevin as a fallback. The prior weight is **auto-calibrated** by default (`inverse.lam: null`): the Wiener posterior reuses the MAP's Morozov selection (converted to the sampler's noise-normalised convention, `lam = lam_MAP / 2σ_n²`), while other priors default to coefficient 1.0, which still needs calibration — leaving `lam` uncalibrated makes the data term (weight `1/σ_n²`) swamp the prior and the posterior collapses to noise. `examples/uncertainty_demo.py`; `examples/paper_artifacts.py` reproduces the Remy et al. figure structure (truth · mask · KS · posterior mean · uncertainty · samples) on masked, noisy data.
+ 
+ $\lambda$ is selected automatically by Brent's method on the discrepancy functional 
+ 
+@@ -63,15 +77,21 @@ $$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\de
+ 
+ (Morozov 1966; C&L Thm 10.4), using 15-25 MAP solves. The gradient is computed via the adjoint: 
+ 
+-$$\partial\mathcal{L} / \partial\kappa = -4M A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
+-
+-**Injectivity and the mass-sheet degeneracy — with its scope.** The BEM far-field normalization removes the $\kappa \to \kappa + c$ mode from the null space of $F$, where every FFT-based method has it identically ($\|F_{\rm KS}\mathbf{1}\| = 0$ exactly, because the $1/k^2$ kernel is singular at $k=0$ and is zeroed there). A single-node gauge condition removes the remaining scalar null space (the additive constant in $\psi$).
++$$\partial\mathcal{L} / \partial\kappa = -4M^T Q A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
+ 
+-That is an operator-level statement and it is the correct one to make. It does **not** mean the absolute normalisation is recovered in practice, and measurement says it is not: ~99.9% of $\|F\mathbf{1}\|^2$ sits in the corners of the square domain and *grows* under refinement rather than converging, and on ground truth that FEMMI did not itself generate its mean-$\kappa$ error is $0.047$ against Kaiser–Squires' $0.049$. The much larger gap sometimes quoted comes from generating the test shear with FEMMI's own forward — an inverse crime. See `MATH.md` §6.3a and `examples/paper/independent_truth.py`.
++**Observation model and limitations.** The estimator fits linear shear, with
++one common source-efficiency normalization implicit in the input convergence
++and shear. It does not currently fit reduced shear or individual source
++redshifts. Using galaxy shape estimates as shear therefore requires the weak
++approximation and calibrated inputs. Masks exclude observations; they do not
++measure zero shear. Weights are relative inverse variances, with component
++variance `noise_std**2 / weight` on active positions. See
++[the observation model](docs/observation-model.md) for the precise conventions.
+ 
+-What *does* survive on neutral truth is the boundary claim: FEMMI's exact far-field condition gives ~1.7× lower error than KS near the domain edge, with the margin growing outward.
+-
+-**Inverse scattering connection.** The forward operator $F: L^2(\Omega) \to L^2(\Omega)^2$ is compact, placing the lensing problem in the same mathematical framework as the Born approximation in acoustic inverse scattering (C&K Ch. 8, 10). FEMMI implements the Kirsch factorization method and linear sampling method for parameter-free support recovery from the truncated SVD of $F$.
++A fixed potential solve does not guarantee a unique mass map. The existing
++nodal SVD uses Euclidean coefficient norms. The legacy factorization and linear
++sampling indicators depend only on operator geometry, not on observed shear;
++they are not validated mass-support estimators.
+ 
+ ---
+ 
+@@ -133,7 +153,7 @@ tests/
+ ├── test_fem_bem_coupling.py    # BEM matrices (V_h, K_h, M_b, Calderon)
+ ├── test_coupled_pipeline.py    # FEM-BEM pipeline invariants
+ ├── test_morozov.py             # Morozov lambda selection, monotonicity
+-├── test_factorization.py       # SVD, Picard, support recovery
++├── test_factorization.py       # SVD and geometry diagnostics
+ ├── test_convergence_p3.py      # O(h^4) L2 Poisson convergence
+ ├── test_convergence.py         # Forward operator gamma convergence
+ ├── test_eb_modes.py            # E/B decomposition, rotation identity, null test
+@@ -303,7 +323,7 @@ print(diag.summary())            # flag, coherent B/E, B-mode SNR, delta cross-c
+ ```
+ 
+ ```python
+-# SVD and support recovery (Kirsch factorization method)
++# Discrete nodal SVD and a legacy geometry diagnostic (not mass support)
+ from femmi.svd_analysis import compute_svd, FactorizationIndicator
+ 
+ svd = compute_svd(ops, n_singular=40)
+@@ -312,7 +332,7 @@ fi  = FactorizationIndicator(ops, svd_result=svd)
+ import numpy as np
+ XX, YY    = np.meshgrid(np.linspace(-2.5, 2.5, 64), np.linspace(-2.5, 2.5, 64))
+ test_pts  = np.column_stack([XX.ravel(), YY.ravel()])
+-W         = fi.indicator_map(test_pts).reshape(64, 64)  # large inside supp(kappa)
++W         = fi.indicator_map(test_pts).reshape(64, 64)  # data-independent geometry score
+ ```
+ 
+ ---
+@@ -321,9 +341,11 @@ W         = fi.indicator_map(test_pts).reshape(64, 64)  # large inside supp(kapp
+ 
+ **Forward solve** (two SuperLU solves per MAP iteration):
+ 
+-$$\mathbf{f} = -2M\kappa, \qquad A_{\mathrm{coupled}}\psi = \mathbf{f}, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
++$$\mathbf{f} = -2QM\kappa, \qquad A_{\mathrm{coupled}}\psi = \mathbf{f}, \qquad \gamma_1 = S_1\psi, \quad \gamma_2 = S_2\psi.$$
++
++Here $Q$ zeroes gauge/Dirichlet load entries.
+ 
+-**Adjoint gradient** (for L-BFGS):
++**Adjoint gradient** (unit weights, quadratic prior):
+ 
+ $$\mathbf{r} = (\gamma_1 - \gamma_{1,\mathrm{obs}}, \gamma_2 - \gamma_{2,\mathrm{obs}}), \qquad A_{\mathrm{coupled}}^\top \phi = S_1^\top r_1 + S_2^\top r_2, \qquad \nabla\mathcal{L} = -4M\phi + 2\lambda R\kappa.$$
+ 
+diff --git a/docs/index.md b/docs/index.md
+index 3874bff..2c59fc1 100644
+--- a/docs/index.md
++++ b/docs/index.md
+@@ -1,5 +1,10 @@
+ # FEMMI
+ 
++The [observation model and numerical checks](observation-model.md) define the
++current estimator contract. Historical numerical comparisons require
++recalibration after the correctness fixes; they are not current release claims.
++
++
+ **Finite Element Mass Map Inversion** — a P3 finite-element / boundary-element
+ pipeline for reconstructing the projected mass (convergence, $\kappa$) of a lens
+ from weak-lensing shear, with a differentiable forward operator that powers both
+@@ -10,7 +15,7 @@ MAP reconstruction and full posterior uncertainty quantification.
+ - **Catalog-native.** FEM nodes are placed at galaxy positions, so the data term
+   is evaluated exactly where you have measurements — no gridding/binning of the
+   shear before inversion.
+-- **Symmetric FEM–BEM coupling.** The exterior mass-sheet mode is handled with a
++- **FEM–BEM coupling.** The exterior logarithmic normalization uses a
+   Steinbach Steklov–Poincaré coupling; the forward runs in float64 where it needs
+   the precision to converge.
+ - **A menu of priors.** Wiener (default), total-variation, sparsity, maximum
+diff --git a/docs/neural-prior.md b/docs/neural-prior.md
+index c9b5a4f..7f7bf8a 100644
+--- a/docs/neural-prior.md
++++ b/docs/neural-prior.md
+@@ -1,5 +1,11 @@
+ # Neural prior
+ 
++> Score-only neural priors support experimental sampling, not energy-based
++> L-BFGS MAP. Set `inverse.method: sample`. A valid MAP objective requires a
++> matching prior value and gradient; a zero penalty proxy is no longer accepted.
++> See [the observation model](observation-model.md) for approximation limits.
++
++
+ FEMMI includes a learned **score prior** — a network
+ $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising
+ Score Matching (Remy et al. 2020). It models the *non-Gaussian* structure of
+diff --git a/docs/priors-and-sampling.md b/docs/priors-and-sampling.md
+index 23ab7c9..4afc5ff 100644
+--- a/docs/priors-and-sampling.md
++++ b/docs/priors-and-sampling.md
+@@ -1,5 +1,11 @@
+ # Priors & sampling
+ 
++See [the observation model](observation-model.md) for mask/weight conventions,
++MAP-to-sampling normalization, score-only restrictions, and sampler limitations.
++Only Gaussian RTO has the exact Gaussian interpretation (up to numerical solve
++error); finite-step Langevin and annealed score HMC remain approximate.
++
++
+ ## The prior menu
+ 
+ Set `prior.kind` in the config (or `prior=...` in the API). Every prior exposes
+@@ -49,8 +55,9 @@ With `lam` unset, FEMMI calibrates it automatically:
+   $\lambda_{\text{MAP}}$, then converts to the sampler's noise-normalised
+   convention, $\lambda = \lambda_{\text{MAP}} / (2\sigma_n^2)$. The RTO posterior
+   then reproduces the MAP reconstruction.
+-- **Neural / score prior** — the network already encodes a properly normalised
+-  log-prior, so the Bayesian coefficient is $1.0$.
++- **Other priors** — default to coefficient 1.0. This is a convention, not a
++  measured calibration of neural, TV, sparse or entropy priors. Tune and validate
++  those strengths independently for the intended data.
+ 
+ You can still pass an explicit `lam` to override.
+ 
+diff --git a/femmi/c1_assembly.py b/femmi/c1_assembly.py
+index 76200fb..9c72032 100644
+--- a/femmi/c1_assembly.py
++++ b/femmi/c1_assembly.py
+@@ -13,13 +13,9 @@ Here: K, M, load, Dirichlet constraints, a Poisson solve, and shear extraction
+ that reads the Hessian straight off the Argyris vertex DOFs (no averaging, no
+ recovery, no boundary special-casing -- see MATH.md 18.3a).
+ 
+-Not here yet: the FEM-BEM coupling. The exterior problem couples through the
+-boundary trace, and a C^1 space has a richer trace than P3 -- the normal-
+-derivative DOFs on boundary edges have to be matched against the Steklov-Poincare
+-operator. Until that lands, C^1 solves use Dirichlet conditions, which is exact
+-for a compactly supported field (the manufactured solutions FEMMI validates
+-against) and wrong for a real isolated-field reconstruction. So this is a
+-validated element+solver, not yet a drop-in replacement for build_operators.
++The coupled exterior solve is implemented separately in c1_coupling.py.
++The Dirichlet manufactured-solution helpers in this module pin the boundary
++DOFs and are not a substitute for that catalogue reconstruction path.
+ """
+ 
+ from __future__ import annotations
+@@ -53,28 +49,37 @@ def _quad(n=7):
+     return pts, wts
+ 
+ 
++def element_quadrature(el, quad_order=7):
++    """Physical points/weights, split across HCT's polynomial pieces."""
++    qp, qw = _quad(quad_order)
++    pieces = [el._sub_verts(k) for k in range(3)] if el.name == "hct" else [el.verts]
++    points, weights = [], []
++    for v in pieces:
++        area = abs(np.linalg.det(np.array([v[1]-v[0], v[2]-v[0]]))) / 2.0
++        points.append(v[0] + qp[:, :1]*(v[1]-v[0]) + qp[:, 1:]*(v[2]-v[0]))
++        weights.append(area * qw)
++    return np.concatenate(points), np.concatenate(weights)
++
++
+ def assemble_c1(space: C1Space, quad_order=7):
+     """Stiffness K[i,j] = int grad phi_i . grad phi_j and mass M[i,j] = int phi_i phi_j.
+ 
+     Assembled elementwise from the physical-coordinate bases, so no reference
+     pullback of the derivative DOFs is involved (see femmi.elements)."""
+-    qp, qw = _quad(quad_order)
+     n = space.n_dofs
+     rows, cols, kv, mv = [], [], [], []
+ 
+     for t in range(len(space.triangles)):
+         el = space.element(t)
+-        v = el.verts
+-        area = abs(np.linalg.det(np.array([v[1] - v[0], v[2] - v[0]]))) / 2.0
+-        pts = v[0] + qp[:, 0:1] * (v[1] - v[0]) + qp[:, 1:2] * (v[2] - v[0])
++        pts, qw = element_quadrature(el, quad_order)
+ 
+         N = el.basis(pts)                       # (nq, ndof)
+         Gx = el.basis(pts, 1, 0)
+         Gy = el.basis(pts, 0, 1)
+ 
+-        Ke = area * (np.einsum('q,qi,qj->ij', qw, Gx, Gx)
++        Ke = (np.einsum('q,qi,qj->ij', qw, Gx, Gx)
+                      + np.einsum('q,qi,qj->ij', qw, Gy, Gy))
+-        Me = area * np.einsum('q,qi,qj->ij', qw, N, N)
++        Me = np.einsum('q,qi,qj->ij', qw, N, N)
+ 
+         idx = space.local_dofs(t)
+         rows.append(np.repeat(idx, len(idx)))
+@@ -89,15 +94,12 @@ def assemble_c1(space: C1Space, quad_order=7):
+ 
+ def assemble_c1_load(space: C1Space, f, quad_order=7):
+     """Load vector b[i] = int f phi_i for a callable f(points) -> values."""
+-    qp, qw = _quad(quad_order)
+     b = np.zeros(space.n_dofs)
+     for t in range(len(space.triangles)):
+         el = space.element(t)
+-        v = el.verts
+-        area = abs(np.linalg.det(np.array([v[1] - v[0], v[2] - v[0]]))) / 2.0
+-        pts = v[0] + qp[:, 0:1] * (v[1] - v[0]) + qp[:, 1:2] * (v[2] - v[0])
++        pts, qw = element_quadrature(el, quad_order)
+         N = el.basis(pts)
+-        np.add.at(b, space.local_dofs(t), area * (qw * np.asarray(f(pts))) @ N)
++        np.add.at(b, space.local_dofs(t), (qw * np.asarray(f(pts))) @ N)
+     return b
+ 
+ 
+@@ -137,31 +139,10 @@ def solve_poisson_c1(space: C1Space, kappa_fn, half_width, quad_order=7):
+ 
+ 
+ def c1_shear_at_vertices(space: C1Space, psi):
+-    """Shear at the mesh vertices, read STRAIGHT OFF the DOF vector for Argyris.
+-
+-    Argyris carries {u_xx, u_xy, u_yy} as vertex DOFs, so
+-        gamma1 = 1/2 (u_xx - u_yy),  gamma2 = u_xy
+-    is a pure selection -- single-valued, no averaging over adjacent elements, no
+-    recovery step, no boundary ring to zero. This is the operator that replaces
+-    S1/S2 once the BEM coupling lands.
+-
+-    HCT has no Hessian DOFs, so it falls back to evaluating in one adjacent
+-    element (and is multivalued at vertices, like P3).
+-    """
+-    nv = space.n_vert_dofs
+-    if nv == 6:
+-        u = np.asarray(psi).reshape(-1)[:space.n_vertices * 6].reshape(-1, 6)
+-        return 0.5 * (u[:, 3] - u[:, 5]), u[:, 4]
+-
+-    g1 = np.zeros(space.n_vertices); g2 = np.zeros(space.n_vertices)
+-    seen = np.zeros(space.n_vertices, bool)
+-    for t, tri in enumerate(space.triangles):
+-        for lv, v in enumerate(tri):
+-            if seen[v]:
+-                continue
+-            a, b = space.eval_shear(psi, t, space.vertices[v:v + 1])
+-            g1[v], g2[v] = a[0], b[0]; seen[v] = True
+-    return g1, g2
++    """Use the same vertex observation convention as C1MAPReconstructor."""
++    from .c1_inverse import shear_operators
++    S1, S2 = shear_operators(space)
++    return S1 @ psi, S2 @ psi
+ 
+ 
+ def solved_shear_convergence(kind="argyris", nxs=(4, 6, 8, 12), half_width=2.5,
+diff --git a/femmi/c1_inverse.py b/femmi/c1_inverse.py
+index c928578..5227a3b 100644
+--- a/femmi/c1_inverse.py
++++ b/femmi/c1_inverse.py
+@@ -5,8 +5,8 @@ MAP reconstruction on the C^1 spaces -- the inverse half of the Argyris path.
+ `c1_coupling` gives the forward map kappa -> psi with the exact exterior
+ condition. This closes the loop: shear observations -> kappa, by minimising
+ 
+-    L(kappa) = || W (S psi - gamma_obs) ||^2  +  lam * kappa^T R kappa,
+-    psi      = A^{-1} (-2 M kappa),
++    L(kappa) = (S psi - gamma_obs)^T W (S psi - gamma_obs)  +  lam * kappa^T R kappa,
++    psi      = A^{-1} Q (-2 M kappa),
+ 
+ with A the coupled FEM-BEM operator, M the C^1 mass matrix, and S the shear
+ observation operator.
+@@ -26,7 +26,7 @@ operator that took a page of assembly on P3 is three lines here.
+ 
+ The gradient follows the same adjoint structure as the P3 path,
+ 
+-    dL/dkappa = -4 M^T A^{-T} ( S1^T W r1 + S2^T W r2 ) + 2 lam R kappa,
++    dL/dkappa = -4 M^T Q A^{-T} ( S1^T W r1 + S2^T W r2 ) + 2 lam R kappa,
+ 
+ and A^{-T} is available from the same LU factorisation (the coupled operator is
+ NOT symmetric -- the BEM double layer is not -- so the transpose solve is
+@@ -68,51 +68,39 @@ def shear_selection_operators(space):
+ 
+ 
+ def shear_evaluation_operators(space):
+-    """(S1, S2) for a C^1 space whose vertices do NOT carry the Hessian (HCT).
+-
+-    THE POINT OF THE COMPARISON. Argyris gets its shear for free -- the Hessian
+-    is literally three of its DOFs, so S is a selection with one or two entries
+-    per row and no quadrature. HCT is C^1 too, so its Hessian is still CONTINUOUS
+-    at a vertex and can be evaluated unambiguously from any element meeting
+-    there; it just is not a degree of freedom, so the operator has to be built.
+-
+-    That difference is the whole reason HCT is worth testing: it costs 12 DOF per
+-    element against Argyris's 21 and inverts a 12x12 Vandermonde instead of a
+-    21x21, which is the direct answer to the sliver-conditioning caveat. If the
+-    accuracy survives at ~half the DOFs, HCT is the cheaper claim to defend.
+-
+-    Unlike the P3 case there is no averaging over adjacent elements and no
+-    boundary special case: C^1 continuity means every element meeting a vertex
+-    gives the SAME Hessian there, so picking one is exact rather than a choice.
++    """Area-weighted vertex Hessian traces for HCT.
++
++    C1 continuity does not fix a Hessian at a vertex. Average both incident
++    subtriangle traces in every incident macro triangle; this explicit recovery
++    convention is independent of triangle ordering. Argyris uses its shared
++    Hessian DOFs instead.
+     """
+     nv = space.n_vertices
+-    verts = space.vertices
+-    owner = {}
++    rows, cols, vals1, vals2 = [], [], [], []
++    total = np.zeros(nv)
+     for t, tri in enumerate(space.triangles):
+-        for v in tri:
+-            owner.setdefault(int(v), t)          # any element will do -- C^1
+-    r1 = []; c1 = []; v1 = []
+-    r2 = []; c2 = []; v2 = []
+-    for v in range(nv):
+-        t = owner.get(v)
+-        if t is None:                            # isolated vertex, no element
+-            continue
+         el = space.element(t)
+-        p = verts[v][None, :]
+-        bxx = el.basis(p, 2, 0)[0]
+-        bxy = el.basis(p, 1, 1)[0]
+-        byy = el.basis(p, 0, 2)[0]
++        v = el.verts
++        area = abs(np.linalg.det(np.array([v[1]-v[0], v[2]-v[0]]))) / 2.0
+         idx = space.local_dofs(t)
+-        g1 = 0.5 * (bxx - byy)
+-        nz = np.abs(g1) > 1e-14
+-        r1.extend([v] * int(nz.sum())); c1.extend(idx[nz].tolist())
+-        v1.extend(g1[nz].tolist())
+-        nz = np.abs(bxy) > 1e-14
+-        r2.extend([v] * int(nz.sum())); c2.extend(idx[nz].tolist())
+-        v2.extend(bxy[nz].tolist())
++        for lv, vertex in enumerate(tri):
++            point = v[lv:lv+1]
++            for sub in range(3):
++                if lv == sub:  # T_sub has the OTHER two vertices
++                    continue
++                xx = el.basis_on_subtriangle(point, sub, 2, 0)[0]
++                yy = el.basis_on_subtriangle(point, sub, 0, 2)[0]
++                xy = el.basis_on_subtriangle(point, sub, 1, 1)[0]
++                weight = area / 3.0
++                rows.extend([vertex] * len(idx)); cols.extend(idx)
++                vals1.extend(weight * 0.5 * (xx-yy)); vals2.extend(weight * xy)
++                total[vertex] += weight
++    if np.any(total == 0):
++        raise ValueError("shear evaluation requires every vertex to belong to a triangle")
++    scale = sp.diags(1.0 / total)
+     shape = (nv, space.n_dofs)
+-    return (sp.coo_matrix((v1, (r1, c1)), shape=shape).tocsr(),
+-            sp.coo_matrix((v2, (r2, c2)), shape=shape).tocsr())
++    return tuple((scale @ sp.coo_matrix((values, (rows, cols)), shape=shape)).tocsr()
++                 for values in (vals1, vals2))
+ 
+ 
+ def shear_operators(space):
+@@ -182,7 +170,9 @@ class C1Sparsity:
+         self.eps = float(eps)
+         nv = space.n_vert_dofs
+         self.idx = np.arange(0, space.n_vertices * nv, nv)
+-        self.w = np.asarray(ops.M @ np.ones(space.n_dofs)).ravel()[self.idx]
++        constant = np.zeros(space.n_dofs)
++        constant[self.idx] = 1.0
++        self.w = np.asarray(ops.M @ constant).ravel()[self.idx]
+         self.w = np.abs(self.w)
+         self.n = space.n_dofs
+ 
+@@ -219,14 +209,17 @@ class C1MAPReconstructor:
+         self.S1, self.S2 = shear_operators(space)
+         self.lam = float(lam)
+         self.maxiter = int(maxiter)
+-        self.w = (np.ones(space.n_vertices) if data_weight is None
+-                  else np.asarray(data_weight, float))
++        from .observations import observation_weights
++        self.w = observation_weights(space.n_vertices, data_weight)
+         # Wiener/Matern-style regulariser on the C^1 DOF vector, matching the
+         # P3 path's R = M + l^2 K. A non-Gaussian prior (string or object)
+         # replaces it; see make_c1_prior.
+-        self.R = (self.ops.M + (wiener_length ** 2) * self.ops.K).tocsr()
++        self.R = ((self.ops.M + (wiener_length ** 2) * self.ops.K).tocsr()
++                  if wiener_length > 0 else self.ops.K)
+         self.prior = (make_c1_prior(prior, space, self.ops, **(prior_kw or {}))
+                       if isinstance(prior, str) else prior)
++        if self.prior is not None and not getattr(self.prior, "has_energy", True):
++            raise ValueError("MAP requires a consistent prior value and gradient")
+ 
+     # -- forward / adjoint ------------------------------------------------- #
+     def psi_of(self, kappa):
+@@ -237,10 +230,13 @@ class C1MAPReconstructor:
+         return self.S1 @ psi, self.S2 @ psi
+ 
+     def _obj_grad(self, kappa, g1_obs, g2_obs):
++        from .observations import prepare_observations
++        g1_obs, g2_obs, weight = prepare_observations(
++            g1_obs, g2_obs, self.space.n_vertices, self.w)
+         psi = self.psi_of(kappa)
+         r1 = self.S1 @ psi - g1_obs
+         r2 = self.S2 @ psi - g2_obs
+-        wr1, wr2 = self.w * r1, self.w * r2
++        wr1, wr2 = weight * r1, weight * r2
+         data = float(np.dot(wr1, r1) + np.dot(wr2, r2))
+ 
+         # psi = A^{-1}(P b) with P the gauge projector (zeroes component g of the
+diff --git a/femmi/c1_lambda.py b/femmi/c1_lambda.py
+index 615fcb5..701f229 100644
+--- a/femmi/c1_lambda.py
++++ b/femmi/c1_lambda.py
+@@ -128,13 +128,13 @@ def _residual_rms(rec, kappa, g1_obs, g2_obs):
+     node count the data never covered and make the residual look artificially
+     small -- delta must stay comparable to a per-component shear std.
+     """
++    from .observations import prepare_observations, weighted_rms
++    g1_obs, g2_obs, w = prepare_observations(
++        g1_obs, g2_obs, rec.space.n_vertices, rec.w)
+     psi = rec.psi_of(kappa)
+     r1 = rec.S1 @ psi - g1_obs
+     r2 = rec.S2 @ psi - g2_obs
+-    w = rec.w
+-    num = float(np.dot(w * r1, r1) + np.dot(w * r2, r2))
+-    n_data = 2 * int(np.count_nonzero(w))
+-    return float(np.sqrt(num / max(n_data, 1)))
++    return weighted_rms(r1, r2, w)
+ 
+ 
+ def c1_lambda_path(rec, g1_obs, g2_obs, lam_grid=None, warm_start=True,
+@@ -284,7 +284,7 @@ def cv_lambda(rec, g1_obs, g2_obs, lam_grid=None, n_folds=5, seed=0,
+                 psi = rec.psi_of(k)
+                 r1 = (rec.S1 @ psi - g1_obs)[hold]
+                 r2 = (rec.S2 @ psi - g2_obs)[hold]
+-                err[f, i] = np.sqrt((np.dot(r1, r1) + np.dot(r2, r2))
++                err[f, i] = np.sqrt(np.sum(w_full[hold] * (r1*r1 + r2*r2))
+                                     / max(2 * len(hold), 1))
+             if verbose:
+                 print(f"    fold {f}: {np.array2string(err[f], precision=4)}",
+diff --git a/femmi/catalog.py b/femmi/catalog.py
+index 5425e76..758ce55 100644
+--- a/femmi/catalog.py
++++ b/femmi/catalog.py
+@@ -103,11 +103,18 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
+ 
+     dw = np.zeros(n)
+     if use_weights and weight is not None:
+-        w = np.asarray(weight, np.float64)[si]
+-        dw[gn] = w / (np.mean(w) + 1e-30)
++        from .observations import observation_weights
++        w = observation_weights(len(x), weight)[si]
++        active = w > 0
++        if not active.any():
++            raise ValueError("no positive-weight sources remain in the catalogue mesh")
++        dw[gn] = w / np.mean(w[active])
+     else:
+         dw[gn] = 1.0
+ 
++    from .observations import prepare_observations, noise_scale
++    g1n, g2n, dw = prepare_observations(g1n, g2n, n, dw)
++
+     if wiener_length is None:
+         wiener_length = 0.2 * cm.radius
+ 
+@@ -133,8 +140,7 @@ def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
+             if verbose:
+                 print(f"  delta_noise = {noise_std:.4e}")
+         else:
+-            noise_std = estimate_noise_level(
+-                np.concatenate([g1n[gn], g2n[gn]]), method='mad')
++            noise_std = noise_scale(g1n, g2n, dw)
+ 
+     rec.noise_std = noise_std if use_morozov else None
+     kappa, result = rec.reconstruct(g1n, g2n, verbose=verbose)
+diff --git a/femmi/elements.py b/femmi/elements.py
+index 0fae6a6..f639475 100644
+--- a/femmi/elements.py
++++ b/femmi/elements.py
+@@ -394,6 +394,13 @@ class HCTElement(C1Element):
+         self._C = sol
+         self._which_sub = which_sub
+ 
++    def basis_on_subtriangle(self, pts, sub, dx=0, dy=0):
++        """One-sided polynomial trace, including at shared subtriangle edges."""
++        local = self._to_local(pts)
++        n = len(self.powers)
++        monomials = _mono(self.powers, local[:, 0], local[:, 1], dx, dy)
++        return monomials @ self._C[sub*n:(sub+1)*n] / self.h**(dx+dy)
++
+     def basis(self, pts, dx=0, dy=0):
+         p = np.atleast_2d(np.asarray(pts, float))
+         L = self._to_local(p)
+diff --git a/femmi/forward.py b/femmi/forward.py
+index 00e1c5d..3273089 100644
+--- a/femmi/forward.py
++++ b/femmi/forward.py
+@@ -89,7 +89,7 @@ class DifferentiableForward:
+ 
+     def rhs_from_kappa(self, kappa):
+         rhs = -2.0 * self._M_mv(kappa)
+-        idx = int(self.ops.bnd_mesh.node_indices[0])
++        idx = self.ops._rhs_zero_nodes()
+         return rhs.at[idx].set(0.0)
+ 
+     def psi_from_kappa(self, kappa):
+@@ -153,6 +153,9 @@ class DifferentiableForward:
+         return {'max_rel_error': max_rel, 'passed': passed, 'rel_errors': rel_errors}
+ 
+     def hvp(self, kappa, v, g1_obs, g2_obs):
+-        """Hessian-vector product H*v without forming H."""
+-        f = lambda k: self.loss_fn(k, g1_obs, g2_obs)
+-        return jax.jvp(jax.grad(f), (kappa,), (v,))[1]
+\ No newline at end of file
++        """Quadratic loss Hessian action; avoids JVP through pure callbacks."""
++        ops = self.ops
++        vector = np.asarray(v, dtype=np.float64)
++        g1, g2 = ops.forward(vector)
++        return jnp.asarray(2.0 * ops.adjoint_rhs(g1, g2)
++                           + 2.0 * self.lam_reg * (build_laplacian(ops) @ vector))
+diff --git a/femmi/inverse.py b/femmi/inverse.py
+index 5c777fc..b8f9c6a 100644
+--- a/femmi/inverse.py
++++ b/femmi/inverse.py
+@@ -132,20 +132,26 @@ class MAPReconstructor:
+         # behaviour. A custom Prior (femmi.priors) overrides it -- TV, sparsity,
+         # maximum entropy, or a learned score prior.
+         self.prior          = prior
++        if prior is not None and not getattr(prior, "has_energy", True):
++            raise ValueError("MAP requires a consistent prior value and gradient; "
++                             "use score-based sampling for a score-only prior")
+ 
+         if wiener_length > 0.0:
+             self._R = build_wiener_regularizer(fwd.ops, wiener_length)
+         else:
+             self._R = fwd.ops.K
+ 
+-    def _make_obj_and_grad(self, gamma1_obs, gamma2_obs):
++    def _make_obj_and_grad(self, gamma1_obs, gamma2_obs, data_weight=None):
+         ops  = self.ops
+         M    = ops.M
+         S1   = ops.S1
+         S2   = ops.S2
+         lam  = self.fwd.lam_reg
+         R    = self._R
+-        w    = self.data_weight
++        from .observations import prepare_observations
++        gamma1_obs, gamma2_obs, w = prepare_observations(
++            gamma1_obs, gamma2_obs, ops.n_nodes,
++            self.data_weight if data_weight is None else data_weight)
+ 
+         loss_history = []
+ 
+@@ -187,6 +193,9 @@ class MAPReconstructor:
+ 
+         Returns (kappa_map, ReconstructionResult).
+         """
++        from .observations import prepare_observations
++        g1_obs, g2_obs, weight = prepare_observations(
++            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight, mask)
+         if self.noise_std is not None:
+             # Morozov selection applies to ANY prior. The discrepancy is measured
+             # by solving the MAP problem at each trial lambda and comparing the
+@@ -205,10 +214,10 @@ class MAPReconstructor:
+                 wiener_length=self.wiener_length,
+                 maxiter_inner=min(150, self.maxiter),
+                 verbose=verbose,
+-                data_weight=self.data_weight,
++                data_weight=weight,
+                 prior=self.prior,
+             )
+-            lam_star = selector.select(gamma1_obs, gamma2_obs)
++            lam_star = selector.select(g1_obs, g2_obs)
+             if verbose:
+                 print(f"lambda* = {lam_star:.4e}\n")
+             self.fwd.lam_reg = lam_star
+@@ -219,14 +228,8 @@ class MAPReconstructor:
+ 
+         ops    = self.ops
+         n      = ops.n_nodes
+-        g1_obs = gamma1_obs.copy()
+-        g2_obs = gamma2_obs.copy()
+-        if mask is not None:
+-            g1_obs[mask] = 0.0
+-            g2_obs[mask] = 0.0
+-
+         kappa0 = np.zeros(n) if kappa_init is None else kappa_init.copy()
+-        obj_grad, loss_history = self._make_obj_and_grad(g1_obs, g2_obs)
++        obj_grad, loss_history = self._make_obj_and_grad(g1_obs, g2_obs, weight)
+ 
+         if verbose:
+             if self.prior is not None:
+@@ -371,21 +374,15 @@ class MAPReconstructor:
+         kappa_E, kappa_B, _, _ = self.reconstruct_eb(
+             gamma1_obs, gamma2_obs, mask=mask, verbose=verbose)
+ 
+-        g1 = np.asarray(gamma1_obs, dtype=np.float64)
+-        g2 = np.asarray(gamma2_obs, dtype=np.float64)
++        from .observations import prepare_observations, weighted_rms, noise_scale
++        g1, g2, weight = prepare_observations(
++            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight, mask)
+ 
+         # Restrict every shear-space statistic to the data-carrying nodes. On a
+         # catalog mesh the non-galaxy (guard/boundary) nodes hold no shear but a
+         # nonzero fitted shear, which would otherwise pollute the RMS estimates.
+-        active = (slice(None) if self.data_weight is None
+-                  else np.asarray(self.data_weight) > 0)
+-        n_active = (g1.size if self.data_weight is None
+-                    else int(np.count_nonzero(active)))
+-        n2 = 2 * n_active
+-
+         def _rms2(a, b):
+-            aa, bb = a[active], b[active]
+-            return float(np.sqrt((np.dot(aa, aa) + np.dot(bb, bb)) / max(n2, 1)))
++            return weighted_rms(a, b, weight)
+ 
+         # Fitted shear for each mode.
+         e1, e2 = (np.asarray(a, dtype=np.float64) for a in self.ops.forward(kappa_E))
+@@ -398,9 +395,7 @@ class MAPReconstructor:
+         # in the 45-deg-rotated frame; rotate it back (rot^-1: (a,b)->(-b,a)) to
+         # subtract it in the original frame. What remains is incoherent noise.
+         delta_noise = _rms2(g1 - e1 - (-b2), g2 - e2 - b1)
+-        from .regularization import estimate_noise_level
+-        delta_mad = estimate_noise_level(
+-            np.concatenate([g1[active], g2[active]]), method='mad')
++        delta_mad = noise_scale(g1, g2, weight)
+ 
+         bmode_snr = bmode_shear_rms / (delta_noise + 1e-30)
+         if bmode_snr < clean_snr:
+@@ -448,20 +443,16 @@ class MAPReconstructor:
+             rec.noise_std = delta
+             kappa, res = rec.reconstruct(g1, g2)   # Morozov now targets delta
+         """
+-        from .regularization import estimate_noise_level
++        from .observations import prepare_observations, noise_scale
++        g1, g2, weight = prepare_observations(
++            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight, mask)
+         saved_noise = self.noise_std
+         saved_iter  = self.maxiter
+         if maxiter is not None:
+             self.maxiter = maxiter
+ 
+         # active-node MAD -> a sensible lambda for the E/B fits
+-        w = self.data_weight
+-        if w is None:
+-            g_active = np.concatenate([np.asarray(gamma1_obs), np.asarray(gamma2_obs)])
+-        else:
+-            a = np.asarray(w) > 0
+-            g_active = np.concatenate([np.asarray(gamma1_obs)[a], np.asarray(gamma2_obs)[a]])
+-        self.noise_std = estimate_noise_level(g_active, method='mad')
++        self.noise_std = noise_scale(g1, g2, weight)
+         try:
+             diag, _, _ = self.bmode_diagnostics(
+                 gamma1_obs, gamma2_obs, mask=mask, verbose=verbose)
+diff --git a/femmi/neural_prior/prior.py b/femmi/neural_prior/prior.py
+index 43302c1..d0e44f6 100644
+--- a/femmi/neural_prior/prior.py
++++ b/femmi/neural_prior/prior.py
+@@ -9,8 +9,7 @@ regular grid (where convolutions make sense). This class is the bridge:
+ 
+ and returns grad_phi = -s(nodes), so it plugs straight into MAPReconstructor and
+ the Langevin/HMC sampler exactly like any other Prior. It exposes the score, so
+-it is most natural with the score-based sampler (femmi.sampling), but also works
+-for MAP.
++it is most natural with the score-based sampler (femmi.sampling), and is not accepted by energy-based MAP without a consistent energy.
+ 
+ 'One flag away': constructing it with no checkpoint trains a small default model
+ on synthetic non-Gaussian maps (train.get_or_train) and caches it -- no external
+@@ -182,7 +181,7 @@ class NeuralScorePrior(Prior):
+         return self.taper * (self.gather @ s_grid.reshape(-1).astype(np.float64))
+ 
+     def value_grad(self, kappa):
+-        # grad of phi = -log p is -score; phi itself has no closed form -> 0.0 proxy
+-        # (valid for the score-based sampler and for gradient descent; the reported
+-        # MAP loss then omits the prior term, as documented for ScorePrior).
+-        return 0.0, -np.asarray(self.score(kappa), dtype=np.float64)
++        raise ValueError("NeuralScorePrior supplies a score, not a consistent MAP energy; "
++                         "use score-based sampling")
++
++    has_energy = False
+diff --git a/femmi/operators.py b/femmi/operators.py
+index d5ff68b..cb3899e 100644
+--- a/femmi/operators.py
++++ b/femmi/operators.py
+@@ -139,8 +139,8 @@ class RecoveredShear:
+         int N_i gamma1 = 1/2 [ -int N_i,x psi_,x + int N_i,y psi_,y ]  + boundary
+         int N_i gamma2 =     -int N_i,y psi_,x                          + boundary
+ 
+-    so only FIRST derivatives of psi_h are ever evaluated (those converge at
+-    O(h^3) for P3, and are continuous across elements), and the result is the L2
++    so only FIRST derivatives of psi_h are integrated (under suitable regularity
++    their broken-norm error is O(h^3); P3 gradients need not be continuous), and the result is the L2
+     projection of the recovered field onto the continuous P3 space:
+ 
+         M gamma1_rec = 1/2 (By - Bx) psi,     M gamma2_rec = -1/2 (Bxy + Bxy^T) psi.
+@@ -191,9 +191,9 @@ class FEMOperators:
+     """
+     All precomputed FEM-BEM operators for a fixed mesh.
+ 
+-    A_coupled = K_neumann + P^T C P where C = V_h^{-1}(0.5*M_b + K_h).
+-    K has no Dirichlet row modifications; its constant null space is
+-    removed by the BEM coupling and gauge fix.
++    A_coupled is assembled from K + P^T C P, with
++    C = -M_b V_sigma^{-1}(0.5*M_b - K_h), then row-pinned.
++    The RHS projection is part of this discrete boundary model.
+     """
+     mesh         : object
+     K            : sp.csr_matrix
+@@ -224,10 +224,10 @@ class FEMOperators:
+         return self.A_coupled_lu.solve(rhs)
+ 
+     def _solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
+-        """Adjoint solve: zero gauge/Dirichlet nodes in RHS, then apply A_lu^T."""
+-        rhs = rhs.copy()
+-        rhs[self._rhs_zero_nodes()] = 0.0
+-        return self.A_coupled_lu.solve(rhs, trans='T')
++        """Transpose of A^{-1} P: apply A^{-T}, then the RHS projector P."""
++        adj = self.A_coupled_lu.solve(rhs, trans='T')
++        adj[self._rhs_zero_nodes()] = 0.0
++        return adj
+ 
+     def psi_from_kappa(self, kappa):
+         return self._solve_psi(-2.0 * self.M @ kappa)
+diff --git a/femmi/pipeline.py b/femmi/pipeline.py
+index 3a519eb..bff56f9 100644
+--- a/femmi/pipeline.py
++++ b/femmi/pipeline.py
+@@ -60,7 +60,8 @@ def build_forward_and_data(cfg):
+         kt = np.asarray(kt); g1t = np.asarray(g1t); g2t = np.asarray(g2t)
+         rng = np.random.default_rng(cfg.get("data.seed"))
+         g1n = g1t + rng.normal(0, sn, len(g1t)); g2n = g2t + rng.normal(0, sn, len(g2t))
+-        weight = np.ones(len(nodes))
++        # Boundary shear rows are explicitly zeroed by the P3 operator.
++        weight = np.asarray(ops.interior, dtype=float)
+         _apply_mask(cfg, nodes, g1n, g2n, weight)
+         return dict(ops=ops, g1n=g1n, g2n=g2n, weight=weight, truth_nodes=kt,
+                     catalog_mesh=None, nodes=nodes, noise_std=sn,
+@@ -76,6 +77,7 @@ def build_forward_and_data(cfg):
+     g1n = np.zeros(n); g1n[gn] = np.asarray(g1)[si]
+     g2n = np.zeros(n); g2n[gn] = np.asarray(g2)[si]
+     weight = np.zeros(n); weight[gn] = 1.0
++    _apply_mask(cfg, np.asarray(ops.mesh.nodes), g1n, g2n, weight)
+     truth_nodes = np.full(n, np.nan)
+     if truth_gal is not None:
+         truth_nodes[gn] = np.asarray(truth_gal)[si]
+diff --git a/femmi/priors.py b/femmi/priors.py
+index b4f55d1..11fba27 100644
+--- a/femmi/priors.py
++++ b/femmi/priors.py
+@@ -44,7 +44,8 @@ import scipy.sparse as sp
+ class Prior:
+     """Base class. Subclasses implement value_grad(kappa) -> (phi, grad_phi)."""
+     name = "prior"
+-    is_quadratic = False           # only quadratic priors support Morozov lambda-selection
++    is_quadratic = False           # identifies a quadratic penalty
++    has_energy = True
+ 
+     def value_grad(self, kappa):
+         raise NotImplementedError
+@@ -206,18 +207,24 @@ class ScorePrior(Prior):
+     can later drive Langevin / HMC posterior sampling, not just MAP.
+ 
+     score_fn   : kappa -> grad log p(kappa)  (array, same shape as kappa)
+-    neg_logp   : optional kappa -> -log p(kappa) (float). If None, phi is 0.0,
+-                 which is a valid gradient-consistent proxy for L-BFGS but makes
+-                 the reported loss omit the prior term."""
++    neg_logp   : kappa -> -log p(kappa), required for energy-based MAP.
++                 Without it, use score-based sampling; a zero value with a
++                 nonzero gradient is not a valid L-BFGS objective."""
+ 
+     def __init__(self, score_fn, neg_logp=None, name="score"):
+         self.name = name
+         self.score_fn = score_fn
+         self.neg_logp = neg_logp
++        self.has_energy = neg_logp is not None
++
++    def score(self, kappa, sigma=None):
++        return np.asarray(self.score_fn(kappa)).ravel()
+ 
+     def value_grad(self, kappa):
++        if not self.has_energy:
++            raise ValueError("ScorePrior requires neg_logp for energy-based MAP; use score sampling")
+         grad = -np.asarray(self.score_fn(kappa)).ravel()
+-        phi = 0.0 if self.neg_logp is None else float(self.neg_logp(kappa))
++        phi = float(self.neg_logp(kappa))
+         return phi, grad
+ 
+ 
+diff --git a/femmi/regularization.py b/femmi/regularization.py
+index 767d1d4..76788ac 100644
+--- a/femmi/regularization.py
++++ b/femmi/regularization.py
+@@ -14,6 +14,7 @@ import time
+ from typing import Optional
+ 
+ from .operators import FEMOperators, build_wiener_regularizer
++from .observations import prepare_observations, weighted_rms, noise_scale
+ 
+ 
+ def estimate_noise_level(gamma_obs, method='mad'):
+@@ -39,11 +40,12 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
+     """
+     Compute D(lambda) = ||F kappa_lambda - gamma_obs|| - c * delta.
+ 
+-    D(lambda) is monotone INCREASING in lambda:
++    For globally minimized fixed penalties, residuals are nondecreasing with lambda:
+       - large lambda -> over-smoothed -> residual large -> D > 0
+       - small lambda -> over-fitted   -> residual small -> D < 0
+ 
+-    The Morozov parameter lambda* is the unique root D(lambda*) = 0.
++    A root need not exist or be unique. Approximate/nonconvex optimization can
++    also spoil monotonicity; the selector has a bracket fallback.
+ 
+     prior : optional non-Gaussian Prior (femmi.priors). NOTHING here needs the
+     prior to be quadratic -- the discrepancy is evaluated by actually solving the
+@@ -60,6 +62,8 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
+     from .inverse import MAPReconstructor
+     from .forward import DifferentiableForward
+ 
++    gamma1_obs, gamma2_obs, data_weight = prepare_observations(
++        gamma1_obs, gamma2_obs, ops.n_nodes, data_weight)
+     fwd = DifferentiableForward(ops, lam_reg=lam)
+     rec = MAPReconstructor(fwd, maxiter=maxiter_inner, gtol=gtol_inner,
+                            callback_every=0, wiener_length=wiener_length,
+@@ -69,14 +73,7 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
+     g1_pred, g2_pred = ops.forward(kappa_lam)
+     r1 = g1_pred - gamma1_obs
+     r2 = g2_pred - gamma2_obs
+-    if data_weight is None:
+-        num    = np.dot(r1, r1) + np.dot(r2, r2)
+-        n_data = len(gamma1_obs) + len(gamma2_obs)
+-    else:
+-        w      = np.asarray(data_weight, dtype=np.float64)
+-        num    = np.dot(w * r1, r1) + np.dot(w * r2, r2)
+-        n_data = 2 * int(np.count_nonzero(w))
+-    return float(np.sqrt(num / max(n_data, 1))) - c * delta
++    return weighted_rms(r1, r2, data_weight) - c * delta
+ 
+ 
+ def lcurve_lambda(ops, gamma1_obs, gamma2_obs, lam_grid=None, wiener_length=0.5,
+@@ -98,6 +95,8 @@ def lcurve_lambda(ops, gamma1_obs, gamma2_obs, lam_grid=None, wiener_length=0.5,
+     from .inverse import MAPReconstructor
+     from .forward import DifferentiableForward
+ 
++    gamma1_obs, gamma2_obs, data_weight = prepare_observations(
++        gamma1_obs, gamma2_obs, ops.n_nodes, data_weight)
+     lam_grid = np.asarray(lam_grid if lam_grid is not None
+                           else np.logspace(-6, 1, 12), float)
+     res, sol = [], []
+@@ -170,13 +169,17 @@ class MorozovSelector:
+ 
+         Returns the Morozov regularization parameter.
+         """
+-        delta = noise_std or self.noise_std
++        gamma1_obs, gamma2_obs, weight = prepare_observations(
++            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight)
++        delta = self.noise_std if noise_std is None else noise_std
+         if delta is None:
+-            g_all = np.concatenate([gamma1_obs, gamma2_obs])
+-            delta = estimate_noise_level(g_all, method='mad')
++            delta = noise_scale(gamma1_obs, gamma2_obs, weight)
+             if self.verbose:
+                 print(f"  Estimated noise level delta={delta:.4e} (MAD)")
+ 
++        if not np.isfinite(delta) or delta < 0:
++            raise ValueError("noise_std must be finite and nonnegative")
++
+         if self.verbose:
+             print(f"MorozovSelector: bracket=[{self.lam_min:.0e}, {self.lam_max:.0e}]  "
+                   f"delta={delta:.4e}")
+@@ -228,10 +231,11 @@ class MorozovSelector:
+         from .inverse import MAPReconstructor
+         from .forward import DifferentiableForward
+ 
+-        delta = noise_std or self.noise_std
++        gamma1_obs, gamma2_obs, weight = prepare_observations(
++            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight)
++        delta = self.noise_std if noise_std is None else noise_std
+         if delta is None:
+-            g_all = np.concatenate([gamma1_obs, gamma2_obs])
+-            delta = estimate_noise_level(g_all, method='mad')
++            delta = noise_scale(gamma1_obs, gamma2_obs, weight)
+ 
+         lam_vals  = np.logspace(np.log10(self.lam_min), np.log10(self.lam_max), n_points)
+         res_norms = np.zeros(n_points)
+@@ -241,14 +245,14 @@ class MorozovSelector:
+         for i, lam in enumerate(lam_vals):
+             fwd = DifferentiableForward(self.ops, lam_reg=lam)
+             rec = MAPReconstructor(fwd, maxiter=self.maxiter_inner, gtol=1e-6,
+-                                   callback_every=0, wiener_length=self.wiener_length)
++                                   callback_every=0, wiener_length=self.wiener_length,
++                                   data_weight=weight, prior=self.prior)
+             kappa_lam, _ = rec.reconstruct(gamma1_obs, gamma2_obs, verbose=False)
+ 
+             g1p, g2p = self.ops.forward(kappa_lam)
+             r1 = g1p - gamma1_obs
+             r2 = g2p - gamma2_obs
+-            n_data = len(gamma1_obs) + len(gamma2_obs)
+-            rn     = float(np.sqrt((np.dot(r1, r1) + np.dot(r2, r2)) / n_data))
++            rn = weighted_rms(r1, r2, weight)
+ 
+             res_norms[i] = rn
+             kap_norms[i] = float(np.linalg.norm(kappa_lam))
+@@ -260,4 +264,4 @@ class MorozovSelector:
+         return {
+             'lam': lam_vals, 'residual_norm': res_norms,
+             'kappa_norm': kap_norms, 'discrepancy': disc_vals, 'delta': delta,
+-        }
+\ No newline at end of file
++        }
+diff --git a/femmi/sampling.py b/femmi/sampling.py
+index 811f11d..d829a07 100644
+--- a/femmi/sampling.py
++++ b/femmi/sampling.py
+@@ -32,6 +32,11 @@ entry point `sample_posterior`:
+ 
+ `sample_posterior(..., method='auto')` picks 'rto' for the Gaussian/Wiener prior
+ and 'annealed_hmc' for any other prior.
++
++Scope: Gaussian claims hold up to numerical solve/factorization error.
++Langevin and annealed HMC are approximate; a nonzero final sigma and a learned
++nonconservative score prevent an exact posterior claim. Score-only priors do
++not supply a MAP energy; map_kappa is then a zero initialization (see info).
+ """
+ 
+ from __future__ import annotations
+@@ -93,8 +98,10 @@ def _rto_sample(ops, g1, g2, noise_std, wiener_length, lam, w, n_samples,
+     b = FtW(g1, g2) / sigma2
+ 
+     def solve(rhs, x0=None):
+-        x, _ = spla.cg(Aop, rhs, rtol=cg_tol, maxiter=500,
++        x, status = spla.cg(Aop, rhs, rtol=cg_tol, maxiter=max(500, 5*n),
+                        x0=x0)
++        if status != 0:
++            raise RuntimeError(f"posterior CG failed to converge (info={status})")
+         return x
+ 
+     k_map = solve(b)
+@@ -103,7 +110,13 @@ def _rto_sample(ops, g1, g2, noise_std, wiener_length, lam, w, n_samples,
+     for s in range(n_samples):
+         e1 = rng.standard_normal(len(g1)); e2 = rng.standard_normal(len(g2))
+         z = rng.standard_normal(n)
+-        eta = FtW(e1, e2) / noise_std + np.sqrt(two_lam) * (Lc @ z)   # eta ~ N(0,A)
++        # FtW already multiplies by w. Input noise must have variance 1/w,
++        # so the resulting covariance is F^T W F, not F^T W^2 F.
++        if w is not None:
++            invsqrt = np.zeros_like(w)
++            np.divide(1.0, np.sqrt(w), out=invsqrt, where=w > 0)
++            e1 *= invsqrt; e2 *= invsqrt
++        eta = FtW(e1, e2) / noise_std + np.sqrt(two_lam) * (Lc @ z)
+         samples[s] = solve(b + eta, x0=k_map)
+         if verbose and (s + 1) % max(1, n_samples // 5) == 0:
+             print(f"  RTO sample {s + 1}/{n_samples}")
+@@ -118,6 +131,10 @@ def _map_warmstart(fwd, g1, g2, prior, wiener_length, w, sn2, lam, maxiter):
+     ||F k - y||^2 + lam_map * phi. The two share the SAME mode iff
+     lam_map = 2 sigma_n^2 lam, so convert before the solve (otherwise a properly
+     large sampler lam over-smooths the warm-start MAP)."""
++    if prior is not None and not getattr(prior, "has_energy", True):
++        # A score-only field supplies no valid line-search energy. Start at
++        # zero, and label this as an initialization in the public result.
++        return np.zeros(fwd.ops.n_nodes)
+     saved = fwd.lam_reg
+     fwd.lam_reg = 2.0 * sn2 * lam
+     try:
+@@ -144,7 +161,11 @@ def _langevin_sample(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
+         r1, r2 = S1 @ psi - g1, S2 @ psi - g2
+         wr1, wr2 = (r1, r2) if w is None else (w * r1, w * r2)
+         g = (-4.0 * (M.T @ ops._solve_adjoint(S1.T @ wr1 + S2.T @ wr2))) * inv2s2
+-        return g + (lam * (2.0 * (R @ k)) if prior is None else lam * prior.value_grad(k)[1])
++        if prior is None:
++            return g + 2.0 * lam * (R @ k)
++        if not getattr(prior, "has_energy", True):
++            return g - lam * np.asarray(prior.score(k))
++        return g + lam * prior.value_grad(k)[1]
+ 
+     k_map = _map_warmstart(fwd, g1, g2, prior, wiener_length, w, noise_std**2, lam, maxiter_map)
+     k = k_map.copy() if warm_start else np.zeros(ops.n_nodes)
+@@ -187,7 +208,7 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
+     sigma^2 is the inverse temperature: high sigma broadens both the likelihood
+     (via sigma_eff) and the prior (the score net is noise-conditional, so it
+     supplies the correctly-tempered prior score at each level), merging modes;
+-    annealing sigma_max -> sigma_min lands on the true posterior. Each level runs
++    annealing sigma_max -> sigma_min reaches the configured approximate target. Each level runs
+     HMC; for a score-only prior the Metropolis correction uses the exact
+     (quadratic) likelihood difference plus a line-integral estimate of the prior
+     log-density difference (the num_delta_logp trick)."""
+@@ -195,13 +216,13 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
+     M, S1, S2 = ops.M, ops.S1, ops.S2
+     sn2 = float(noise_std)**2
+ 
+-    has_score = hasattr(prior, "score")               # NeuralScorePrior / ScorePrior
++    has_score = prior is not None and not getattr(prior, "has_energy", True)
+     if not has_score:
+-        R = WienerPrior(ops, wiener_length).R
++        actual_prior = WienerPrior(ops, wiener_length) if prior is None else prior
+         def pscore(k, s):
+-            return -2.0 * (R @ k)                     # raw grad log p (sigma-indep. Gaussian)
++            return -np.asarray(actual_prior.value_grad(k)[1])
+         def neg_logp(k):
+-            return float(k @ (R @ k))                 # exact prior value (x lambda later)
++            return float(actual_prior.value_grad(k)[0])
+     else:
+         def pscore(k, s):
+             return np.asarray(prior.score(k, s), float)
+@@ -258,8 +279,8 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
+         return (k, 1) if accepted else (k0, 0)
+ 
+     # Independent annealed chains: each chain anneals sigma_max -> sigma_min and
+-    # contributes samples from the coldest level. Independence between chains
+-    # (not steps within one chain) is what gives correct posterior variance.
++    # contributes samples from the coldest level. Independent random streams
++    # do not remove finite-chain or nonzero-final-sigma bias.
+     sigmas = np.geomspace(sigma_max, sigma_min, n_levels)
+     samples, n_acc, n_prop = [], 0, 0
+     thin = max(1, keep_final // 2)
+@@ -292,9 +313,9 @@ def _auto_lam(ops, g1, g2, noise_std, prior, wiener_length, w, verbose):
+     (the two posteriors have the same mode iff this holds). This makes RTO / HMC
+     reproduce the MAP reconstruction instead of being ~10^3x under-regularised.
+ 
+-    Score prior (neural): the network already encodes a properly normalised
+-    log-prior, so the Bayesian coefficient is 1.0. Any other non-Gaussian prior
+-    (TV / sparse / maxent) likewise defaults to 1.0.
++    Other priors default to coefficient 1.0 as a convention, not a calibration.
++    The learned score/mesh bridge and non-Gaussian penalty scales require
++    independent validation and tuning for scientific use.
+     """
+     is_gaussian = prior is None or isinstance(prior, WienerPrior)
+     if not is_gaussian:
+@@ -318,7 +339,7 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
+                      maxiter_map=200, seed=0, verbose=True,
+                      n_levels=10, steps_per_level=15, sigma_max=1.0, sigma_min=0.02,
+                      n_leapfrog=5, leap_frac=0.5, n_delta_logp=4,
+-                     n_chains=40, keep_final=4):
++                     n_chains=40, keep_final=4, mask=None):
+     """Sample the kappa posterior and return mean, std (UQ), and samples.
+ 
+     noise_std : per-component shear noise sigma_n (sets the likelihood scale).
+@@ -333,8 +354,13 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
+                 Morozov for the Wiener prior, 1.0 for the neural score prior; a raw
+                 small lam leaves the posterior noise-dominated (see _auto_lam).
+     """
+-    w = None if data_weight is None else np.asarray(data_weight, float)
+-    g1 = np.asarray(gamma1_obs, float); g2 = np.asarray(gamma2_obs, float)
++    from .observations import prepare_observations
++    g1, g2, w = prepare_observations(
++        gamma1_obs, gamma2_obs, fwd.ops.n_nodes, data_weight, mask)
++    if not np.isfinite(noise_std) or noise_std <= 0:
++        raise ValueError("sampling noise_std must be finite and positive")
++    if method not in ("auto", "rto", "annealed_hmc", "langevin"):
++        raise ValueError(f"unknown sampling method {method!r}")
+ 
+     # Auto-calibrate lam when the caller doesn't set one. Left uncalibrated, the
+     # sampler's raw lam is trivially wrong: the data term carries weight 1/sigma_n^2
+@@ -376,6 +402,13 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
+ 
+     if temperature != 1.0 and method == "rto":
+         samples = k_map + np.sqrt(temperature) * (samples - k_map)
++    info["map_kind"] = ("initialization" if prior is not None and
++                        not getattr(prior, "has_energy", True) else "posterior_mode")
++    if method == "annealed_hmc":
++        info["sigma_final"] = float(sigma_min)
++        info["approximate"] = True
++    elif method == "langevin":
++        info["approximate"] = True
+     return PosteriorSamples(mean=samples.mean(0), std=samples.std(0),
+                             samples=samples, method=method, map_kappa=k_map, info=info)
+ 
+diff --git a/femmi/svd_analysis.py b/femmi/svd_analysis.py
+index cb09032..5a61c28 100644
+--- a/femmi/svd_analysis.py
++++ b/femmi/svd_analysis.py
+@@ -1,7 +1,7 @@
+ """
+ femmi/svd_analysis.py
+-SVD of the forward operator F, Picard diagnostics, and inverse scattering
+-support-recovery indicators (factorization method and linear sampling method).
++Euclidean SVD of the discrete nodal forward map and legacy geometry indicators.
++The indicators do not consume observations and cannot locate unknown mass.
+ 
+ Reference: MATH.md sections 15-17, C&K chapters 5-6, 10.
+ """
+@@ -25,7 +25,9 @@ class SVDResult:
+ 
+ def compute_svd(ops, n_singular=40, method='lanczos', tol=1e-10, maxiter=None):
+     """
+-    Compute leading n_singular singular triplets of F: L^2(Omega) -> L^2(Omega)^2.
++    Compute leading singular triplets of the nodal matrix in Euclidean norms.
++
++    This is not a mass-normalized, noise-weighted catalogue information spectrum.
+ 
+     method='lanczos': ARPACK eigsh on F*F (default, scales to large meshes)
+     method='dense':   form F explicitly (only for small meshes, n < 500)
+@@ -75,7 +77,8 @@ def compute_svd(ops, n_singular=40, method='lanczos', tol=1e-10, maxiter=None):
+     for i in range(len(sigma)):
+         if sigma[i] > 1e-14:
+             fv = _forward(V[:, i])
+-            residuals[i] = np.linalg.norm(fv - sigma[i] * U[:, i]) / sigma[i]
++            residuals[i] = max(np.linalg.norm(fv - sigma[i] * U[:, i]),
++                               np.linalg.norm(_adjoint(U[:, i]) - sigma[i] * V[:, i])) / sigma[i]
+ 
+     return SVDResult(sigma=sigma, U=U, V=V, residuals=residuals, n_nodes=n)
+ 
+@@ -125,7 +128,7 @@ def picard_plot(ops, gamma_obs, noise_std, n_singular=40, svd_result=None,
+             break
+ 
+     idx         = np.arange(1, k + 1)
+-    noise_line  = noise_std * np.sqrt(2 * n)
++    noise_line  = noise_std
+ 
+     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+     fig.suptitle("Picard Diagnostic Plot", fontsize=13, fontweight='bold')
+@@ -183,11 +186,11 @@ def _probe_function(ops, z):
+ 
+ class FactorizationIndicator:
+     """
+-    Support recovery via the Kirsch factorization method (C&K Thm 6.15).
+-
+-    W(z)^{-1} = sum_{sigma_i > delta} |<Phi_z, u_i>|^2 / sigma_i
++    Legacy, data-independent geometry diagnostic (not mass support recovery).
+ 
+-    W(z) is large inside support(kappa), small outside.
++    Returns the normalized sum |<Phi_z,u_i>|^2/sigma_i, without inversion.
++    F and Phi_z depend only on the mesh/operator, not the observed lens.
++    The scattering range theorem does not justify this as a support estimator.
+     """
+ 
+     def __init__(self, ops, n_singular=40, noise_floor=None, svd_result=None):
+@@ -276,12 +279,11 @@ class FactorizationIndicator:
+ 
+ class LinearSamplingIndicator:
+     """
+-    Support recovery via the linear sampling method (C&K section 5.5).
+-
+-    I(z) = 1 / ||g_z^alpha|| where g_z^alpha = (F*F + alpha*I)^{-1} F* Phi_z.
++    Legacy, data-independent geometry diagnostic (not mass support recovery).
+ 
+-    I(z) is large inside support(kappa), more stable near corners than
+-    the factorization method.
++    Returns normalized ||g_z^alpha||, where
++    g_z^alpha = (F^T F + alpha I)^{-1} F^T Phi_z. No observations enter this
++    calculation, so it cannot determine the support of an unknown convergence.
+     """
+ 
+     def __init__(self, ops, n_singular=40, alpha=None, svd_result=None):
+@@ -300,7 +302,7 @@ class LinearSamplingIndicator:
+         return _probe_function(self.ops, z)
+ 
+     def indicator_map(self, test_points):
+-        """Evaluate I(z) = 1/||g_z^alpha|| at all test_points. Returns (n_test,)."""
++        """Evaluate normalized I(z) = ||g_z^alpha|| at all test_points. Returns (n_test,)."""
+         test_points = np.asarray(test_points, dtype=np.float64)
+         if test_points.ndim == 1:
+             test_points = test_points[None, :]
+diff --git a/mkdocs.yml b/mkdocs.yml
+index cd2751a..cec4133 100644
+--- a/mkdocs.yml
++++ b/mkdocs.yml
+@@ -41,5 +41,6 @@ nav:
+   - Installation: installation.md
+   - Quickstart: quickstart.md
+   - Configuration & CLI: configuration.md
++  - Observation model: observation-model.md
+   - Priors & sampling: priors-and-sampling.md
+   - Neural prior: neural-prior.md
+diff --git a/tests/test_coupled_pipeline.py b/tests/test_coupled_pipeline.py
+index 9d97faa..280a028 100644
+--- a/tests/test_coupled_pipeline.py
++++ b/tests/test_coupled_pipeline.py
+@@ -27,6 +27,7 @@ kappa_g = np.exp(-(x**2 + y**2) / (2 * SIGMA**2))
+ kappa_0 = np.zeros(ops.n_nodes)
+ 
+ results = []
++checked_results = []
+ 
+ def record(name, ok, detail=""):
+     tag = "PASS" if ok else "FAIL"
+@@ -34,6 +35,7 @@ def record(name, ok, detail=""):
+     if detail:
+         print(f"       {detail}")
+     results.append((name, ok))
++    checked_results.append((name, ok, detail))
+ 
+ 
+ # BEM matrices
+@@ -66,6 +68,11 @@ _C_norm      = np.linalg.norm(C)
+ record("C @ 1 small relative to ||C||", _C_ones_norm < 0.5 * _C_norm,
+        f"||C@1||={_C_ones_norm:.2e}  ||C||={_C_norm:.2e}")
+ 
++from scipy.spatial.distance import pdist
++w_b = M_b @ ones_b
++sigma = float(pdist(bnd.nodes).max())
++V_eff = V_h - np.log(sigma)/(2*np.pi) * np.outer(w_b, w_b)
++C = -M_b @ np.linalg.solve(V_eff, 0.5*M_b - K_h)
+ diff_C = np.linalg.norm(C - ops.C_dense) / (np.linalg.norm(C) + 1e-20)
+ record("ops.C_dense matches recomputed C", diff_C < 1e-10, f"diff={diff_C:.2e}")
+ 
+@@ -136,6 +143,11 @@ if xaxis_mask.sum() > 3:
+            f"mean(gamma1 on x-axis)={np.mean(g1_g[xaxis_mask]):.4f}")
+ 
+ 
++def test_recorded_invariants():
++    failures = [f"{name}: {detail}" for name, ok, detail in checked_results if not ok]
++    assert not failures, "\n".join(failures)
++
++
+ if __name__ == "__main__":
+     n_pass = sum(1 for _, ok in results if ok)
+     n_fail = sum(1 for _, ok in results if not ok)
+diff --git a/tests/test_factorization.py b/tests/test_factorization.py
+index 0e035ec..08191ea 100644
+--- a/tests/test_factorization.py
++++ b/tests/test_factorization.py
+@@ -1,132 +1,32 @@
+-"""
+-tests/test_factorization.py
+-Phase 4 tests for femmi/svd_analysis.py.
+-"""
+-
+-import sys, os, time
++"""Discrete SVD checks; geometry indicators are not support estimators."""
+ import numpy as np
+-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+-
++import pytest
+ from femmi.operators import build_operators
+-from femmi.svd_analysis import (
+-    compute_svd, picard_plot,
+-    FactorizationIndicator, LinearSamplingIndicator,
+-)
+-
+-NX     = 12
+-DOMAIN = (-2.5, 2.5, -2.5, 2.5)
+-SIGMA  = 0.5
+-
+-results = []
+-
+-def record(name, ok, detail=""):
+-    tag = "PASS" if ok else "FAIL"
+-    print(f"  {tag}  {name}")
+-    if detail:
+-        print(f"       {detail}")
+-    results.append((name, ok))
+-
+-
+-print(f"Building {NX}x{NX} mesh...")
+-t0  = time.perf_counter()
+-ops = build_operators(NX, NX, xmin=DOMAIN[0], xmax=DOMAIN[1],
+-                      ymin=DOMAIN[2], ymax=DOMAIN[3], verbose=False)
+-print(f"  {ops.n_nodes} nodes  ({time.perf_counter()-t0:.1f}s)")
+-
+-nodes        = np.array(ops.mesh.nodes)
+-x, y         = nodes[:, 0], nodes[:, 1]
+-kappa_disc   = np.where(np.sqrt(x**2 + y**2) < 0.8, 1.0, 0.0).astype(np.float64)
+-kappa_gauss  = np.exp(-(x**2 + y**2) / (2 * SIGMA**2))
+-g1_true, g2_true = ops.forward(kappa_disc)
+-
+-rng         = np.random.default_rng(42)
+-noise_scale = 0.05 * np.std(np.hypot(g1_true, g2_true))
+-
+-z_inside  = np.array([0.0, 0.0])
+-z_outside = np.array([1.8, 1.8])
+-
+-N_SING = 20
+-print(f"Computing SVD (n={N_SING})...")
+-t0  = time.perf_counter()
+-svd = compute_svd(ops, n_singular=N_SING)
+-print(f"  done: sigma_max={svd.sigma[0]:.4f}  ({time.perf_counter()-t0:.1f}s)")
+-
+-
+-# SVD shapes
+-n = ops.n_nodes
+-record("SVD shapes correct",
+-       svd.sigma.shape == (N_SING,) and svd.U.shape == (2*n, N_SING) and svd.V.shape == (n, N_SING))
+-
+-# Singular value decay
+-record("sigma_i non-negative", bool((svd.sigma >= 0).all()))
+-record("sigma_i non-increasing", bool((np.diff(svd.sigma) <= 1e-12).all()))
+-
+-# Orthogonality
+-orth_err = np.linalg.norm(svd.V.T @ svd.V - np.eye(N_SING), 'fro') / N_SING
+-record("||V^T V - I||_F / k < 1e-6", orth_err < 1e-6, f"err={orth_err:.2e}")
+-
+-# Residuals
+-max_res = float(svd.residuals[:5].max())
+-record("Max residual (top 5 modes) < 1e-4", max_res < 1e-4, f"residuals={svd.residuals[:5]}")
+-
+-# Picard plot runs without error and returns expected structure.
+-# The picard_ok flag is a slope heuristic that is sensitive to mesh size
+-# (only 20 modes on a 12x12 mesh); we check structure not the heuristic value.
+-g1_g, g2_g  = ops.forward(kappa_gauss)
+-noise_std_g = 0.02 * np.std(np.hypot(g1_g, g2_g))
+-g1_gn = g1_g + rng.normal(0, noise_std_g, g1_g.shape)
+-g2_gn = g2_g + rng.normal(0, noise_std_g, g2_g.shape)
+-pr = picard_plot(ops, np.stack([g1_gn, g2_gn]), noise_std=noise_std_g,
+-                 svd_result=svd, save=None, show=False)
+-record("Picard plot returns correct keys",
+-       all(k in pr for k in ('svd', 'coeffs', 'ratio', 'picard_ok', 'cutoff_idx')))
+-record("Picard coeffs shape correct", pr['coeffs'].shape == (N_SING,))
+-record("Picard coeffs are positive", bool((pr['coeffs'] >= 0).all()))
+-
+-# Factorization indicator
+-fi       = FactorizationIndicator(ops, svd_result=svd)
+-W        = fi.indicator_map(np.array([z_inside, z_outside]))
+-W_in, W_out = float(W[0]), float(W[1])
+-record("W(inside) > W(outside)", W_in > W_out, f"W_in={W_in:.4f}  W_out={W_out:.4f}")
+-record("W(inside) > 0.3", W_in > 0.3)
+-
+-# LSM indicator
+-lsm      = LinearSamplingIndicator(ops, svd_result=svd)
+-I        = lsm.indicator_map(np.array([z_inside, z_outside]))
+-I_in, I_out = float(I[0]), float(I[1])
+-record("I(inside) > I(outside)", I_in > I_out, f"I_in={I_in:.4f}  I_out={I_out:.4f}")
+-record("I(inside) > 0.3", I_in > 0.3)
+-
+-# Consistency across 5 test points
+-test_pts = np.array([[0.0,0.0],[0.5,0.3],[-0.4,0.5],[1.8,0.0],[0.0,1.9]])
+-W_pts    = fi.indicator_map(test_pts)
+-I_pts    = lsm.indicator_map(test_pts)
+-W_rank   = np.argsort(W_pts)[::-1]
+-I_rank   = np.argsort(I_pts)[::-1]
+-record("Top-2 high-indicator points agree", set(W_rank[:2]) == set(I_rank[:2]))
+-record("Bottom-2 low-indicator points agree", set(W_rank[-2:]) == set(I_rank[-2:]))
+-
+-# Noise robustness
+-fi_r  = FactorizationIndicator(ops, svd_result=svd, noise_floor=5*noise_scale)
+-lsm_r = LinearSamplingIndicator(ops, svd_result=svd, alpha=(5*noise_scale)**2)
+-W_r   = fi_r.indicator_map(np.array([z_inside, z_outside]))
+-I_r   = lsm_r.indicator_map(np.array([z_inside, z_outside]))
+-record("Factorization noise robust", float(W_r[0]) > float(W_r[1]))
+-record("LSM noise robust",           float(I_r[0]) > float(I_r[1]))
+-
+-# SVD reuse speedup
+-t_with    = time.perf_counter(); FactorizationIndicator(ops, svd_result=svd); t_with = time.perf_counter() - t_with
+-t_without = time.perf_counter(); FactorizationIndicator(ops, n_singular=N_SING); t_without = time.perf_counter() - t_without
+-record("SVD reuse is >=10x faster", t_without / max(t_with, 1e-6) >= 10,
+-       f"with={t_with:.2f}s  without={t_without:.2f}s")
+-
+-
+-if __name__ == "__main__":
+-    n_pass = sum(1 for _, ok in results if ok)
+-    n_fail = sum(1 for _, ok in results if not ok)
+-    print(f"\n{n_pass}/{n_pass+n_fail} passed")
+-    if n_fail:
+-        for name, ok in results:
+-            if not ok:
+-                print(f"  FAIL  {name}")
+-    sys.exit(0 if n_fail == 0 else 1)
+\ No newline at end of file
++from femmi.svd_analysis import compute_svd, FactorizationIndicator, LinearSamplingIndicator
++
++
++@pytest.fixture(scope="module")
++def ops():
++    return build_operators(3,3,-2,2,-2,2,verbose=False)
++
++
++def test_lanczos_matches_dense_singular_values_and_both_equations(ops):
++    dense=compute_svd(ops,n_singular=8,method="dense")
++    iterative=compute_svd(ops,n_singular=8,tol=1e-11)
++    np.testing.assert_allclose(iterative.sigma,dense.sigma,rtol=1e-8)
++    assert max(iterative.residuals) < 1e-8
++    assert max(dense.residuals) < 1e-10
++    np.testing.assert_allclose(iterative.U.T@iterative.U,np.eye(8),atol=1e-8)
++
++
++def test_legacy_indicators_match_documented_geometry_scores(ops):
++    svd=compute_svd(ops,n_singular=8,method="dense")
++    points=np.array([[0.,0.],[.7,.2],[1.,1.]])
++    fi=FactorizationIndicator(ops,svd_result=svd)
++    li=LinearSamplingIndicator(ops,svd_result=svd)
++    coeff=np.array([svd.U.T@fi.probe_function(p) for p in points])
++    active=svd.sigma>fi.noise_floor
++    expected=np.sum(coeff[:,active]**2/svd.sigma[active],axis=1)
++    np.testing.assert_allclose(fi.indicator_map(points),expected/expected.max())
++    expected=np.sqrt(np.sum((coeff*svd.sigma/(svd.sigma**2+li.alpha))**2,axis=1))
++    np.testing.assert_allclose(li.indicator_map(points),expected/expected.max())
+diff --git a/tests/test_morozov.py b/tests/test_morozov.py
+index ff8bf4b..ff55596 100644
+--- a/tests/test_morozov.py
++++ b/tests/test_morozov.py
+@@ -8,6 +8,7 @@ import numpy as np
+ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+ 
+ results = []
++checked_results = []
+ 
+ def record(name, ok, detail=""):
+     tag = "PASS" if ok else "FAIL"
+@@ -15,6 +16,7 @@ def record(name, ok, detail=""):
+     if detail:
+         print(f"       {detail}")
+     results.append((name, ok))
++    checked_results.append((name, ok, detail))
+ 
+ 
+ print("Building 8x8 mesh...")
+@@ -129,6 +131,11 @@ record("D(lambda) changes sign", bool((disc[:-1] * disc[1:] < 0).any()),
+        f"D={disc.round(3)}")
+ 
+ 
++def test_recorded_invariants():
++    failures = [f"{name}: {detail}" for name, ok, detail in checked_results if not ok]
++    assert not failures, "\n".join(failures)
++
++
+ if __name__ == "__main__":
+     n_pass = sum(1 for _, ok in results if ok)
+     n_fail = sum(1 for _, ok in results if not ok)
+diff --git a/tests/test_neural_prior.py b/tests/test_neural_prior.py
+index 8a36b5f..617629e 100644
+--- a/tests/test_neural_prior.py
++++ b/tests/test_neural_prior.py
+@@ -147,7 +147,7 @@ def test_early_stopping_restores_best(tmp_path):
+ 
+ 
+ @pytest.mark.slow
+-def test_neural_prior_scores_and_reconstructs(tmp_path):
++def test_neural_prior_scores_and_samples(tmp_path):
+     from femmi.neural_prior.prior import NeuralScorePrior
+     from femmi.forward import DifferentiableForward
+     from femmi.inverse import MAPReconstructor
+@@ -160,13 +160,20 @@ def test_neural_prior_scores_and_reconstructs(tmp_path):
+     nodes = np.array(ops.mesh.nodes)
+     kt, g1, g2 = analytic_gaussian_shear(nodes, sigma=0.5)
+ 
+-    phi, grad = prior.value_grad(kt)
+-    assert phi == 0.0 and np.all(np.isfinite(grad)) and grad.shape == (ops.n_nodes,)
+-
++    score = prior.score(kt)
++    assert np.all(np.isfinite(score)) and score.shape == (ops.n_nodes,)
++    with pytest.raises(ValueError, match="consistent MAP energy"):
++        prior.value_grad(kt)
+     fwd = DifferentiableForward(ops, lam_reg=1e-2)
+-    rec = MAPReconstructor(fwd, maxiter=30, callback_every=0, prior=prior)
+-    k, res = rec.reconstruct(g1, g2, verbose=False)
+-    assert np.all(np.isfinite(k)) and res.n_iter > 0
++    with pytest.raises(ValueError, match="consistent prior value"):
++        MAPReconstructor(fwd, prior=prior)
++    from femmi.sampling import sample_posterior
++    result = sample_posterior(fwd, g1, g2, .1, prior=prior, lam=.1,
++                              method="langevin", n_steps=10, burnin=2, thin=2,
++                              step=1e-7, verbose=False)
++    assert np.all(np.isfinite(result.samples))
++    assert result.info["map_kind"] == "initialization"
++
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/tests/test_regression.py b/tests/test_regression.py
+index 04cef64..5122a49 100644
+--- a/tests/test_regression.py
++++ b/tests/test_regression.py
+@@ -18,6 +18,7 @@ DOMAIN = (-2.5, 2.5, -2.5, 2.5)
+ NOISE  = 0.05
+ 
+ results = []
++checked_results = []
+ 
+ def record(name, ok, detail=""):
+     tag = "PASS" if ok else "FAIL"
+@@ -25,6 +26,7 @@ def record(name, ok, detail=""):
+     if detail:
+         print(f"       {detail}")
+     results.append((name, ok))
++    checked_results.append((name, ok, detail))
+ 
+ 
+ def nfw_kappa(nodes, kappa_s=0.5, r_s=0.8, r_core=0.05):
+@@ -69,16 +71,14 @@ def _fwd(kappa):
+     return S1 @ psi, S2 @ psi
+ 
+ def _adj(g1, g2):
+-    rhs = S1.T @ g1 + S2.T @ g2; rhs[idx_g] = 0.0
+-    phi = A_lu.solve(rhs, trans='T')
+-    return -2.0 * (M.T @ phi)
++    return ops.adjoint_rhs(g1, g2)
+ 
+ g1_k, g2_k = _fwd(kappa_rnd)
+ kappa_adj  = _adj(g_rnd, g_rnd)
+ lhs        = float(np.dot(g1_k, g_rnd) + np.dot(g2_k, g_rnd))
+ rhs_val    = float(np.dot(kappa_rnd, kappa_adj))
+ adj_err    = abs(lhs - rhs_val) / (abs(lhs) + 1e-14)
+-record("<Fk, g> ~ <k, F*g>  (rel err < 5e-3)", adj_err < 5e-3,
++record("<Fk, g> ~ <k, F*g>  (rel err < 1e-10)", adj_err < 1e-10,
+        f"lhs={lhs:.6e}  rhs={rhs_val:.6e}  rel={adj_err:.2e}")
+ 
+ 
+@@ -132,6 +132,11 @@ record("L2 decreases from 20% -> 5% noise", l2_low < l2_high,
+        f"L2(20%)={l2_high:.4f}  L2(5%)={l2_low:.4f}")
+ 
+ 
++def test_recorded_invariants():
++    failures = [f"{name}: {detail}" for name, ok, detail in checked_results if not ok]
++    assert not failures, "\n".join(failures)
++
++
+ if __name__ == "__main__":
+     n_pass = sum(1 for _, ok in results if ok)
+     n_fail = sum(1 for _, ok in results if not ok)
+diff --git a/docs/observation-model.md b/docs/observation-model.md
+new file mode 100644
+--- /dev/null
++++ b/docs/observation-model.md
+@@ -0,0 +1,118 @@
++# Observation model and numerical checks
++
++FEMMI currently reconstructs convergence from **linear shear** on a flat tangent
++plane. Inputs must already have a consistent component convention, calibration,
++angular unit and source-efficiency normalization. The estimator does not fit
++individual source redshifts or the nonlinear reduced shear `g = gamma/(1-kappa)`.
++Using measured galaxy shapes as shear is a weak-lensing approximation, not an
++internal conversion. No unpublished catalogue results are bundled here.
++
++## Data selection and noise
++
++For active positions, the diagonal noise model is
++
++\[
++\operatorname{Var}(n_{a,i})=\sigma_n^2/w_i,\qquad
++J_{\rm data}=\sum_{a=1}^2\sum_{i:w_i>0}w_i(F_a\kappa-d_a)_i^2.
++\]
++
++- `data_weight` is a finite nonnegative vector, shared by both components.
++  Zero means no observation. Negative/nonfinite weights and empty observations
++  are errors. A full correlated covariance is not supported by this interface.
++- `mask=True` means missing data. The mask is applied before regularization
++  selection and is combined with the weights. Missing shear placeholders may
++  be NaN; active observations must be finite. Input arrays are not modified.
++- `noise_std` is the reference component noise at unit weight. Morozov measures
++  `sqrt(J_data / (2*n_active))`. For heterogeneous weights, automatic MAD and
++  B-mode residual diagnostics use whitened components `sqrt(w)*gamma`.
++  Signal and fitted degrees of freedom can bias these noise estimates; they
++  are diagnostics, not independent noise calibrations.
++- In `reconstruct_catalog(..., use_weights=True)`, supplied galaxy weights are
++  divided by the mean of **positive retained** weights. Supply `noise_std` in
++  that normalized convention. `CatalogReconstruction.data_weight` records the
++  actual weights. Multiplying precision weights changes the required noise
++  scale and regularization strength; it is not a neutral operation by itself.
++- Catalogue guard/boundary nodes carry no observations. The structured pipeline
++  also excludes P3 boundary rows, whose shear predictions are intentionally zero.
++  Low-level array APIs default to all supplied rows: pass explicit weights when
++  some rows are placeholders or unsupported boundary outputs.
++
++The MAP loss is `J_data + lam_MAP * phi`. The sampling negative log density is
++`J_data/(2*noise_std**2) + lam_sample * phi`, so matched modes require
++`lam_sample = lam_MAP/(2*noise_std**2)`. This equality presumes the same prior,
++weights and noise model. Positive Wiener length gives `R=M+ell**2*K`; zero
++length retains the historical gradient penalty `R=K` in both element paths.
++This finite-dimensional precision is not automatically a continuum Matérn-1/2
++covariance in two dimensions.
++
++## Forward and transpose
++
++Let `Q` zero prescribed load entries. The discrete forward is
++`F = -2*S*A^{-1}*Q*M`; its Euclidean transpose is
++`F.T = -2*M.T*Q*A^{-T}*S.T`. The projection acts **after** the transpose solve.
++This is shared by reconstruction, the NumPy adjoint, JAX VJP, SVD and sampling.
++The public quadratic Hessian action uses this composition directly; it does
++not require unsupported differentiation through a JAX host callback.
++
++P3 shear uses averaged element Hessians. Argyris selects shared vertex Hessian
++DOFs. HCT is C1, not C2: vertex Hessians are recovered by averaging all incident
++subtriangle traces with physical area weights. This is a defined recovery
++operator, not a unique pointwise Hessian. Its mass, stiffness and load integrals
++use quadrature on each of its three polynomial pieces. See the
++[HCT element definition](https://defelement.org/elements/hsieh-clough-tocher.html).
++
++## Priors and posterior sampling
++
++Energy-based MAP requires a consistent penalty value and gradient. `ScorePrior`
++requires `neg_logp` for MAP. `NeuralScorePrior` supplies only a score; passing a
++zero surrogate value with that score to L-BFGS was inconsistent and is now
++rejected. Choose a score sampler explicitly instead. Score-only sampling starts
++from zero; its returned `map_kappa` is an initialization, identified by
++`info['map_kind'] == 'initialization'`, not a claimed posterior mode.
++
++Gaussian RTO uses perturbations with covariance equal to the posterior precision.
++In particular, data perturbations contribute `F.T*W*F/noise_std**2`, not a
++squared-weight covariance. CG nonconvergence raises an error. Its Gaussian
++interpretation requires a positive definite posterior precision; residual
++solver tolerance and the tiny numerical prior factorization jitter limit exactness.
++
++Langevin has finite-step bias. Annealed HMC has finite-chain and annealing error;
++a nonzero final sigma still changes the likelihood. Learned scores and the
++grid/mesh interpolation need not form a conservative vector field. A finite
++score line integral is not an exact Metropolis energy difference in general.
++These methods remain experimental approximate samplers, marked in `info`.
++A custom prior with a real energy uses that energy and gradient in HMC.
++
++## Boundary assumptions and claims
++
++BEM models a harmonic exterior under an isolated-source assumption. For
++nonzero integrated convergence, the two-dimensional potential has a logarithmic
++far-field term, not a zero-at-infinity condition. The implemented normalization
++and node pin specify a discrete boundary model; neither proves shear inverse
++uniqueness. See [Squires & Kaiser (1996)](https://arxiv.org/abs/astro-ph/9512094)
++for finite-field reconstruction and reference-level issues.
++
++The nodal SVD is not a noise-weighted, finite-element-mass-normalized information
++spectrum. Legacy `FactorizationIndicator` and `LinearSamplingIndicator` use no
++observed shear and cannot recover unknown mass support. Their names remain for
++compatibility, with corrected descriptions of their geometry-only outputs.
++
++## Verification and benchmark status
++
++Run the complete suite, including optional scientific dependencies:
++
++```bash
++pip install -e '.[dev,neural,galsim,io]'
++OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 FEMMI_REQUIRE_OPTIONAL=1 python -m pytest -q
++```
++
++The regression suite includes explicit small-matrix transpose/precision checks,
++JAX parity, missing-data invariance through regularization selection, non-binary
++weights, a dense-reference posterior covariance check, HCT polynomial recovery,
++triangle-order invariance, and quadrature convergence. Older diagnostic scripts
++now expose their checked invariants to pytest instead of only printing failures.
++
++Historical benchmark tables predate these corrections. Recalibrate P3, Argyris,
++HCT and KS on held-out catalogues before regenerating numerical comparisons.
++Correctness checks alone do not establish publication-level reconstruction
++quality or a speed advantage. Numba optimization is a separate next step.
+diff --git a/femmi/observations.py b/femmi/observations.py
+new file mode 100644
+--- /dev/null
++++ b/femmi/observations.py
+@@ -0,0 +1,52 @@
++"""Shared diagonal-noise observation conventions.
++
++For each active position and shear component, Var(n_i) = noise_std**2 / w_i.
++Zero weight means missing data. ``mask=True`` also means missing, never a
++measurement of zero shear. Weights are dimensionless relative precisions;
++their normalization and the supplied noise scale must be chosen together.
++"""
++
++import numpy as np
++
++
++def observation_weights(n, data_weight=None, mask=None):
++    w = np.ones(n) if data_weight is None else np.array(data_weight, dtype=float, copy=True)
++    if w.shape != (n,) or not np.all(np.isfinite(w)) or np.any(w < 0):
++        raise ValueError("data_weight must be a finite nonnegative vector of observation length")
++    if mask is not None:
++        mask = np.asarray(mask)
++        if mask.shape != (n,) or mask.dtype != np.bool_:
++            raise ValueError("mask must be a boolean vector of observation length")
++        w[mask] = 0.0
++    if not np.any(w > 0):
++        raise ValueError("at least one observation must have positive weight")
++    return w
++
++
++def prepare_observations(g1, g2, n, data_weight=None, mask=None):
++    """Validate active observations and replace missing placeholders safely."""
++    w = observation_weights(n, data_weight, mask)
++    out = []
++    for g in (g1, g2):
++        g = np.array(g, dtype=float, copy=True)
++        if g.shape != (n,):
++            raise ValueError("shear components must be vectors of observation length")
++        if not np.all(np.isfinite(g[w > 0])):
++            raise ValueError("active shear observations must be finite")
++        g[w == 0] = 0.0
++        out.append(g)
++    return out[0], out[1], w
++
++
++def weighted_rms(r1, r2, w):
++    """RMS in whitened shear units, normalized by active component count."""
++    active = w > 0
++    a, b = np.asarray(r1)[active], np.asarray(r2)[active]
++    return float(np.sqrt(np.sum(w[active] * (a*a + b*b)) / (2 * active.sum())))
++
++
++def noise_scale(g1, g2, w):
++    """MAD of whitened active components; signal can bias this estimate."""
++    active = w > 0
++    g = np.concatenate([np.sqrt(w[active]) * np.asarray(v)[active] for v in (g1, g2)])
++    return 1.4826 * float(np.median(np.abs(g - np.median(g))))
+diff --git a/tests/test_hct_observations.py b/tests/test_hct_observations.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_hct_observations.py
+@@ -0,0 +1,62 @@
++"""HCT vertex recovery, piecewise quadrature, and weighted C1 gradients."""
++import numpy as np
++import pytest
++from femmi.elements import C1Space, structured_triangulation
++from femmi.c1_assembly import assemble_c1, assemble_c1_load, c1_shear_at_vertices
++from femmi.c1_inverse import C1MAPReconstructor, shear_operators
++
++
++def polynomial(p,dx=0,dy=0):
++    x,y=p
++    return {(0,0): x*x+3*x*y-2*y*y, (1,0):2*x+3*y,
++            (0,1):3*x-4*y,(2,0):2.,(1,1):3.,(0,2):-4.}.get((dx,dy),0.)
++
++
++def test_hct_reproduces_quadratic_and_ignores_triangle_order():
++    v,t=structured_triangulation(2,1.)
++    s=C1Space(v,t,kind='hct'); rev=C1Space(v,t[::-1],kind='hct')
++    a,b=shear_operators(s)
++    k=s.interpolate(polynomial)
++    np.testing.assert_allclose(a@k,3.,atol=1e-10)
++    np.testing.assert_allclose(b@k,3.,atol=1e-10)
++    # Edge DOF numbering changes with triangle order: map by edge identity.
++    rng=np.random.default_rng(5); k=rng.normal(size=s.n_dofs)
++    kr=k.copy(); base=3*s.n_vertices
++    for edge,i in s.edges.items(): kr[base+rev.edges[edge]]=k[base+i]
++    ar,br=shear_operators(rev)
++    np.testing.assert_allclose(a@k,ar@kr,atol=1e-10)
++    np.testing.assert_allclose(b@k,br@kr,atol=1e-10)
++    c,d=c1_shear_at_vertices(s,k)
++    np.testing.assert_allclose(c,a@k); np.testing.assert_allclose(d,b@k)
++    el=s.element(0); point=el.verts[:1]
++    assert np.linalg.norm(el.basis_on_subtriangle(point,1,2,0)
++                          -el.basis_on_subtriangle(point,2,2,0)) > 1e-3
++
++
++def test_hct_piecewise_quadrature_exact_for_mass_and_stiffness():
++    v,t=structured_triangulation(1,1.)
++    s=C1Space(v,t,kind='hct')
++    k5,m5=assemble_c1(s,5); k9,m9=assemble_c1(s,9)
++    np.testing.assert_allclose(k5.toarray(),k9.toarray(),atol=2e-12)
++    np.testing.assert_allclose(m5.toarray(),m9.toarray(),atol=2e-12)
++    constant=np.zeros(s.n_dofs); constant[:3*s.n_vertices:3]=1
++    np.testing.assert_allclose(k5@constant,0,atol=2e-12)
++    assert constant @ (m5@constant) == pytest.approx(4.)
++    np.testing.assert_allclose(assemble_c1_load(s,lambda p: np.ones(len(p)),5),
++                               m5@constant,atol=2e-12)
++
++
++@pytest.mark.parametrize('kind',['hct','argyris'])
++def test_c1_nonbinary_weighted_gradient_and_missing_values(kind):
++    v,t=structured_triangulation(1,1.)
++    s=C1Space(v,t,kind=kind)
++    w=np.array([0.,.2,2.,4.])
++    rec=C1MAPReconstructor(s,data_weight=w,lam=.3)
++    rng=np.random.default_rng(12)
++    k=rng.normal(scale=.01,size=s.n_dofs); direction=rng.normal(size=s.n_dofs)
++    y=rng.normal(scale=.1,size=(2,s.n_vertices)); y[:,0]=np.nan
++    loss,grad=rec._obj_grad(k,*y)
++    eps=1e-6
++    fd=(rec._obj_grad(k+eps*direction,*y)[0]-rec._obj_grad(k-eps*direction,*y)[0])/(2*eps)
++    assert grad@direction == pytest.approx(fd,rel=2e-6,abs=1e-8)
++    assert np.isfinite(loss)
+diff --git a/tests/test_observation_consistency.py b/tests/test_observation_consistency.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_observation_consistency.py
+@@ -0,0 +1,173 @@
++"""Independent regression checks for the discrete likelihood and its transpose."""
++import numpy as np
++import pytest
++import jax
++import jax.numpy as jnp
++from femmi.operators import build_operators, build_operators_dirichlet
++from femmi.forward import DifferentiableForward
++from femmi.inverse import MAPReconstructor
++from femmi.observations import prepare_observations, weighted_rms, noise_scale
++from femmi.regularization import MorozovSelector, discrepancy
++from femmi.sampling import _make_FtWF, sample_posterior
++
++
++@pytest.fixture(scope='module', params=['bem', 'dirichlet'])
++def ops(request):
++    factory = build_operators if request.param == 'bem' else build_operators_dirichlet
++    return factory(3, 3, -2., 2., -2., 2., verbose=False)
++
++
++def dense_forward(ops):
++    return np.column_stack([np.concatenate(ops.forward(e)) for e in np.eye(ops.n_nodes)])
++
++
++def test_transpose_numpy_jax_and_hessian(ops):
++    n = ops.n_nodes
++    rng = np.random.default_rng(11)
++    k, v = rng.normal(size=(2, n))
++    y = rng.normal(size=2*n)
++    F = dense_forward(ops)
++    np.testing.assert_allclose(ops.adjoint_rhs(y[:n], y[n:]), F.T @ y, atol=2e-11)
++    fwd = DifferentiableForward(ops, lam_reg=0.03)
++    np.testing.assert_allclose(np.concatenate(fwd.gamma_from_kappa(jnp.array(k))), F @ k, atol=2e-11)
++    _, pullback = jax.vjp(fwd.gamma_from_kappa, jnp.array(k))
++    np.testing.assert_allclose(pullback((jnp.array(y[:n]), jnp.array(y[n:])))[0], F.T @ y, atol=2e-11)
++    eps = 1e-5
++    gp = np.asarray(fwd.grad_fn(jnp.array(k+eps*v), jnp.array(y[:n]), jnp.array(y[n:]))[1])
++    gm = np.asarray(fwd.grad_fn(jnp.array(k-eps*v), jnp.array(y[:n]), jnp.array(y[n:]))[1])
++    np.testing.assert_allclose(fwd.hvp(k, v, y[:n], y[n:]), (gp-gm)/(2*eps), atol=2e-8)
++
++
++def test_weighted_objective_and_sampling_precision(ops):
++    n = ops.n_nodes
++    rng = np.random.default_rng(21)
++    k = rng.normal(size=n)
++    y = rng.normal(size=2*n)
++    w = np.linspace(.2, 3., n); w[::4] = 0
++    F = dense_forward(ops); W = np.tile(w, 2)
++    rec = MAPReconstructor(DifferentiableForward(ops, .2), data_weight=w, wiener_length=.5)
++    obj, _ = rec._make_obj_and_grad(y[:n], y[n:])
++    loss, grad = obj(k)
++    residual = F @ k - y
++    np.testing.assert_allclose(loss, residual @ (W*residual) + .2*k @ (rec._R @ k))
++    np.testing.assert_allclose(grad, 2*F.T @ (W*residual) + .4*(rec._R @ k), atol=2e-10)
++    _, _, action = _make_FtWF(ops, w, .09, rec._R, .4)
++    np.testing.assert_allclose(action(k), F.T @ (W*(F@k))/.09 + .4*(rec._R@k), atol=2e-9)
++
++
++def test_mask_is_missing_in_fit_selection_and_diagnostics(ops, monkeypatch):
++    n = ops.n_nodes
++    rng = np.random.default_rng(31)
++    g1, g2 = rng.normal(scale=.1, size=(2,n))
++    mask = np.arange(n) % 3 == 0
++    w = np.linspace(.2, 2, n); w[mask] = 0
++    g1[mask] = np.nan; g2[mask] = 1e100
++    calls = []
++    def select(self, a, b, noise_std=None):
++        calls.append((a.copy(), b.copy(), self.data_weight.copy()))
++        return .1
++    monkeypatch.setattr(MorozovSelector, 'select', select)
++    rec = MAPReconstructor(DifferentiableForward(ops), data_weight=np.linspace(.2,2,n),
++                           noise_std=.1, maxiter=150, wiener_length=.5, callback_every=0)
++    k1, _ = rec.reconstruct(g1, g2, mask=mask, verbose=False)
++    ref = MAPReconstructor(DifferentiableForward(ops), data_weight=w,
++                           noise_std=.1, maxiter=150, wiener_length=.5, callback_every=0)
++    k2, _ = ref.reconstruct(g1, g2, verbose=False)
++    np.testing.assert_allclose(k1,k2)
++    for a,b,weight in calls:
++        assert np.all(a[mask] == 0) and np.all(b[mask] == 0)
++        np.testing.assert_array_equal(weight,w)
++    assert np.all(rec.data_weight > 0), 'mask must not persist on reusable reconstructor'
++    d1, _, _ = rec.bmode_diagnostics(g1,g2,mask=mask,verbose=False)
++    d2, _, _ = ref.bmode_diagnostics(g1,g2,verbose=False)
++    assert d1.delta_noise == pytest.approx(d2.delta_noise)
++    assert d1.delta_mad == pytest.approx(d2.delta_mad)
++
++
++def test_morozov_noise_estimate_ignores_inactive_values(ops, monkeypatch):
++    n = ops.n_nodes
++    w = np.ones(n); w[::2] = 0; w[1::4] = 4
++    y = np.linspace(-.2,.3,n); y[w==0] = np.nan
++    expected = noise_scale(y,y,w)
++    seen = []
++    def D(self, lam, a, b, delta):
++        seen.append(delta)
++        return lam-1
++    monkeypatch.setattr(MorozovSelector, '_D', D)
++    sel=MorozovSelector(ops,data_weight=w,verbose=False)
++    assert sel.select(y,y) == pytest.approx(1)
++    np.testing.assert_allclose(seen,expected)
++    seen.clear(); sel.select(y,y,noise_std=0)
++    assert set(seen)=={0}
++
++
++@pytest.mark.parametrize('weight', [[1,-1], [1,np.nan], [0,0], [1]])
++def test_invalid_weights_rejected(weight):
++    with pytest.raises(ValueError):
++        prepare_observations([1,2],[1,2],2,weight)
++
++
++def test_rto_covariance_matches_dense_posterior(ops):
++    # A small physical mesh and strong proper prior permit a well-resolved
++    # Monte Carlo covariance check, including non-binary and zero weights.
++    n=ops.n_nodes; F=dense_forward(ops)
++    w=np.linspace(.1,4,n); w[::3]=0
++    sn=.3; lam=4.; ell=.7
++    R=(ops.M+ell**2*ops.K).toarray()
++    A=F.T @ (np.tile(w,2)[:,None]*F)/sn**2 + 2*lam*R
++    rng=np.random.default_rng(43); y=rng.normal(scale=.1,size=2*n)
++    exact_mean=np.linalg.solve(A,F.T@(np.tile(w,2)*y)/sn**2)
++    ps=sample_posterior(DifferentiableForward(ops),y[:n],y[n:],sn,lam=lam,
++                        data_weight=w,wiener_length=ell,n_samples=1200,
++                        cg_tol=1e-10,seed=44,verbose=False)
++    np.testing.assert_allclose(ps.map_kappa,exact_mean,atol=1e-8)
++    probes=rng.normal(size=(n,4)); probes/=np.linalg.norm(probes,axis=0)
++    target=np.diag(probes.T @ np.linalg.solve(A,probes))
++    observed=np.var(ps.samples@probes,axis=0,ddof=1)
++    np.testing.assert_allclose(observed,target,rtol=.15)
++
++
++def test_hmc_uses_supplied_energy_prior(ops):
++    from femmi.priors import WienerPrior
++    n=ops.n_nodes
++    rng=np.random.default_rng(46); y=rng.normal(scale=.1,size=(2,n))
++    kw=dict(noise_std=.2,lam=2.,method='annealed_hmc',n_levels=2,
++            steps_per_level=3,n_leapfrog=2,n_chains=2,keep_final=1,
++            maxiter_map=80,sigma_max=.2,sigma_min=.05,seed=9,verbose=False)
++    explicit=sample_posterior(DifferentiableForward(ops),*y,
++                               prior=WienerPrior(ops,.7),wiener_length=0.,**kw)
++    builtin=sample_posterior(DifferentiableForward(ops),*y,wiener_length=.7,**kw)
++    np.testing.assert_allclose(explicit.samples,builtin.samples,atol=1e-11)
++
++
++def test_score_only_prior_rejected_by_map_but_sampler_remains_available(ops):
++    from femmi.priors import ScorePrior
++    prior=ScorePrior(lambda k: -k)
++    with pytest.raises(ValueError,match='consistent prior value'):
++        MAPReconstructor(DifferentiableForward(ops),prior=prior)
++    z=np.zeros(ops.n_nodes)
++    result=sample_posterior(DifferentiableForward(ops),z,z,.1,
++                            prior=prior,lam=1.,method='langevin',
++                            n_steps=10,burnin=2,thin=2,step=1e-7,verbose=False)
++    assert np.all(np.isfinite(result.samples))
++    assert result.info['map_kind']=='initialization'
++
++
++def test_posterior_mask_matches_zero_weights(ops):
++    n=ops.n_nodes; mask=np.arange(n)%3==0
++    w=np.linspace(.2,2,n)
++    y=np.linspace(-.1,.1,n); y[mask]=np.nan
++    opts=dict(noise_std=.1,lam=2.,wiener_length=.5,n_samples=3,seed=7,verbose=False)
++    masked=sample_posterior(DifferentiableForward(ops),y,y,data_weight=w,mask=mask,**opts)
++    w[mask]=0
++    weighted=sample_posterior(DifferentiableForward(ops),y,y,data_weight=w,**opts)
++    np.testing.assert_array_equal(masked.samples,weighted.samples)
++
++
++def test_failed_posterior_linear_solve_is_not_returned_as_a_sample(ops,monkeypatch):
++    import femmi.sampling as sampling
++    monkeypatch.setattr(sampling.spla,'cg',lambda A,b,**kw:(np.zeros_like(b),1))
++    z=np.zeros(ops.n_nodes)
++    with pytest.raises(RuntimeError,match='CG failed'):
++        sample_posterior(DifferentiableForward(ops),z,z,.1,lam=1.,
++                         wiener_length=.5,n_samples=1,verbose=False)
+-- 
+2.43.0

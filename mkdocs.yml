@@ -41,5 +41,6 @@ nav:
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Configuration & CLI: configuration.md
+  - Observation model: observation-model.md
   - Priors & sampling: priors-and-sampling.md
   - Neural prior: neural-prior.md

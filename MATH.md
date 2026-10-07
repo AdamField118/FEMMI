@@ -33,6 +33,11 @@ each formula.
 18. [Convergence Theory](#18-convergence-theory)
 
 
+> **Validation status:** the benchmark numbers below predate the corrected P3
+> transpose, missing-data handling, weighted sampler, and HCT observation and
+> quadrature rules. They are historical measurements, not validated results for
+> the current implementation. Recalibrate all arms before regenerating them.
+
 ## 1. Weak Lensing Forward Physics
 
 ### 1.1 The lensing potential
@@ -45,7 +50,7 @@ $$\kappa(\boldsymbol{\theta}) = \frac{\Sigma(\boldsymbol{\theta})}{\Sigma_{\rm c
 where $\Sigma_{\rm cr}$ is the critical surface density. The lensing potential $\psi$ satisfies
 the **2D Poisson equation on all of $\mathbb{R}^2$**:
 
-$$\nabla^2 \psi = 2\kappa \quad \text{in } \mathbb{R}^2, \qquad \psi \to 0 \text{ as } |\boldsymbol{\theta}| \to \infty$$
+$$\nabla^2 \psi = 2\kappa \quad \text{in } \mathbb{R}^2$$
 
 ### 1.2 Shear from second derivatives of $\psi$
 
@@ -53,11 +58,10 @@ The complex shear $\gamma = \gamma_1 + i\gamma_2$ is related to $\psi$ by:
 
 $$\gamma_1 = \frac{1}{2}\left(\frac{\partial^2\psi}{\partial x^2} - \frac{\partial^2\psi}{\partial y^2}\right), \qquad \gamma_2 = \frac{\partial^2\psi}{\partial x \partial y}$$
 
-This is the **fundamental reason P3 elements are necessary**: computing $\gamma$
-requires second derivatives of $\psi$. P1 (linear) elements have identically zero
-second derivatives. P2 (quadratic) elements have piecewise-constant second
-derivatives, giving no convergence with refinement. P3 (cubic) elements have
-piecewise-linear second derivatives, giving $O(h^2)$ convergence for $\gamma$.
+Shear requires second derivatives. P1 has zero elementwise Hessians;
+P2 has piecewise-constant Hessians, which can approximate a varying field under
+refinement. P3 offers higher approximation order, but nodal Hessian recovery
+and boundary treatment must be tested separately from potential convergence.
 
 ### 1.3 The Green's Function and Exact Solution
 
@@ -65,9 +69,16 @@ The 2D Laplacian fundamental solution satisfying $\nabla^2_y G(x,y) = \delta(x-y
 
 $$G(\mathbf{x}, \mathbf{y}) = \frac{1}{2\pi} \ln|\mathbf{x} - \mathbf{y}|$$
 
-The exact solution on $\mathbb{R}^2$ satisfying $\psi \to 0$ at infinity is the volume potential:
+A full-plane solution, up to an additive constant, is the volume potential:
 
 $$\psi(\mathbf{x}) = \frac{1}{\pi}\int_{\mathbb{R}^2} \ln|\mathbf{x} - \mathbf{y}|\kappa(\mathbf{y})d^2y$$
+
+For compact support and $m=\int\kappa\,d^2y$, its asymptotic behavior is
+$\psi(x)=(m/\pi)\log|x|+O(|x|^{-1})$ in this normalization.
+A nonzero total mass is therefore incompatible with $\psi\to0$.
+Exterior harmonicity assumes no exterior convergence; it does not model arbitrary
+unobserved exterior mass. The implemented scaled BEM and node pin define a
+specific discrete boundary model whose consistency is tested numerically.
 
 The properties of such fundamental solutions are developed in **[C\&K \S2.1]**.
 Under the **compact support assumption** ($\kappa = 0$ outside bounded $\Omega$), this is
@@ -79,7 +90,7 @@ equivalent to the FEM-BEM formulation derived in Sections 3--6.
 ### 2.1 The systematic error
 
 A standard approach truncates to $\Omega = [-L, L]^2$ and imposes $\psi = 0$ on $\partial\Omega$. For
-a Gaussian lens, the true $\psi$ decays only logarithmically and is nonzero at any
+a Gaussian lens, the true $\psi$ grows logarithmically at large radius and is nonzero at any
 finite boundary. Forcing $\psi = 0$ introduces a systematic error $e = \psi_{\rm true} - \psi_{\rm FEM}$
 satisfying:
 
@@ -115,7 +126,7 @@ Decompose the plane into:
 
 The governing equations in each region:
 
-$$\nabla^2\psi = 2\kappa \quad \text{in } \Omega, \qquad \nabla^2\psi = 0 \quad \text{in } \Omega_{\rm ext}, \qquad \psi \to 0 \text{ as } |\mathbf{x}| \to \infty$$
+$$\nabla^2\psi = 2\kappa \quad \text{in } \Omega, \qquad \nabla^2\psi = 0 \quad \text{in } \Omega_{\rm ext}$$
 
 ### 3.2 Transmission Conditions
 
@@ -163,7 +174,7 @@ Assembled in `operators.py`, function `_assemble_operators_from_mesh`.
 
 ### 5.1 Green's Representation Formula
 
-In $\Omega_{\rm ext}$, $\psi$ is harmonic with $\psi \to 0$ at infinity. Applying Green's second
+In $\Omega_{\rm ext}$, $\psi$ is harmonic with the appropriate logarithmic far-field term. Applying Green's second
 identity in $\Omega_{\rm ext}$ yields the **Somigliana identity** for $\mathbf{x} \in \Omega_{\rm ext}$:
 
 $$\psi(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\mathbf{y})t(\mathbf{y})ds(\mathbf{y}) - \int_{\partial\Omega} \psi(\mathbf{y})\frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})ds(\mathbf{y})$$
@@ -179,10 +190,10 @@ $$\text{Single layer: } (Vt)(\mathbf{x}) = \int_{\partial\Omega} G(\mathbf{x},\m
 
 $$\text{Double layer: } (K\psi)(\mathbf{x}) = \mathrm{P.V.}\int_{\partial\Omega} \frac{\partial G}{\partial n_y}(\mathbf{x},\mathbf{y})\psi(\mathbf{y})ds(\mathbf{y})$$
 
-Key properties: $V$ is symmetric; on the unit square (logarithmic capacity
-$\approx 0.59 < 1$) $V$ is negative-definite, but remains invertible. $K$ is compact
-(**[C\&K Thm 3.4]**). Implemented in `bem.py` functions `assemble_single_layer`
-and `assemble_double_layer`.
+The single layer is symmetric. Signs depend on the chosen fundamental solution
+and boundary orientation; the implemented exterior pairing is specified in
+Section 6. Compactness statements for smooth boundaries cannot be applied
+unqualified to polygonal boundaries. Implemented in `bem.py`.
 
 ### 5.3 The Boundary Integral Equation
 
@@ -195,9 +206,10 @@ Discretized with $N_b$ boundary nodes (P3 traces on boundary edges):
 
 $$\left(\tfrac{1}{2}M_b + K_h\right)\psi_b = V_ht_b$$
 
-where $M_b$ is the boundary Gram matrix assembled in `bem.py`,
-`assemble_boundary_mass`. The solvability follows from the Fredholm alternative
-applied to the compact perturbation, as in **[C\&K \S3.2, Thm 3.9]**.
+Here $M_b$ is the boundary Gram matrix. This plus-sign relation uses the
+interior trace convention; the implemented exterior relation uses the minus
+sign shown in Section 6. Do not substitute this equation into the exterior
+Schur complement without checking normals and jump conventions.
 
 Diagonal blocks of $V_h$ require logarithmic-singular integrals; FEMMI uses
 Gauss-Jacobi quadrature with weight $w(t) = -\ln(t)$ via `log_gauss_jacobi_points`
@@ -237,50 +249,23 @@ $C = -M_b\,V_\sigma^{-1}(\tfrac{1}{2}M_b - K_h)$ is stored in
 `K[bnd_idx, bnd_idx] += C_dense` produces $A_{\rm coupled}$ as a sparse CSR matrix.
 The symmetric Steinbach coupling and its $\sigma$-scaling are derived in \S6.5.
 
-By the Calderon identity, $({\tfrac{1}{2}M_b - K_h})\mathbf{1} \approx 0$, so
-$C_{\rm dense}\mathbf{1} \approx 0$ and $A_{\rm coupled}$ retains
-$\mathrm{span}\{\mathbf{1}\}$ as its null space. One scalar gauge condition is
-therefore required.
+The discrete matrix need not retain an exact constant null vector under this
+scaled exterior normalization. Its nonsymmetry also means a symmetric bordered
+mean constraint cannot be assumed to be an equivalent gauge treatment.
 
 ### 6.3 Gauge Choice: Single-Node Pin
 
-The null space of $A_{\rm coupled}$ is exactly $\mathrm{span}\{\mathbf{1}\}$: adding any
-constant to $\psi$ leaves all shear components unchanged (second derivatives
-annihilate constants). This one-dimensional degeneracy is the discrete counterpart
-of the **mass-sheet degeneracy** — the physical freedom to add a uniform
-$\kappa_0$ to the convergence field.
+The current implementation replaces one boundary row by an identity row and
+zeros the corresponding load, imposing $\psi_{j^*}=0$. This operation is part of
+the specified discrete model. Its transpose must include the load projection
+(Section 12). Potential offsets leave shear unchanged, but this freedom is
+not the convergence mass-sheet ambiguity: a sheet changes the potential
+quadratically, not by a constant. No inverse-uniqueness claim follows from
+pinning the potential.
 
-One might hope that the B-mode constraint $\gamma_B = 0$ could fix this
-degeneracy. It cannot. For any $\psi$, the B-mode curl condition
-$\partial_x\gamma_2 - \partial_y\gamma_1 = 0$ reduces to an identity via commutativity
-of mixed partial derivatives. Adding a constant to $\psi$ changes neither
-$\gamma_1$ nor $\gamma_2$, so the B-mode condition carries no information about
-the additive constant.
-
-A mean gauge condition $\mathbf{1}^\top\boldsymbol{\psi} = 0$ via a bordered system 
-
-$$\begin{pmatrix}A & \mathbf{1}\\\mathbf{1}^\top & 0\end{pmatrix}$$ 
-
-is the mathematically cleanest fix, but fails in practice because $A_{\rm coupled}$ is
-**not symmetric** ($K_h$ is asymmetric). The Fredholm consistency condition
-requires the RHS to be orthogonal to the left null vector of $A_{\rm coupled}$,
-which is not $\mathbf{1}$ when $A_{\rm coupled} \neq A_{\rm coupled}^\top$. The
-Lagrange multiplier $\mu$ then modifies the PDE rather than purely fixing the
-gauge, producing a 3.5% interior Poisson residual in tests.
-
-FEMMI instead uses a **single-node pin**: one boundary node $j^{\ast}$ has its
-row replaced by an identity row, forcing $\psi_{j^{\ast}} = 0$. The factored system
-is stored in `FEMOperators.A_coupled_lu`. To prevent the artificially pinned
-value from contaminating shear at adjacent interior nodes (via the columns of
-$S_1$, $S_2$), those columns are zeroed after assembly:
-
-```python
-S1_lil[:, idx_gauge] = 0;  S2_lil[:, idx_gauge] = 0
-```
-
-The gauge node is placed at angle $3\pi/4$ on $\partial\Omega$ (upper-left diagonal),
-where $\gamma_1 = 0$ for any centred radially-symmetric lens, minimising the
-visible artifact in shear plots.
+The original shear columns are retained. Boundary output rows are zeroed for
+P3 because nodal Hessian recovery is unreliable there; these rows should not
+be treated as measured shear. Catalogue guard nodes have zero likelihood weight.
 
 ### 6.3a How far the mass-sheet claim actually goes
 
@@ -322,26 +307,22 @@ and measurement says it does not.** Two findings scope the claim:
    with FEMMI's *own* forward, which is an inverse crime: there the DC component
    is exactly in the range of $F$ by construction.
 
-The honest statement is therefore: **FEMMI removes the DC mode from the forward
-operator's null space; it does not thereby break the mass-sheet degeneracy in
-practice.** The multiplicative degeneracy $\kappa \to \lambda\kappa + (1-\lambda)$
-is untouched by any pure shear inverter, FEMMI included.
+A nonzero response to a constant coefficient vector is a property of this
+finite-domain discretization and its exterior assumptions. It is not evidence
+that shear observations determine absolute convergence. For linear shear,
+adding a global convergence sheet leaves shear unchanged; for reduced shear,
+$(\kappa,\gamma)\mapsto(\lambda\kappa+1-\lambda,\lambda\gamma)$ leaves
+$g=\gamma/(1-\kappa)$ unchanged (single source plane). These are different
+observation models. Benchmark edge-error measurements above must also be rerun
+after operator corrections.
 
-What *does* survive on neutral truth is the boundary claim: FEMMI's exact
-far-field condition gives a smaller DC-removed error than KS at every radius, by
-$\approx 1.7\times$ in the corner region and growing outward
-(`examples/paper/independent_truth.py`).
+### 6.4 Scope of the solve
 
-### 6.4 Guarantees
-
-Solving the gauged system gives $\psi$ satisfying:
-1. $\nabla^2\psi = 2\kappa$ in $\Omega$ (interior residual $< 10^{-13}$ of RHS)
-2. $\nabla^2\psi = 0$ in $\Omega_{\rm ext}$ (encoded in the BEM Green's representation)
-3. $\psi \to 0$ as $|\mathbf{x}| \to \infty$ (the logarithmic representation decays correctly)
-4. $\psi$ and $\partial\psi/\partial n$ continuous across $\partial\Omega$
-5. $\psi_{j^*} = 0$ (single-node pin at the gauge node)
-
-Uniqueness follows from **[C\&K \S3.3, Thm 3.12]**.
+The gauged finite system enforces its assembled weak equations with a projected
+load and a pinned potential coefficient. BEM represents a harmonic exterior under
+the chosen isolated-source model, subject to discretization and quadrature error.
+A small algebraic residual verifies the solve; it does not prove that the boundary
+model is exact for a given catalogue or that the shear inverse is injective.
 
 ### 6.5 Derivation of the Coupling: Galerkin Pairing and $\sigma$-Scaling
 
@@ -529,7 +510,7 @@ The complete map from $\kappa$ to $(\gamma_1, \gamma_2)$ is:
 
 $$\kappa \xrightarrow{-2M} \mathbf{f} \xrightarrow{A_{\rm coupled}^{-1}} \psi \xrightarrow{S} (\gamma_1, \gamma_2)$$
 
-Writing this as a single operator: $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$, where
+Writing this as a single operator: $F = S \cdot A_{\rm coupled}^{-1} Q \cdot (-2M)$, where
 $S = (S_1; S_2)$ stacks the two shear operators.
 
 In `operators.py`: `FEMOperators.psi_from_kappa` solves the gauged system;
@@ -537,47 +518,54 @@ In `operators.py`: `FEMOperators.psi_from_kappa` solves the gauged system;
 `FEMOperators.forward` chains both. The JAX-differentiable wrapper lives
 in `forward.py`, `DifferentiableForward`.
 
-### 10.2 Compactness
+### 10.2 Continuum order and discrete diagnostics
 
-$F$ is a compact operator from $L^2(\Omega)$ to $L^2(\Omega)^2$:
-- $-2M$ maps $L^2 \to H^1$ (integration gains smoothness)
-- $A_{\rm coupled}^{-1}$ maps $H^{-1} \to H^1$ (elliptic solve gains two derivatives)
-- $S$ maps $H^1 \to L^2$ (Hessian)
-- The embedding $H^1 \hookrightarrow L^2$ is compact by Rellich's theorem
+The ideal full-plane shear map is an order-zero Fourier multiplier. For
+$k\ne0$, its components are $(k_1^2-k_2^2)/|k|^2$ and $2k_1k_2/|k|^2$;
+their squared magnitudes sum to one. Taking two derivatives of the inverse
+Laplacian cancels its two-derivative smoothing. The previous compactness
+argument was therefore invalid. The mass matrix is a discrete integration
+pairing, not a continuum smoothing operator.
 
-Compactness is the mathematical reason the inverse problem is ill-posed
-(**[C\&K \S10.1]**).
+`compute_svd` uses Euclidean coefficient norms and all nodal output rows.
+Its leading modes describe that finite matrix, not a physically normalized
+catalogue information spectrum. Masks, sampling and noise govern the actual
+likelihood; no continuum uniqueness conclusion follows from its finite rank.
 
-### 10.3 Injectivity and null space
+### 10.3 Forward solvability versus inverse identifiability
 
-The FEM-BEM system with the single-node gauge has trivial null space. The
-boundary condition $\psi \to 0$ at infinity (encoded by the BEM) fixes the
-far-field normalization of $\psi$, and the single-node pin removes the remaining
-additive constant. Adding a uniform sheet
-$\kappa \to \kappa + c$ changes $\mathbf{f} \to \mathbf{f} - 2Mc$, which changes $\psi$, which
-changes $\gamma$. The map $F$ is injective in contrast to Kaiser-Squires, where
-the Fourier kernel vanishes at $\mathbf{k} = \mathbf{0}$.
-
+An invertible potential solve does not imply an injective shear map. The shear
+operator and observation selection can discard directions. Gauge fixing and
+exterior assumptions specify a model; priors can select among compatible maps.
+None of these operations supplies missing measurements.
 
 ## 11. MAP Reconstruction and Tikhonov Regularization
 
 ### 11.1 The Tikhonov functional
 
-Tikhonov regularization replaces the ill-posed problem $F\kappa = \gamma_{\rm obs}$ with:
+The implemented linear-shear objective is
 
-$$\kappa_\lambda = \arg\min_{\kappa} \lbrace\{ \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa \rbrace\}$$
+$$J(\kappa)=\sum_{a=1}^2\sum_{i:w_i>0}w_i(F_a\kappa-d_a)_i^2
+                 +\lambda\phi(\kappa).$$
 
-This is exactly the **MAP estimator** with Gaussian likelihood and Gaussian
-prior. Existence, uniqueness, and convergence are established in
-**[C\&K \S10.2, Thm 10.2]**. Implemented in `inverse.py`, `MAPReconstructor`.
+Weights are nonnegative relative precisions with
+$\mathrm{Var}(n_{a,i})=\sigma_n^2/w_i$. Masked observations have zero weight.
+A missing value is not an observation of zero shear. For a quadratic prior,
+$\phi=\kappa^T R\kappa$; positive `wiener_length` gives $R=M+\ell^2K$,
+while zero retains the historical gradient penalty $R=K$.
+
+The Gaussian likelihood is the data term divided by $2\sigma_n^2$.
+Sampling therefore uses $\lambda_{\rm sample}=\lambda_{\rm MAP}/(2\sigma_n^2)$
+for the same penalty and posterior mode. A proper posterior additionally
+requires positive precision on every retained direction.
 
 ### 11.2 Choosing the regularization operator $R$
 
 - **$H^1$ ($R = K$):** Penalizes $\|\nabla\kappa\|^2$. Smoothness prior.
 - **Matern-Wiener ($R = M + \ell^2 K$):** Penalizes $\|\kappa\|^2 + \ell^2\|\nabla\kappa\|^2$. **Recommended.**
 
-The **Matern-Wiener prior** $R = M + \ell^2 K$ has Green's function
-$G(r) \approx e^{-r/\ell}$, a Matern-1/2 covariance with correlation length $\ell$.
+The **Wiener prior** $R = M + \ell^2 K$ is a discrete mass-plus-gradient
+precision. It is not, in two dimensions, automatically a Matérn-1/2 covariance.
 Setting $\ell = \sigma_{\rm lens}$ matches the prior to the expected spatial scale of $\kappa$.
 
 Assembled in `operators.py`, `build_wiener_regularizer`. Selected by
@@ -593,36 +581,26 @@ suppressed). This filter interpretation is discussed in **[C\&K \S10.2]**.
 
 ## 12. The Adjoint Gradient
 
-### 12.1 The adjoint of $F$
+### 12.1 The discrete transpose
 
-Recall $F = S \cdot A_{\rm coupled}^{-1} \cdot (-2M)$. Using the symmetry of $M$ and noting
-that $A_{\rm coupled}$ is not symmetric ($K_h$ is asymmetric), the $L^2$ adjoint is:
+Let $Q$ zero the gauge (or prescribed Dirichlet) load entries. Then
 
-$$F^* = (-2M)A_{\rm coupled}^{-T}S^\top$$
+$$F=-2SA^{-1}QM,\qquad F^T=-2M^TQA^{-T}S^T.$$
 
-### 12.2 The gradient of the MAP loss
+$Q$ acts before the forward solve and after the transpose solve. The transpose
+is with respect to Euclidean coefficient coordinates, not an unqualified
+finite-element $L^2$ adjoint. JAX's custom VJP and the NumPy gradient implement
+the same composition.
 
-Define residuals $r_a = S_a\psi - \gamma_{a,\rm obs}$. The gradient of
-$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\rm obs}\|^2 + \lambda\kappa^\top R\kappa$ is:
+### 12.2 The weighted gradient
 
-$$\frac{\partial\mathcal{L}}{\partial\boldsymbol{\kappa}} = -4MA_{\rm coupled}^{-T}(S_1^\top\mathbf{r}_1 + S_2^\top\mathbf{r}_2) + 2\lambda R\kappa$$
+For residuals $r_a=S_a\psi-d_a$ and $W=\mathrm{diag}(w)$,
 
-The term $A_{\rm coupled}^{-T}(S_1^\top r_1 + S_2^\top r_2)$ is the **adjoint solve**
-using `trans='T'` in the SuperLU factorisation, with the gauge node zeroed in
-the RHS.
+$$\nabla J=-4M^TQA^{-T}(S_1^TWr_1+S_2^TWr_2)+\lambda\nabla\phi.$$
 
-Per-iteration algorithm in `inverse.py`, `MAPReconstructor._make_obj_and_grad`:
-
-1. Forward: $\mathbf{f} = -2M\kappa$ (gauge node zeroed), solve $A_{\rm coupled}\psi = \mathbf{f}$, compute $\gamma_a = S_a\psi$
-2. Residuals: $r_a = \gamma_a - \gamma_{a,\rm obs}$
-3. Loss: $\mathcal{L} = \sum_a\|r_a\|^2 + \lambda\kappa^\top R\kappa$
-4. Adjoint RHS: $\mathbf{q} = S_1^\top r_1 + S_2^\top r_2$ (gauge node zeroed)
-5. Adjoint solve: $A_{\rm coupled}^{-T}\phi = \mathbf{q}$ via `A_coupled_lu.solve(..., trans='T')`
-6. Gradient: $\partial\mathcal{L}/\partial\kappa = -4M\phi + 2\lambda R\kappa$
-
-Total cost per iteration: **two $A_{\rm coupled}$ solves** (forward + adjoint),
-reusing the factored SuperLU object.
-
+The forward and transpose solves reuse one SuperLU factorization. Tests compare
+both transpose actions and weighted gradients against an explicitly assembled
+small forward matrix, including boundary coefficients and Dirichlet projection.
 
 ## 13. Regularization Parameter Selection: Morozov's Principle
 
@@ -655,117 +633,49 @@ $$\delta = 1.4826 \cdot \mathrm{median}\left(|\gamma - \mathrm{median}(\gamma)|\
 
 ## 14. The Inverse Scattering Connection
 
-### 14.1 Structural Equivalence with the Born Approximation
+### 14.1 Relation to inverse scattering
 
-The weak lensing forward problem is structurally identical to the Born
-approximation in acoustic inverse scattering (**[C\&K \S8.1]**):
+FEMMI reconstructs a source under a fixed differential operator. Acoustic
+inverse scattering usually infers an operator coefficient from responses to
+incident waves. Shared regularization tools do not imply identical inverse
+problems or transferable support-recovery theorems.
 
-| Acoustic scattering | Weak lensing |
-|---|---|
-| Scattered field $u_s$ | Shear $\gamma$ |
-| Refractive contrast $n(\mathbf{x})$ | Convergence $\kappa(\mathbf{x})$ |
-| Incident field $u_{\rm inc}$ | Uniform (constant) |
-| Helmholtz Green's function | Lensing kernel $K(\mathbf{x},\mathbf{y})$ |
-| Wavenumber $k > 0$ | $k \to 0$ (Poisson limit) |
+### 14.2 Practical conditioning
 
-The $k \to 0$ limit places the lensing problem in the static scattering regime.
-
-### 14.2 Consequences of Compactness
-
-Since $F$ is compact (**[C\&K \S10.1]**):
-
-1. **Resolution limit.** $\sigma_i \to 0$ imposes a fundamental minimum resolvable feature size.
-2. **Range condition.** $F\kappa = \gamma_{\rm obs}$ has a solution only if $\gamma_{\rm obs}$ satisfies the Picard condition (Section 15.3).
-3. **Regularization is necessary.** No bounded linear inversion can recover $\kappa$ stably for all right-hand sides.
-
+Finite sampling, noise, masks, boundaries and the chosen basis can leave poorly
+constrained directions. Regularization controls these directions at the cost of
+prior dependence. This does not require a compact continuum shear operator.
 
 ## 15. SVD, Ill-Posedness, and the Picard Condition
 
-### 15.1 The SVD of $F$
+`svd_analysis.compute_svd` computes leading singular triplets of a finite nodal
+matrix using dense SVD or Lanczos on $F^TF$. Returned residuals check both
+$Fv=\sigma u$ and $F^Tu=\sigma v$. Small singular values amplify noise in that
+matrix's coefficient norm. Leading modes alone do not characterize its kernel.
 
-Since $F$ is compact, it admits the singular value decomposition:
-
-$$F = \sum_i \sigma_i \mathbf{u}_i \otimes \mathbf{v}_i^*, \qquad \sigma_1 \geq \sigma_2 \geq \cdots \to 0$$
-
-The singular values accumulate only at zero (**[C\&K \S10.1, Thm 10.6]**).
-Computed in `svd_analysis.py`, `compute_svd` using randomised Lanczos on
-the normal operator $F^*F$.
-
-### 15.2 Noise amplification
-
-With $\gamma_{\rm obs} = \gamma_{\rm true} + \eta$ (noise), the formal inversion
-$\sum_i \sigma_i^{-1}\langle\eta, \mathbf{u}_i\rangle\mathbf{v}_i$
-diverges since $\sigma_i^{-1} \to \infty$.
-
-### 15.3 The Picard Condition
-
-The equation $F\kappa = \gamma_{\rm true}$ has a solution $\kappa \in L^2(\Omega)$ if and only if:
-
-$$\sum_i \left(\frac{|\langle \gamma_{\rm true}, \mathbf{u}_i\rangle|}{\sigma_i}\right)^2 < \infty$$
-
-(**[C\&K \S10.1, Thm 10.7]**.) For smooth $\kappa$ this holds; for noisy data the
-coefficients plateau at the noise floor while $\sigma_i$ continues to decay.
-
-### 15.4 The Picard Plot
-
-Plot the following three quantities versus mode index $i$:
-
-$$\log\sigma_i, \qquad \log\lvert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert, \qquad \log\frac{\lvert\langle\gamma_{\rm obs}, \mathbf{u}_i\rangle\rvert}{\sigma_i}$$
-
-When the second decays faster than the first, the Picard condition is satisfied. The crossover index gives the effective noise cutoff.
-
-Implemented in `svd_analysis.py`, `picard_plot`.
-
+The Picard plot is an exploratory coefficient diagnostic. A finite-window slope
+comparison is not a proof of the continuum Picard condition. For orthonormal
+left vectors and independent noise of standard deviation $\delta$, each noise
+coefficient has standard deviation $\delta$, not $\delta\sqrt{2n}$.
 
 ## 16. The Factorization Method for Support Recovery
 
-### 16.1 Motivation
+The historical `FactorizationIndicator` name is retained for API compatibility.
+Its output depends only on the forward operator, probe location, and spectral
+cutoff. It never consumes the observed shear, so it cannot identify the support
+of an unknown lens. The scattering range characterization formerly quoted here
+has not been established for this source-recovery operator.
 
-For applications where the goal is to determine only the **support** of $\kappa$,
-the factorization method provides a parameter-free alternative.
-
-### 16.2 Range Characterization Theorem
-
-Define the point-source test function at $\mathbf{z} \in \Omega$:
-
-$$\boldsymbol{\Phi}_{\mathbf{z}} = F\delta_{\mathbf{z}} \qquad \text{(shear pattern from a unit point mass at } \mathbf{z}\text{)}$$
-
-**Theorem (Kirsch, 1998; [C\&K \S6.2, Thm 6.15]).**
-
-$$\mathbf{z} \in \mathrm{supp}(\kappa) \iff \boldsymbol{\Phi}_{\mathbf{z}} \in \mathrm{Range}\left(|F|^{1/2}\right)$$
-
-### 16.3 Numerical Implementation
-
-After computing the truncated SVD (modes with $\sigma_i > \delta$), for each test point $\mathbf{z}$:
-
-$$W(\mathbf{z}) = \left(\sum_{\sigma_i > \delta} \frac{|\langle \boldsymbol{\Phi}_{\mathbf{z}}, \mathbf{u}_i\rangle|^2}{\sigma_i}\right)^{-1}$$
-
-$W(\mathbf{z})$ is large where $\mathbf{z} \in \mathrm{supp}(\kappa)$ and small outside.
-
-Probe function computed in `svd_analysis.py`, `_probe_function`.
-Indicator evaluated in `FactorizationIndicator.indicator_map`.
-The probe function approximates $\Phi_\mathbf{z}$ by concentrating a unit mass at the
-nearest mesh node, weighted by the diagonal mass matrix entry $M_{jj}$.
-
+The implemented diagnostic is the normalized sum
+$\sum_i |u_i^T\Phi_z|^2/\sigma_i$. It is not the reciprocal previously documented.
+Use it only to inspect operator geometry.
 
 ## 17. The Linear Sampling Method
 
-### 17.1 The Linear Sampling Equation
-
-For each test point $\mathbf{z}$, seek a density $g_\mathbf{z}$ satisfying $F g_\mathbf{z} = \Phi_\mathbf{z}$.
-(**[C\&K \S5.5]**): if $\mathbf{z} \in \mathrm{supp}(\kappa)$, then $\Phi_\mathbf{z} \in \mathrm{Range}(F)$ and the equation has
-a bounded solution; if $\mathbf{z} \notin \mathrm{supp}(\kappa)$, then $\|g_\mathbf{z}\| \to \infty$.
-
-### 17.2 The Indicator Functional
-
-Solve via Tikhonov regularization in SVD form:
-
-$$\|g_{\mathbf{z}}^\alpha\|^2 = \sum_i \left(\frac{\sigma_i}{\sigma_i^2 + \alpha}\right)^2 |\langle \boldsymbol{\Phi}_{\mathbf{z}}, \mathbf{u}_i\rangle|^2$$
-
-The support indicator is $\mathcal{I}(\mathbf{z}) = 1/\|g_\mathbf{z}^\alpha\|$, large inside $\mathrm{supp}(\kappa)$.
-
-Implemented in `svd_analysis.py`, `LinearSamplingIndicator.indicator_map`.
-
+`LinearSamplingIndicator` likewise returns a data-independent geometry score:
+the normalized norm of the Tikhonov solution to $Fg=\Phi_z$. Its historical
+support-recovery interpretation is unsupported. Neither diagnostic should be
+used as a mass-map benchmark or publication claim.
 
 ## 18. Convergence Theory
 
@@ -1482,11 +1392,11 @@ claim to defend.
 Taking it through the inverse path needed one new piece. Argyris gets shear for
 free — the Hessian *is* three of its DOFs, so $S$ is a selection with one or two
 entries per row. HCT's vertex block is only $\{u, u_x, u_y\}$, so the Hessian has
-to be **evaluated**. It is still unambiguous: HCT is C¹, so every element meeting
-a vertex returns the same Hessian there, and picking one is exact rather than an
-average (`c1_inverse.shear_evaluation_operators`). Both operators are exact to
-machine precision on a quadratic, which validates the evaluation path against the
-selection path on a case with a known answer.
+to be **recovered**. C¹ does not imply a unique Hessian. The current operator
+uses an area-weighted average of all incident subtriangle traces. The old
+first-element convention depended on triangle order. HCT mass, stiffness and
+load quadrature is now split over its three polynomial pieces. The following
+table predates both corrections and must be regenerated after recalibration.
 
 Three seeds, NFW truth, everything else as §18.3i:
 

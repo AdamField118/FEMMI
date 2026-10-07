@@ -18,6 +18,7 @@ DOMAIN = (-2.5, 2.5, -2.5, 2.5)
 NOISE  = 0.05
 
 results = []
+checked_results = []
 
 def record(name, ok, detail=""):
     tag = "PASS" if ok else "FAIL"
@@ -25,6 +26,7 @@ def record(name, ok, detail=""):
     if detail:
         print(f"       {detail}")
     results.append((name, ok))
+    checked_results.append((name, ok, detail))
 
 
 def nfw_kappa(nodes, kappa_s=0.5, r_s=0.8, r_core=0.05):
@@ -69,16 +71,14 @@ def _fwd(kappa):
     return S1 @ psi, S2 @ psi
 
 def _adj(g1, g2):
-    rhs = S1.T @ g1 + S2.T @ g2; rhs[idx_g] = 0.0
-    phi = A_lu.solve(rhs, trans='T')
-    return -2.0 * (M.T @ phi)
+    return ops.adjoint_rhs(g1, g2)
 
 g1_k, g2_k = _fwd(kappa_rnd)
 kappa_adj  = _adj(g_rnd, g_rnd)
 lhs        = float(np.dot(g1_k, g_rnd) + np.dot(g2_k, g_rnd))
 rhs_val    = float(np.dot(kappa_rnd, kappa_adj))
 adj_err    = abs(lhs - rhs_val) / (abs(lhs) + 1e-14)
-record("<Fk, g> ~ <k, F*g>  (rel err < 5e-3)", adj_err < 5e-3,
+record("<Fk, g> ~ <k, F*g>  (rel err < 1e-10)", adj_err < 1e-10,
        f"lhs={lhs:.6e}  rhs={rhs_val:.6e}  rel={adj_err:.2e}")
 
 
@@ -130,6 +130,11 @@ l2_high = run_map_l2(0.20, 3e-2)
 l2_low  = run_map_l2(0.05, 1e-2)
 record("L2 decreases from 20% -> 5% noise", l2_low < l2_high,
        f"L2(20%)={l2_high:.4f}  L2(5%)={l2_low:.4f}")
+
+
+def test_recorded_invariants():
+    failures = [f"{name}: {detail}" for name, ok, detail in checked_results if not ok]
+    assert not failures, "\n".join(failures)
 
 
 if __name__ == "__main__":

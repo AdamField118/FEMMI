@@ -13,13 +13,9 @@ Here: K, M, load, Dirichlet constraints, a Poisson solve, and shear extraction
 that reads the Hessian straight off the Argyris vertex DOFs (no averaging, no
 recovery, no boundary special-casing -- see MATH.md 18.3a).
 
-Not here yet: the FEM-BEM coupling. The exterior problem couples through the
-boundary trace, and a C^1 space has a richer trace than P3 -- the normal-
-derivative DOFs on boundary edges have to be matched against the Steklov-Poincare
-operator. Until that lands, C^1 solves use Dirichlet conditions, which is exact
-for a compactly supported field (the manufactured solutions FEMMI validates
-against) and wrong for a real isolated-field reconstruction. So this is a
-validated element+solver, not yet a drop-in replacement for build_operators.
+The coupled exterior solve is implemented separately in c1_coupling.py.
+The Dirichlet manufactured-solution helpers in this module pin the boundary
+DOFs and are not a substitute for that catalogue reconstruction path.
 """
 
 from __future__ import annotations
@@ -53,28 +49,37 @@ def _quad(n=7):
     return pts, wts
 
 
+def element_quadrature(el, quad_order=7):
+    """Physical points/weights, split across HCT's polynomial pieces."""
+    qp, qw = _quad(quad_order)
+    pieces = [el._sub_verts(k) for k in range(3)] if el.name == "hct" else [el.verts]
+    points, weights = [], []
+    for v in pieces:
+        area = abs(np.linalg.det(np.array([v[1]-v[0], v[2]-v[0]]))) / 2.0
+        points.append(v[0] + qp[:, :1]*(v[1]-v[0]) + qp[:, 1:]*(v[2]-v[0]))
+        weights.append(area * qw)
+    return np.concatenate(points), np.concatenate(weights)
+
+
 def assemble_c1(space: C1Space, quad_order=7):
     """Stiffness K[i,j] = int grad phi_i . grad phi_j and mass M[i,j] = int phi_i phi_j.
 
     Assembled elementwise from the physical-coordinate bases, so no reference
     pullback of the derivative DOFs is involved (see femmi.elements)."""
-    qp, qw = _quad(quad_order)
     n = space.n_dofs
     rows, cols, kv, mv = [], [], [], []
 
     for t in range(len(space.triangles)):
         el = space.element(t)
-        v = el.verts
-        area = abs(np.linalg.det(np.array([v[1] - v[0], v[2] - v[0]]))) / 2.0
-        pts = v[0] + qp[:, 0:1] * (v[1] - v[0]) + qp[:, 1:2] * (v[2] - v[0])
+        pts, qw = element_quadrature(el, quad_order)
 
         N = el.basis(pts)                       # (nq, ndof)
         Gx = el.basis(pts, 1, 0)
         Gy = el.basis(pts, 0, 1)
 
-        Ke = area * (np.einsum('q,qi,qj->ij', qw, Gx, Gx)
+        Ke = (np.einsum('q,qi,qj->ij', qw, Gx, Gx)
                      + np.einsum('q,qi,qj->ij', qw, Gy, Gy))
-        Me = area * np.einsum('q,qi,qj->ij', qw, N, N)
+        Me = np.einsum('q,qi,qj->ij', qw, N, N)
 
         idx = space.local_dofs(t)
         rows.append(np.repeat(idx, len(idx)))
@@ -89,15 +94,12 @@ def assemble_c1(space: C1Space, quad_order=7):
 
 def assemble_c1_load(space: C1Space, f, quad_order=7):
     """Load vector b[i] = int f phi_i for a callable f(points) -> values."""
-    qp, qw = _quad(quad_order)
     b = np.zeros(space.n_dofs)
     for t in range(len(space.triangles)):
         el = space.element(t)
-        v = el.verts
-        area = abs(np.linalg.det(np.array([v[1] - v[0], v[2] - v[0]]))) / 2.0
-        pts = v[0] + qp[:, 0:1] * (v[1] - v[0]) + qp[:, 1:2] * (v[2] - v[0])
+        pts, qw = element_quadrature(el, quad_order)
         N = el.basis(pts)
-        np.add.at(b, space.local_dofs(t), area * (qw * np.asarray(f(pts))) @ N)
+        np.add.at(b, space.local_dofs(t), (qw * np.asarray(f(pts))) @ N)
     return b
 
 
@@ -137,31 +139,10 @@ def solve_poisson_c1(space: C1Space, kappa_fn, half_width, quad_order=7):
 
 
 def c1_shear_at_vertices(space: C1Space, psi):
-    """Shear at the mesh vertices, read STRAIGHT OFF the DOF vector for Argyris.
-
-    Argyris carries {u_xx, u_xy, u_yy} as vertex DOFs, so
-        gamma1 = 1/2 (u_xx - u_yy),  gamma2 = u_xy
-    is a pure selection -- single-valued, no averaging over adjacent elements, no
-    recovery step, no boundary ring to zero. This is the operator that replaces
-    S1/S2 once the BEM coupling lands.
-
-    HCT has no Hessian DOFs, so it falls back to evaluating in one adjacent
-    element (and is multivalued at vertices, like P3).
-    """
-    nv = space.n_vert_dofs
-    if nv == 6:
-        u = np.asarray(psi).reshape(-1)[:space.n_vertices * 6].reshape(-1, 6)
-        return 0.5 * (u[:, 3] - u[:, 5]), u[:, 4]
-
-    g1 = np.zeros(space.n_vertices); g2 = np.zeros(space.n_vertices)
-    seen = np.zeros(space.n_vertices, bool)
-    for t, tri in enumerate(space.triangles):
-        for lv, v in enumerate(tri):
-            if seen[v]:
-                continue
-            a, b = space.eval_shear(psi, t, space.vertices[v:v + 1])
-            g1[v], g2[v] = a[0], b[0]; seen[v] = True
-    return g1, g2
+    """Use the same vertex observation convention as C1MAPReconstructor."""
+    from .c1_inverse import shear_operators
+    S1, S2 = shear_operators(space)
+    return S1 @ psi, S2 @ psi
 
 
 def solved_shear_convergence(kind="argyris", nxs=(4, 6, 8, 12), half_width=2.5,

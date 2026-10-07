@@ -32,6 +32,11 @@ entry point `sample_posterior`:
 
 `sample_posterior(..., method='auto')` picks 'rto' for the Gaussian/Wiener prior
 and 'annealed_hmc' for any other prior.
+
+Scope: Gaussian claims hold up to numerical solve/factorization error.
+Langevin and annealed HMC are approximate; a nonzero final sigma and a learned
+nonconservative score prevent an exact posterior claim. Score-only priors do
+not supply a MAP energy; map_kappa is then a zero initialization (see info).
 """
 
 from __future__ import annotations
@@ -93,8 +98,10 @@ def _rto_sample(ops, g1, g2, noise_std, wiener_length, lam, w, n_samples,
     b = FtW(g1, g2) / sigma2
 
     def solve(rhs, x0=None):
-        x, _ = spla.cg(Aop, rhs, rtol=cg_tol, maxiter=500,
+        x, status = spla.cg(Aop, rhs, rtol=cg_tol, maxiter=max(500, 5*n),
                        x0=x0)
+        if status != 0:
+            raise RuntimeError(f"posterior CG failed to converge (info={status})")
         return x
 
     k_map = solve(b)
@@ -103,7 +110,13 @@ def _rto_sample(ops, g1, g2, noise_std, wiener_length, lam, w, n_samples,
     for s in range(n_samples):
         e1 = rng.standard_normal(len(g1)); e2 = rng.standard_normal(len(g2))
         z = rng.standard_normal(n)
-        eta = FtW(e1, e2) / noise_std + np.sqrt(two_lam) * (Lc @ z)   # eta ~ N(0,A)
+        # FtW already multiplies by w. Input noise must have variance 1/w,
+        # so the resulting covariance is F^T W F, not F^T W^2 F.
+        if w is not None:
+            invsqrt = np.zeros_like(w)
+            np.divide(1.0, np.sqrt(w), out=invsqrt, where=w > 0)
+            e1 *= invsqrt; e2 *= invsqrt
+        eta = FtW(e1, e2) / noise_std + np.sqrt(two_lam) * (Lc @ z)
         samples[s] = solve(b + eta, x0=k_map)
         if verbose and (s + 1) % max(1, n_samples // 5) == 0:
             print(f"  RTO sample {s + 1}/{n_samples}")
@@ -118,6 +131,10 @@ def _map_warmstart(fwd, g1, g2, prior, wiener_length, w, sn2, lam, maxiter):
     ||F k - y||^2 + lam_map * phi. The two share the SAME mode iff
     lam_map = 2 sigma_n^2 lam, so convert before the solve (otherwise a properly
     large sampler lam over-smooths the warm-start MAP)."""
+    if prior is not None and not getattr(prior, "has_energy", True):
+        # A score-only field supplies no valid line-search energy. Start at
+        # zero, and label this as an initialization in the public result.
+        return np.zeros(fwd.ops.n_nodes)
     saved = fwd.lam_reg
     fwd.lam_reg = 2.0 * sn2 * lam
     try:
@@ -144,7 +161,11 @@ def _langevin_sample(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
         r1, r2 = S1 @ psi - g1, S2 @ psi - g2
         wr1, wr2 = (r1, r2) if w is None else (w * r1, w * r2)
         g = (-4.0 * (M.T @ ops._solve_adjoint(S1.T @ wr1 + S2.T @ wr2))) * inv2s2
-        return g + (lam * (2.0 * (R @ k)) if prior is None else lam * prior.value_grad(k)[1])
+        if prior is None:
+            return g + 2.0 * lam * (R @ k)
+        if not getattr(prior, "has_energy", True):
+            return g - lam * np.asarray(prior.score(k))
+        return g + lam * prior.value_grad(k)[1]
 
     k_map = _map_warmstart(fwd, g1, g2, prior, wiener_length, w, noise_std**2, lam, maxiter_map)
     k = k_map.copy() if warm_start else np.zeros(ops.n_nodes)
@@ -187,7 +208,7 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
     sigma^2 is the inverse temperature: high sigma broadens both the likelihood
     (via sigma_eff) and the prior (the score net is noise-conditional, so it
     supplies the correctly-tempered prior score at each level), merging modes;
-    annealing sigma_max -> sigma_min lands on the true posterior. Each level runs
+    annealing sigma_max -> sigma_min reaches the configured approximate target. Each level runs
     HMC; for a score-only prior the Metropolis correction uses the exact
     (quadratic) likelihood difference plus a line-integral estimate of the prior
     log-density difference (the num_delta_logp trick)."""
@@ -195,13 +216,13 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
     M, S1, S2 = ops.M, ops.S1, ops.S2
     sn2 = float(noise_std)**2
 
-    has_score = hasattr(prior, "score")               # NeuralScorePrior / ScorePrior
+    has_score = prior is not None and not getattr(prior, "has_energy", True)
     if not has_score:
-        R = WienerPrior(ops, wiener_length).R
+        actual_prior = WienerPrior(ops, wiener_length) if prior is None else prior
         def pscore(k, s):
-            return -2.0 * (R @ k)                     # raw grad log p (sigma-indep. Gaussian)
+            return -np.asarray(actual_prior.value_grad(k)[1])
         def neg_logp(k):
-            return float(k @ (R @ k))                 # exact prior value (x lambda later)
+            return float(actual_prior.value_grad(k)[0])
     else:
         def pscore(k, s):
             return np.asarray(prior.score(k, s), float)
@@ -258,8 +279,8 @@ def _annealed_hmc(fwd, g1, g2, noise_std, prior, lam, wiener_length, w,
         return (k, 1) if accepted else (k0, 0)
 
     # Independent annealed chains: each chain anneals sigma_max -> sigma_min and
-    # contributes samples from the coldest level. Independence between chains
-    # (not steps within one chain) is what gives correct posterior variance.
+    # contributes samples from the coldest level. Independent random streams
+    # do not remove finite-chain or nonzero-final-sigma bias.
     sigmas = np.geomspace(sigma_max, sigma_min, n_levels)
     samples, n_acc, n_prop = [], 0, 0
     thin = max(1, keep_final // 2)
@@ -292,9 +313,9 @@ def _auto_lam(ops, g1, g2, noise_std, prior, wiener_length, w, verbose):
     (the two posteriors have the same mode iff this holds). This makes RTO / HMC
     reproduce the MAP reconstruction instead of being ~10^3x under-regularised.
 
-    Score prior (neural): the network already encodes a properly normalised
-    log-prior, so the Bayesian coefficient is 1.0. Any other non-Gaussian prior
-    (TV / sparse / maxent) likewise defaults to 1.0.
+    Other priors default to coefficient 1.0 as a convention, not a calibration.
+    The learned score/mesh bridge and non-Gaussian penalty scales require
+    independent validation and tuning for scientific use.
     """
     is_gaussian = prior is None or isinstance(prior, WienerPrior)
     if not is_gaussian:
@@ -318,7 +339,7 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
                      maxiter_map=200, seed=0, verbose=True,
                      n_levels=10, steps_per_level=15, sigma_max=1.0, sigma_min=0.02,
                      n_leapfrog=5, leap_frac=0.5, n_delta_logp=4,
-                     n_chains=40, keep_final=4):
+                     n_chains=40, keep_final=4, mask=None):
     """Sample the kappa posterior and return mean, std (UQ), and samples.
 
     noise_std : per-component shear noise sigma_n (sets the likelihood scale).
@@ -333,8 +354,13 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
                 Morozov for the Wiener prior, 1.0 for the neural score prior; a raw
                 small lam leaves the posterior noise-dominated (see _auto_lam).
     """
-    w = None if data_weight is None else np.asarray(data_weight, float)
-    g1 = np.asarray(gamma1_obs, float); g2 = np.asarray(gamma2_obs, float)
+    from .observations import prepare_observations
+    g1, g2, w = prepare_observations(
+        gamma1_obs, gamma2_obs, fwd.ops.n_nodes, data_weight, mask)
+    if not np.isfinite(noise_std) or noise_std <= 0:
+        raise ValueError("sampling noise_std must be finite and positive")
+    if method not in ("auto", "rto", "annealed_hmc", "langevin"):
+        raise ValueError(f"unknown sampling method {method!r}")
 
     # Auto-calibrate lam when the caller doesn't set one. Left uncalibrated, the
     # sampler's raw lam is trivially wrong: the data term carries weight 1/sigma_n^2
@@ -376,6 +402,13 @@ def sample_posterior(fwd, gamma1_obs, gamma2_obs, noise_std, prior=None, lam=Non
 
     if temperature != 1.0 and method == "rto":
         samples = k_map + np.sqrt(temperature) * (samples - k_map)
+    info["map_kind"] = ("initialization" if prior is not None and
+                        not getattr(prior, "has_energy", True) else "posterior_mode")
+    if method == "annealed_hmc":
+        info["sigma_final"] = float(sigma_min)
+        info["approximate"] = True
+    elif method == "langevin":
+        info["approximate"] = True
     return PosteriorSamples(mean=samples.mean(0), std=samples.std(0),
                             samples=samples, method=method, map_kappa=k_map, info=info)
 

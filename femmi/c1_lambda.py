@@ -128,13 +128,13 @@ def _residual_rms(rec, kappa, g1_obs, g2_obs):
     node count the data never covered and make the residual look artificially
     small -- delta must stay comparable to a per-component shear std.
     """
+    from .observations import prepare_observations, weighted_rms
+    g1_obs, g2_obs, w = prepare_observations(
+        g1_obs, g2_obs, rec.space.n_vertices, rec.w)
     psi = rec.psi_of(kappa)
     r1 = rec.S1 @ psi - g1_obs
     r2 = rec.S2 @ psi - g2_obs
-    w = rec.w
-    num = float(np.dot(w * r1, r1) + np.dot(w * r2, r2))
-    n_data = 2 * int(np.count_nonzero(w))
-    return float(np.sqrt(num / max(n_data, 1)))
+    return weighted_rms(r1, r2, w)
 
 
 def c1_lambda_path(rec, g1_obs, g2_obs, lam_grid=None, warm_start=True,
@@ -284,7 +284,7 @@ def cv_lambda(rec, g1_obs, g2_obs, lam_grid=None, n_folds=5, seed=0,
                 psi = rec.psi_of(k)
                 r1 = (rec.S1 @ psi - g1_obs)[hold]
                 r2 = (rec.S2 @ psi - g2_obs)[hold]
-                err[f, i] = np.sqrt((np.dot(r1, r1) + np.dot(r2, r2))
+                err[f, i] = np.sqrt(np.sum(w_full[hold] * (r1*r1 + r2*r2))
                                     / max(2 * len(hold), 1))
             if verbose:
                 print(f"    fold {f}: {np.array2string(err[f], precision=4)}",

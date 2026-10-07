@@ -1,7 +1,7 @@
 """
 femmi/svd_analysis.py
-SVD of the forward operator F, Picard diagnostics, and inverse scattering
-support-recovery indicators (factorization method and linear sampling method).
+Euclidean SVD of the discrete nodal forward map and legacy geometry indicators.
+The indicators do not consume observations and cannot locate unknown mass.
 
 Reference: MATH.md sections 15-17, C&K chapters 5-6, 10.
 """
@@ -25,7 +25,9 @@ class SVDResult:
 
 def compute_svd(ops, n_singular=40, method='lanczos', tol=1e-10, maxiter=None):
     """
-    Compute leading n_singular singular triplets of F: L^2(Omega) -> L^2(Omega)^2.
+    Compute leading singular triplets of the nodal matrix in Euclidean norms.
+
+    This is not a mass-normalized, noise-weighted catalogue information spectrum.
 
     method='lanczos': ARPACK eigsh on F*F (default, scales to large meshes)
     method='dense':   form F explicitly (only for small meshes, n < 500)
@@ -75,7 +77,8 @@ def compute_svd(ops, n_singular=40, method='lanczos', tol=1e-10, maxiter=None):
     for i in range(len(sigma)):
         if sigma[i] > 1e-14:
             fv = _forward(V[:, i])
-            residuals[i] = np.linalg.norm(fv - sigma[i] * U[:, i]) / sigma[i]
+            residuals[i] = max(np.linalg.norm(fv - sigma[i] * U[:, i]),
+                               np.linalg.norm(_adjoint(U[:, i]) - sigma[i] * V[:, i])) / sigma[i]
 
     return SVDResult(sigma=sigma, U=U, V=V, residuals=residuals, n_nodes=n)
 
@@ -125,7 +128,7 @@ def picard_plot(ops, gamma_obs, noise_std, n_singular=40, svd_result=None,
             break
 
     idx         = np.arange(1, k + 1)
-    noise_line  = noise_std * np.sqrt(2 * n)
+    noise_line  = noise_std
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
     fig.suptitle("Picard Diagnostic Plot", fontsize=13, fontweight='bold')
@@ -183,11 +186,11 @@ def _probe_function(ops, z):
 
 class FactorizationIndicator:
     """
-    Support recovery via the Kirsch factorization method (C&K Thm 6.15).
+    Legacy, data-independent geometry diagnostic (not mass support recovery).
 
-    W(z)^{-1} = sum_{sigma_i > delta} |<Phi_z, u_i>|^2 / sigma_i
-
-    W(z) is large inside support(kappa), small outside.
+    Returns the normalized sum |<Phi_z,u_i>|^2/sigma_i, without inversion.
+    F and Phi_z depend only on the mesh/operator, not the observed lens.
+    The scattering range theorem does not justify this as a support estimator.
     """
 
     def __init__(self, ops, n_singular=40, noise_floor=None, svd_result=None):
@@ -276,12 +279,11 @@ class FactorizationIndicator:
 
 class LinearSamplingIndicator:
     """
-    Support recovery via the linear sampling method (C&K section 5.5).
+    Legacy, data-independent geometry diagnostic (not mass support recovery).
 
-    I(z) = 1 / ||g_z^alpha|| where g_z^alpha = (F*F + alpha*I)^{-1} F* Phi_z.
-
-    I(z) is large inside support(kappa), more stable near corners than
-    the factorization method.
+    Returns normalized ||g_z^alpha||, where
+    g_z^alpha = (F^T F + alpha I)^{-1} F^T Phi_z. No observations enter this
+    calculation, so it cannot determine the support of an unknown convergence.
     """
 
     def __init__(self, ops, n_singular=40, alpha=None, svd_result=None):
@@ -300,7 +302,7 @@ class LinearSamplingIndicator:
         return _probe_function(self.ops, z)
 
     def indicator_map(self, test_points):
-        """Evaluate I(z) = 1/||g_z^alpha|| at all test_points. Returns (n_test,)."""
+        """Evaluate normalized I(z) = ||g_z^alpha|| at all test_points. Returns (n_test,)."""
         test_points = np.asarray(test_points, dtype=np.float64)
         if test_points.ndim == 1:
             test_points = test_points[None, :]

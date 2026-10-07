@@ -1,5 +1,11 @@
 # Neural prior
 
+> Score-only neural priors support experimental sampling, not energy-based
+> L-BFGS MAP. Set `inverse.method: sample`. A valid MAP objective requires a
+> matching prior value and gradient; a zero penalty proxy is no longer accepted.
+> See [the observation model](observation-model.md) for approximation limits.
+
+
 FEMMI includes a learned **score prior** — a network
 $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising
 Score Matching (Remy et al. 2020). It models the *non-Gaussian* structure of

@@ -8,6 +8,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 results = []
+checked_results = []
 
 def record(name, ok, detail=""):
     tag = "PASS" if ok else "FAIL"
@@ -15,6 +16,7 @@ def record(name, ok, detail=""):
     if detail:
         print(f"       {detail}")
     results.append((name, ok))
+    checked_results.append((name, ok, detail))
 
 
 print("Building 8x8 mesh...")
@@ -127,6 +129,11 @@ record("residual_norm increases with lambda", n_viol == 0,
        f"diffs={np.diff(res).round(4)}")
 record("D(lambda) changes sign", bool((disc[:-1] * disc[1:] < 0).any()),
        f"D={disc.round(3)}")
+
+
+def test_recorded_invariants():
+    failures = [f"{name}: {detail}" for name, ok, detail in checked_results if not ok]
+    assert not failures, "\n".join(failures)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,8 @@ import scipy.sparse as sp
 class Prior:
     """Base class. Subclasses implement value_grad(kappa) -> (phi, grad_phi)."""
     name = "prior"
-    is_quadratic = False           # only quadratic priors support Morozov lambda-selection
+    is_quadratic = False           # identifies a quadratic penalty
+    has_energy = True
 
     def value_grad(self, kappa):
         raise NotImplementedError
@@ -206,18 +207,24 @@ class ScorePrior(Prior):
     can later drive Langevin / HMC posterior sampling, not just MAP.
 
     score_fn   : kappa -> grad log p(kappa)  (array, same shape as kappa)
-    neg_logp   : optional kappa -> -log p(kappa) (float). If None, phi is 0.0,
-                 which is a valid gradient-consistent proxy for L-BFGS but makes
-                 the reported loss omit the prior term."""
+    neg_logp   : kappa -> -log p(kappa), required for energy-based MAP.
+                 Without it, use score-based sampling; a zero value with a
+                 nonzero gradient is not a valid L-BFGS objective."""
 
     def __init__(self, score_fn, neg_logp=None, name="score"):
         self.name = name
         self.score_fn = score_fn
         self.neg_logp = neg_logp
+        self.has_energy = neg_logp is not None
+
+    def score(self, kappa, sigma=None):
+        return np.asarray(self.score_fn(kappa)).ravel()
 
     def value_grad(self, kappa):
+        if not self.has_energy:
+            raise ValueError("ScorePrior requires neg_logp for energy-based MAP; use score sampling")
         grad = -np.asarray(self.score_fn(kappa)).ravel()
-        phi = 0.0 if self.neg_logp is None else float(self.neg_logp(kappa))
+        phi = float(self.neg_logp(kappa))
         return phi, grad
 
 

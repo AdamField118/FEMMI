@@ -394,6 +394,13 @@ class HCTElement(C1Element):
         self._C = sol
         self._which_sub = which_sub
 
+    def basis_on_subtriangle(self, pts, sub, dx=0, dy=0):
+        """One-sided polynomial trace, including at shared subtriangle edges."""
+        local = self._to_local(pts)
+        n = len(self.powers)
+        monomials = _mono(self.powers, local[:, 0], local[:, 1], dx, dy)
+        return monomials @ self._C[sub*n:(sub+1)*n] / self.h**(dx+dy)
+
     def basis(self, pts, dx=0, dy=0):
         p = np.atleast_2d(np.asarray(pts, float))
         L = self._to_local(p)

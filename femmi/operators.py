@@ -139,8 +139,8 @@ class RecoveredShear:
         int N_i gamma1 = 1/2 [ -int N_i,x psi_,x + int N_i,y psi_,y ]  + boundary
         int N_i gamma2 =     -int N_i,y psi_,x                          + boundary
 
-    so only FIRST derivatives of psi_h are ever evaluated (those converge at
-    O(h^3) for P3, and are continuous across elements), and the result is the L2
+    so only FIRST derivatives of psi_h are integrated (under suitable regularity
+    their broken-norm error is O(h^3); P3 gradients need not be continuous), and the result is the L2
     projection of the recovered field onto the continuous P3 space:
 
         M gamma1_rec = 1/2 (By - Bx) psi,     M gamma2_rec = -1/2 (Bxy + Bxy^T) psi.
@@ -191,9 +191,9 @@ class FEMOperators:
     """
     All precomputed FEM-BEM operators for a fixed mesh.
 
-    A_coupled = K_neumann + P^T C P where C = V_h^{-1}(0.5*M_b + K_h).
-    K has no Dirichlet row modifications; its constant null space is
-    removed by the BEM coupling and gauge fix.
+    A_coupled is assembled from K + P^T C P, with
+    C = -M_b V_sigma^{-1}(0.5*M_b - K_h), then row-pinned.
+    The RHS projection is part of this discrete boundary model.
     """
     mesh         : object
     K            : sp.csr_matrix
@@ -224,10 +224,10 @@ class FEMOperators:
         return self.A_coupled_lu.solve(rhs)
 
     def _solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
-        """Adjoint solve: zero gauge/Dirichlet nodes in RHS, then apply A_lu^T."""
-        rhs = rhs.copy()
-        rhs[self._rhs_zero_nodes()] = 0.0
-        return self.A_coupled_lu.solve(rhs, trans='T')
+        """Transpose of A^{-1} P: apply A^{-T}, then the RHS projector P."""
+        adj = self.A_coupled_lu.solve(rhs, trans='T')
+        adj[self._rhs_zero_nodes()] = 0.0
+        return adj
 
     def psi_from_kappa(self, kappa):
         return self._solve_psi(-2.0 * self.M @ kappa)

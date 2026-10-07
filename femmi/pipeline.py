@@ -60,7 +60,8 @@ def build_forward_and_data(cfg):
         kt = np.asarray(kt); g1t = np.asarray(g1t); g2t = np.asarray(g2t)
         rng = np.random.default_rng(cfg.get("data.seed"))
         g1n = g1t + rng.normal(0, sn, len(g1t)); g2n = g2t + rng.normal(0, sn, len(g2t))
-        weight = np.ones(len(nodes))
+        # Boundary shear rows are explicitly zeroed by the P3 operator.
+        weight = np.asarray(ops.interior, dtype=float)
         _apply_mask(cfg, nodes, g1n, g2n, weight)
         return dict(ops=ops, g1n=g1n, g2n=g2n, weight=weight, truth_nodes=kt,
                     catalog_mesh=None, nodes=nodes, noise_std=sn,
@@ -76,6 +77,7 @@ def build_forward_and_data(cfg):
     g1n = np.zeros(n); g1n[gn] = np.asarray(g1)[si]
     g2n = np.zeros(n); g2n[gn] = np.asarray(g2)[si]
     weight = np.zeros(n); weight[gn] = 1.0
+    _apply_mask(cfg, np.asarray(ops.mesh.nodes), g1n, g2n, weight)
     truth_nodes = np.full(n, np.nan)
     if truth_gal is not None:
         truth_nodes[gn] = np.asarray(truth_gal)[si]

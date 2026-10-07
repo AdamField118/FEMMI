@@ -14,6 +14,7 @@ import time
 from typing import Optional
 
 from .operators import FEMOperators, build_wiener_regularizer
+from .observations import prepare_observations, weighted_rms, noise_scale
 
 
 def estimate_noise_level(gamma_obs, method='mad'):
@@ -39,11 +40,12 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
     """
     Compute D(lambda) = ||F kappa_lambda - gamma_obs|| - c * delta.
 
-    D(lambda) is monotone INCREASING in lambda:
+    For globally minimized fixed penalties, residuals are nondecreasing with lambda:
       - large lambda -> over-smoothed -> residual large -> D > 0
       - small lambda -> over-fitted   -> residual small -> D < 0
 
-    The Morozov parameter lambda* is the unique root D(lambda*) = 0.
+    A root need not exist or be unique. Approximate/nonconvex optimization can
+    also spoil monotonicity; the selector has a bracket fallback.
 
     prior : optional non-Gaussian Prior (femmi.priors). NOTHING here needs the
     prior to be quadratic -- the discrepancy is evaluated by actually solving the
@@ -60,6 +62,8 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
     from .inverse import MAPReconstructor
     from .forward import DifferentiableForward
 
+    gamma1_obs, gamma2_obs, data_weight = prepare_observations(
+        gamma1_obs, gamma2_obs, ops.n_nodes, data_weight)
     fwd = DifferentiableForward(ops, lam_reg=lam)
     rec = MAPReconstructor(fwd, maxiter=maxiter_inner, gtol=gtol_inner,
                            callback_every=0, wiener_length=wiener_length,
@@ -69,14 +73,7 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
     g1_pred, g2_pred = ops.forward(kappa_lam)
     r1 = g1_pred - gamma1_obs
     r2 = g2_pred - gamma2_obs
-    if data_weight is None:
-        num    = np.dot(r1, r1) + np.dot(r2, r2)
-        n_data = len(gamma1_obs) + len(gamma2_obs)
-    else:
-        w      = np.asarray(data_weight, dtype=np.float64)
-        num    = np.dot(w * r1, r1) + np.dot(w * r2, r2)
-        n_data = 2 * int(np.count_nonzero(w))
-    return float(np.sqrt(num / max(n_data, 1))) - c * delta
+    return weighted_rms(r1, r2, data_weight) - c * delta
 
 
 def lcurve_lambda(ops, gamma1_obs, gamma2_obs, lam_grid=None, wiener_length=0.5,
@@ -98,6 +95,8 @@ def lcurve_lambda(ops, gamma1_obs, gamma2_obs, lam_grid=None, wiener_length=0.5,
     from .inverse import MAPReconstructor
     from .forward import DifferentiableForward
 
+    gamma1_obs, gamma2_obs, data_weight = prepare_observations(
+        gamma1_obs, gamma2_obs, ops.n_nodes, data_weight)
     lam_grid = np.asarray(lam_grid if lam_grid is not None
                           else np.logspace(-6, 1, 12), float)
     res, sol = [], []
@@ -170,12 +169,16 @@ class MorozovSelector:
 
         Returns the Morozov regularization parameter.
         """
-        delta = noise_std or self.noise_std
+        gamma1_obs, gamma2_obs, weight = prepare_observations(
+            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight)
+        delta = self.noise_std if noise_std is None else noise_std
         if delta is None:
-            g_all = np.concatenate([gamma1_obs, gamma2_obs])
-            delta = estimate_noise_level(g_all, method='mad')
+            delta = noise_scale(gamma1_obs, gamma2_obs, weight)
             if self.verbose:
                 print(f"  Estimated noise level delta={delta:.4e} (MAD)")
+
+        if not np.isfinite(delta) or delta < 0:
+            raise ValueError("noise_std must be finite and nonnegative")
 
         if self.verbose:
             print(f"MorozovSelector: bracket=[{self.lam_min:.0e}, {self.lam_max:.0e}]  "
@@ -228,10 +231,11 @@ class MorozovSelector:
         from .inverse import MAPReconstructor
         from .forward import DifferentiableForward
 
-        delta = noise_std or self.noise_std
+        gamma1_obs, gamma2_obs, weight = prepare_observations(
+            gamma1_obs, gamma2_obs, self.ops.n_nodes, self.data_weight)
+        delta = self.noise_std if noise_std is None else noise_std
         if delta is None:
-            g_all = np.concatenate([gamma1_obs, gamma2_obs])
-            delta = estimate_noise_level(g_all, method='mad')
+            delta = noise_scale(gamma1_obs, gamma2_obs, weight)
 
         lam_vals  = np.logspace(np.log10(self.lam_min), np.log10(self.lam_max), n_points)
         res_norms = np.zeros(n_points)
@@ -241,14 +245,14 @@ class MorozovSelector:
         for i, lam in enumerate(lam_vals):
             fwd = DifferentiableForward(self.ops, lam_reg=lam)
             rec = MAPReconstructor(fwd, maxiter=self.maxiter_inner, gtol=1e-6,
-                                   callback_every=0, wiener_length=self.wiener_length)
+                                   callback_every=0, wiener_length=self.wiener_length,
+                                   data_weight=weight, prior=self.prior)
             kappa_lam, _ = rec.reconstruct(gamma1_obs, gamma2_obs, verbose=False)
 
             g1p, g2p = self.ops.forward(kappa_lam)
             r1 = g1p - gamma1_obs
             r2 = g2p - gamma2_obs
-            n_data = len(gamma1_obs) + len(gamma2_obs)
-            rn     = float(np.sqrt((np.dot(r1, r1) + np.dot(r2, r2)) / n_data))
+            rn = weighted_rms(r1, r2, weight)
 
             res_norms[i] = rn
             kap_norms[i] = float(np.linalg.norm(kappa_lam))
