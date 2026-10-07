@@ -1,0 +1,514 @@
+[
+  {
+    "scenario": "density-5",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-5",
+    "method": "argyris",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-5",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-5",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-10",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-10",
+    "method": "argyris",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-10",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-10",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-20",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-20",
+    "method": "argyris",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-20",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-20",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-30",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-30",
+    "method": "argyris",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-30",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "density-30",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.1",
+    "method": "p3",
+    "candidates": 56,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.1",
+    "method": "argyris",
+    "candidates": 56,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.1",
+    "method": "hct",
+    "candidates": 56,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.1",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.2",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.2",
+    "method": "argyris",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.2",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.2",
+    "method": "ks",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.3",
+    "method": "p3",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.3",
+    "method": "argyris",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.3",
+    "method": "hct",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "noise-0.3",
+    "method": "ks",
+    "candidates": 48,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "off-centre",
+    "method": "p3",
+    "candidates": 72,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "off-centre",
+    "method": "argyris",
+    "candidates": 72,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "off-centre",
+    "method": "hct",
+    "candidates": 72,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "off-centre",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "two-halos",
+    "method": "p3",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "two-halos",
+    "method": "argyris",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "two-halos",
+    "method": "hct",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "two-halos",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "mass-concentration",
+    "method": "p3",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "mass-concentration",
+    "method": "argyris",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "mass-concentration",
+    "method": "hct",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "mass-concentration",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-1.5",
+    "method": "p3",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-1.5",
+    "method": "argyris",
+    "candidates": 56,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-1.5",
+    "method": "hct",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-1.5",
+    "method": "ks",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-6.0",
+    "method": "p3",
+    "candidates": 64,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-6.0",
+    "method": "argyris",
+    "candidates": 64,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-6.0",
+    "method": "hct",
+    "candidates": 64,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "radius-6.0",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "weights",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "weights",
+    "method": "argyris",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "weights",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "weights",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "masked",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "masked",
+    "method": "argyris",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "masked",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "masked",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "clustered",
+    "method": "p3",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "clustered",
+    "method": "argyris",
+    "candidates": 42,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "clustered",
+    "method": "hct",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "clustered",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "lognormal",
+    "method": "p3",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "lognormal",
+    "method": "argyris",
+    "candidates": 56,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "lognormal",
+    "method": "hct",
+    "candidates": 49,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  },
+  {
+    "scenario": "lognormal",
+    "method": "ks",
+    "candidates": 36,
+    "failed_candidates": 0,
+    "boundary_unresolved": false,
+    "failed_evaluations": 0
+  }
+]

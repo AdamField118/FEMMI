@@ -8,7 +8,7 @@ Five test modules are gated on GalSim with `pytest.importorskip`, including the
 two that guard the project's headline results:
 
     test_truth.py            the independent-truth generators every claim is scored against
-    test_density.py          the source-density comparison (MATH.md 18.3i)
+    test_density.py          the source-density comparison (MATH.md 18.3.10)
     test_benchmark.py        the element x prior grid
     test_lambda_selection.py per-catalog lambda
     test_experiments.py      three GalSim-scored experiments

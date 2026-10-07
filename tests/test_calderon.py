@@ -3,7 +3,7 @@ tests/test_calderon.py
 Buffa-Christiansen dual bases (femmi.calderon).
 
 The point of the module is one property: a pairing whose conditioning does NOT
-grow with the mesh. MATH.md 18.3g reports that pairing V and W on the same mesh
+grow with the mesh. MATH.md 18.3.9 reports that pairing V and W on the same mesh
 gives a flat 2.26x improvement while cond still grows linearly in N_b, and the
 textbook reason is that the discrete pairing needs a genuinely dual basis.
 

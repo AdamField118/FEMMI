@@ -1,110 +1,17 @@
+"""Legacy per-catalogue C1 regularization selectors (Morozov/L-curve and CV).
+
+The historical constants are retained for API reproducibility. Current fair
+comparisons use independent held-out joint calibration of lambda and physical
+length for every FEM kind (femmi.calibration). Earlier selector win counts were
+measured before the shared-noise and convergence fixes and are not current
+performance claims. See MATH.md 18.3.11 and 18.3.17.
 """
-femmi/c1_lambda.py
-Per-catalog regularisation weight for the C^1 (Argyris) inverse path.
-
-WHY THIS EXISTS
----------------
-The density experiment was comparing a TUNED method against an UNTUNED one.
-`catalog.reconstruct_catalog` runs with `use_morozov=True` by default, so the P3
-arm of every density sweep picked its own lambda for each catalog; the Argyris
-arm was pinned at lam=0.3 for all densities and all realisations. Any accuracy
-gap measured that way is a lower bound on the element's contribution, because
-part of it is P3's tuning advantage.
-
-The visible symptom was a flat spot: Argyris's error barely moved between
-n_eff = 10 and 20 gal/arcmin^2 (0.5159 -> 0.5224, inside the seed scatter) while
-both baselines kept improving. A fixed lambda over-regularises exactly as the
-catalog gets denser -- more sources need LESS smoothing, and a constant prior
-weight does not know that.
-
-WHAT IT DOES
-------------
-The same two-stage rule as the P3 path (femmi.regularization): Morozov's
-discrepancy principle where it applies, L-curve corner where it does not.
-
-    D(lam) = rms_resid(lam) - c * delta
-
-is increasing in lam, so the root is bracketed on a log grid and interpolated.
-If D > 0 even at the smallest lam on the grid, the model cannot explain the data
-to the assumed noise and there is no root -- returning lam_min there is the worst
-available answer (an essentially unregularised fit), so it falls back to the
-L-curve corner, exactly as MorozovSelector does.
-
-WHY A GRID AND NOT BRENT
-------------------------
-Brent needs 15-25 MAP solves. Here one MAP solve at n_eff = 30 is ~30 s and the
-sweep is (4 densities) x (6 seeds), so Brent would cost days. A 9-point log grid
-with WARM STARTS along the lambda path costs ~9 solves' worth of operator reuse
-and a small fraction of that in iterations, because the coupled operator, its LU
-factorisation, the mass matrix and the prior are all lambda-independent and are
-built once. Descending lambda is the right homotopy direction: the large-lambda
-problem is well conditioned and each solution is a good initial guess for the
-next.
-
-The interpolated root is as accurate as the residual curve is smooth, which is
-far more precision than the choice deserves -- lambda enters the result through a
-log-scale trade-off, not a threshold.
-
-    rec = C1MAPReconstructor(space, lam=0.3, data_weight=w)
-    lam, info = select_c1_lambda(rec, g1, g2, noise_std=0.05)
-    rec.lam = lam
-    kappa, _ = rec.reconstruct(g1, g2)
-"""
-
 from __future__ import annotations
 import numpy as np
 
-
-# The oracle study (MATH.md 18.3j) put the best lambda between 0.3 and 1 across
-# every density and seed, and nothing below 1e-2 was ever selected, so the grid
-# starts there -- seven points instead of nine for the same coverage, which
-# matters because every point is a MAP solve.
 DEFAULT_LAM_GRID = np.logspace(-2.0, 1.0, 7)
-
-# Morozov's constant, MEASURED rather than assumed.
-#
-# The textbook value is c = 1: stop when the residual equals the noise. That
-# over-regularises here by 3-4x in lambda, and measurably: at n_eff = 5 it scored
-# 0.84 against the pinned lambda's 0.67. The reason is not subtle. This problem
-# fits ~6x more unknowns than observations (an Argyris vertex carries 6 DOFs and
-# supplies 2 shear components), so the model can drive the residual below delta
-# legitimately, and the degrees-of-freedom-corrected target is
-#
-#     delta * sqrt(1 - p/n)   with p the effective number of fitted parameters.
-#
-# Calibrating that single scalar against the oracle optimum on HELD-OUT catalogs
-# -- seeds 100, 101, 102, disjoint from every seed used in any reported result --
-# over four densities gives
-#
-#     c = 0.9119 +/- 0.0157   (n = 12, spread 0.791-0.980)
-#
-# i.e. p/n ~ 0.17, and it is stable across density (0.87, 0.92, 0.94, 0.92 at
-# n_eff = 5, 10, 20, 30). Calibrating on the reported seeds instead would be
-# tuning on the test set; that is why the calibration seeds are held out and the
-# constant is frozen here rather than re-fitted per run.
-MOROZOV_C = 0.9119
-
-# The lambda the density experiment actually uses -- and the reason is a NEGATIVE
-# result about the rule above.
-#
-# Run blind on 24 catalogs, per-catalog Morozov with the calibrated c beats a
-# pinned lambda in only 10 of them and adds variance. The cause is measurable:
-# the residual is nearly flat in lambda near the optimum (0.0421 -> 0.0493 as
-# lambda goes 1 -> 3.16), so d log lambda / d log resid ~ 7 and the ~10%
-# catalog-to-catalog spread in the correct c becomes a factor ~2 in the selected
-# lambda. The discrepancy signal simply does not locate lambda on this problem.
-#
-# What DOES transfer is the typical value. The geometric mean of the per-catalog
-# optima on the same held-out seeds is 1.2111, and applying that single frozen
-# number blind to the 24 reported catalogs beats the old pinned 0.3 in 19 of 24
-# (mean shape L2 0.4764 against 0.5358) and matches the per-catalog ORACLE to
-# within noise for n_eff >= 20. Per-catalog adaptation is worth nothing here;
-# getting the constant right is worth ~11% overall and ~21% at survey densities.
-#
-# See MATH.md 18.3j. Task #52 (cross-validation on held-out galaxies) is the
-# route to the remaining headroom at low density, since it does not go through
-# the flat residual curve.
-CALIBRATED_LAM = 1.2111
+MOROZOV_C = 0.9119       # historical calibration, not universal
+CALIBRATED_LAM = 1.2111  # historical Argyris-only setting
 
 
 def _penalty(rec, kappa):
@@ -228,7 +135,7 @@ def cv_lambda(rec, g1_obs, g2_obs, lam_grid=None, n_folds=5, seed=0,
     """K-fold cross-validated lambda: predictive error on HELD-OUT galaxies.
 
     WHY THIS AND NOT MOROZOV. The discrepancy principle fails on this problem for
-    a measurable reason (MATH.md 18.3j): the fitting residual is nearly flat in
+    a measurable reason (MATH.md 18.3.11): the fitting residual is nearly flat in
     lambda near the optimum, so d log lambda / d log resid ~ 7 and any error in
     the target maps to a factor ~2 in lambda. Cross-validation does not go
     through that curve at all -- it measures how well the reconstruction predicts
@@ -241,16 +148,9 @@ def cv_lambda(rec, g1_obs, g2_obs, lam_grid=None, n_folds=5, seed=0,
     between folds and compare different function spaces, which is not a
     cross-validation of lambda.
 
-    MEASURED (MATH.md 18.3n). Blind on the 24 reported catalogs it beats the
-    frozen CALIBRATED_LAM in 20 of them -- against Morozov's 10 of 24 on the same
-    data, same grid, same solver. It pays where the constant is weak: at
-    n_eff = 5 it recovers 77% of the remaining oracle gap, and at n_eff >= 20 it
-    adds nothing because the constant is already at the oracle there.
-
-    Cost is n_folds x len(lam_grid) MAP solves, warm-started along lambda within
-    each fold -- ~35 against one, for 2.4% overall. That is why it is not the
-    default; use it on sparse catalogs, where it buys the most and the solves are
-    cheapest.
+    Cost is n_folds x len(lam_grid) MAP solves, warm-started within folds.
+    Its benefit relative to joint calibration needs independent evaluation;
+    the earlier catalogue win counts are historical, not current evidence.
 
     Returns (lam, info) with info["cv"] the mean held-out RMS per lambda.
     """

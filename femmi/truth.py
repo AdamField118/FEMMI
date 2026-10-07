@@ -142,9 +142,8 @@ def massivenus_truth(nodes, data_dir, half_width, n_pix=256, kappa_std=None,
     data_dir     : folder of MassiveNuS convergence maps (see neural_prior.massivenus).
     n_pix        : patch size drawn from the simulation maps.
     kappa_std    : if set, rescale the patch to this std (the loader's default
-                   behaviour also removes the patch mean, which would destroy the
-                   very DC mode under test -- so we restore it here unless
-                   subtract_mean=True).
+                   training behaviour removes the patch mean. Here the actual
+                   simulation patch mean is retained unless subtract_mean=True).
     subtract_mean: leave the patch mean-subtracted (kills the mass-sheet signal;
                    only useful for shape-only comparisons).
 
@@ -155,13 +154,7 @@ def massivenus_truth(nodes, data_dir, half_width, n_pix=256, kappa_std=None,
 
     pool = MassiveNuSMaps(data_dir, n_pix, kappa_std=(kappa_std or 0.0),
                           map_glob=map_glob, pool_size=32, seed=seed)
-    patch = np.asarray(pool.sample(1, seed)[0], np.float64)
-
-    if not subtract_mean:
-        # MassiveNuSMaps.sample removes the patch mean; a mass-sheet test needs a
-        # genuine nonzero mean, so put a realistic one back (the simulation's own
-        # patch-to-patch mean is what KS cannot see).
-        patch = patch - patch.min()
+    patch = np.asarray(pool.sample(1, seed, subtract_mean=subtract_mean)[0], np.float64)
 
     hw = float(half_width)
     pix = 2.0 * hw / n_pix

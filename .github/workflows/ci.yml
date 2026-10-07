@@ -53,7 +53,7 @@ jobs:
   # This job also installs the OPTIONAL extras and sets FEMMI_REQUIRE_OPTIONAL,
   # which turns a missing extra into a hard failure instead of a silent skip.
   # Without that, five GalSim-gated modules -- including test_truth and
-  # test_density, which guard the results in MATH.md 18.3i -- skipped on every
+  # test_density, which guard the results in MATH.md 18.3.10 -- skipped on every
   # push and the suite still reported green. See tests/conftest.py.
   test-full:
     name: full tests incl. slow + optional extras (py3.11)

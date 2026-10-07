@@ -164,7 +164,8 @@ class C1CoupledOperators:
         A[self.idx_gauge, :] = 0.0
         A[self.idx_gauge, self.idx_gauge] = 1.0
         self.A = A.tocsr()
-        self.A_lu = spla.splu(self.A.tocsc())
+        from .linear_solve import EquilibratedLU
+        self.A_lu = EquilibratedLU(self.A)
         if verbose:
             print(f"  C1 coupling: n_dofs={space.n_dofs} N_b={N_b} degree={degree}")
 

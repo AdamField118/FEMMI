@@ -23,7 +23,7 @@ that __init__ eagerly imported `prior` and `train` (which need flax/optax), a
 ModuleNotFoundError for anyone without the optional `neural` extra.
 
 That is not a neural-prior problem, it is a TRUTH problem: `truth.lognormal_truth`
-generates the non-Gaussian field that MATH.md 18.3ja uses to bound the scope of
+generates the non-Gaussian field that MATH.md 18.3.12 uses to bound the scope of
 the density claim, and it was unusable without an unrelated extra installed. The
 module-level `__getattr__` below defers the heavy imports until a name that
 actually needs them is requested, so the numpy-only path stays importable while

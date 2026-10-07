@@ -29,7 +29,7 @@ from femmi.density import (sample_catalog, mesh_quality, _truth_at,
 # ------------------------------------------------------- reproducibility ---
 
 def test_unmasked_sampling_is_bit_identical_to_the_original_draw():
-    """LOAD-BEARING. Every number in MATH.md 18.3i/18.3j is tied to the exact
+    """LOAD-BEARING. Every number in MATH.md 18.3.10/18.3.11 is tied to the exact
     catalogs `sample_catalog(n, radius, seed)` produces. Adding mask support
     tempted a rewrite to rejection sampling for ALL cases, which consumes the RNG
     stream differently and silently changes every catalog for a given seed -- it
@@ -255,7 +255,7 @@ def _paired_rows(true_gap=0.02, shared=0.10, indep=0.005, n=6, seed=0):
 def test_paired_beats_marginal_when_catalog_scatter_is_shared():
     """THE REASON THIS EXISTS. With scatter common to both arms 5x the true gap,
     a marginal test sees nothing and a paired test sees it clearly. Every sigma
-    quoted in MATH.md 18.3i/ja/jb was computed the marginal way."""
+    quoted in MATH.md 18.3.10/ja/jb was computed the marginal way."""
     rows = _paired_rows()
     for st in paired_comparison(rows, "Argyris", "P3"):
         assert st["t"] > 5.0

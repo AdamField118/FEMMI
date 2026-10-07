@@ -1,51 +1,14 @@
-"""
-femmi/calderon.py
-Buffa-Christiansen dual bases, and honest Calderon preconditioning of V.
+"""Dual-grid boundary operators and spectral preconditioning experiments.
 
-WHAT WAS ALREADY KNOWN, AND WHY IT WAS NOT ENOUGH
--------------------------------------------------
-Pairing V and W on the SAME boundary mesh gives a flat 2.26x conditioning
-improvement, but cond still grows LINEARLY in N_b (MATH.md 18.3g):
+The mixed Gram is well-conditioned, but that fact alone says nothing about
+conditioning of a preconditioned single-layer operator. dual_boundary_operators
+now assembles the actual low-order dual V and primal-hat W and uses BOTH Gram
+inverse factors, P=G^{-T} W_stabilized G^{-1}. dual_conditioning measures P V
+through a symmetric similarity transform. These polygonal P0/P1 experiments
+are separate from the production high-order P3/P5 FEM-BEM coupling.
 
-    N_b      48     96    192    384
-    ratio  2.24x  2.25x  2.26x  2.26x
-
-That is a constant-factor win, not the mesh independence Calderon preconditioning
-is known for, and the reason is textbook rather than a bug. The Calderon identity
-
-    V W = -1/4 I + K'^2
-
-holds for the CONTINUOUS operators. Discretely, V maps into a space and W maps
-out of the dual of that space, so the composition V M^{-1} W is only spectrally
-correct if M is a mass matrix pairing a basis against a genuinely DUAL basis. On
-one mesh the natural pairing is a Gram matrix of a basis with itself, which is
-not that, and the mismatch leaves the O(N) growth intact.
-
-WHAT A DUAL BASIS HAS TO DO
----------------------------
-Buffa-Christiansen functions live on the BARYCENTRICALLY REFINED mesh: every
-element is split at its midpoint, and each dual function is a specific linear
-combination of fine-mesh functions, chosen so that
-
-    <psi_i, phi_j> = delta_ij  (up to a diagonal scaling)
-
-with phi the coarse basis. In 2D on a closed curve the relevant pair for Laplace
-is piecewise CONSTANTS (the natural space for V, in H^{-1/2}) against continuous
-piecewise LINEARS (the natural space for W, in H^{+1/2}). Each dual constant is
-built from the two fine half-elements adjacent to a coarse NODE -- so the dual
-functions are indexed by nodes while the primal ones are indexed by elements,
-which is exactly the index swap that makes the pairing square and invertible.
-
-WHAT THIS MODULE DELIVERS (MATH.md 18.3m)
-------------------------------------------
-The refinement, the dual basis, and the mixed Gram matrix -- and the measurement
-that matters: cond(G_BC) = 2.0000 EXACTLY, from n = 16 to n = 1024, and ~2.1 on
-irregular meshes where a same-mesh Gram of piecewise constants (which is just
-diag(element lengths)) reaches 1.2e5. The O(N) growth 18.3g reported is gone.
-
-Assembling V and W AGAINST the dual basis to obtain the fully preconditioned
-operator is the remaining step; the pairing was the part 18.3g identified as
-missing.
+The earlier calderon_conditioning function is retained as a historical
+same-space/Gram diagnostic, not an end-to-end dual-preconditioner test.
 """
 
 from __future__ import annotations
@@ -175,7 +138,7 @@ def calderon_conditioning(n_bs=(48, 96, 192, 384), degree=3, radius=1.0,
 
     Returns a list of dicts. This is a MEASUREMENT, not a claim -- the point of
     the module is to find out whether the dual basis removes the O(N) growth that
-    MATH.md 18.3g reports for the same-mesh pairing, and the answer belongs in
+    MATH.md 18.3.9 reports for the same-mesh pairing, and the answer belongs in
     the table it produces rather than in a docstring.
     """
     from .bem_hp import (build_circular_boundary_mesh, assemble_single_layer_hp,
@@ -215,3 +178,68 @@ def calderon_conditioning(n_bs=(48, 96, 192, 384), degree=3, radius=1.0,
                   f"cond(Gram same)={rec['cond_gram_same_mesh']:.3e}  "
                   f"cond(Gram BC)={rec['cond_gram_bc']:.3e}", flush=True)
     return out
+
+
+def dual_boundary_operators(nodes, quadrature_order=16, sigma=None):
+    """Low-order dual-constant V and primal-hat W on a closed polygon.
+
+    V uses the positive kernel -log(r/sigma)/(2*pi), opposite to FEMMI's
+    potential-kernel sign. W = E.T V_fine E uses tangential derivatives of
+    continuous hats; discontinuous dual constants are NOT a valid W space.
+    Self integrals are analytic. Shared-endpoint integrals use a Duffy split
+    with the radial log integrated analytically; separated panels use Gauss.
+    This is an experimental low-order preconditioner, not a drop-in for P3/P5.
+    """
+    from numpy.polynomial.legendre import leggauss
+    nodes=np.asarray(nodes,float)
+    fine,_=barycentric_refine(nodes);length=_lengths(fine);n=len(nodes);nf=2*n
+    if np.any(length<=0) or not np.all(np.isfinite(fine)):
+        raise ValueError('finite nondegenerate polygon required')
+    if quadrature_order<2:raise ValueError('quadrature_order must be >=2')
+    diameter=float(np.max(np.linalg.norm(nodes[:,None]-nodes[None,:],axis=2)))
+    sigma=2*diameter if sigma is None else float(sigma)
+    if not np.isfinite(sigma) or sigma<=0:raise ValueError('sigma must be positive')
+    z,w=leggauss(quadrature_order);z=(z+1)/2;w=w/2
+    vector=np.roll(fine,-1,axis=0)-fine
+    points=fine[:,None,:]+z[None,:,None]*vector[:,None,:]
+    V=np.empty((nf,nf))
+    for i in range(nf):
+        V[i,i]=length[i]**2*(1.5+np.log(sigma/length[i]))/(2*np.pi)
+        for j in range(i):
+            if (i-j)%nf in (1,nf-1):
+                if i==(j+1)%nf:u,v=-vector[j],vector[i]
+                else:u,v=-vector[i],vector[j]
+                a=np.linalg.norm(u[None,:]-z[:,None]*v[None,:],axis=1)
+                b=np.linalg.norm(z[:,None]*u[None,:]-v[None,:],axis=1)
+                integral=-.5+.5*np.dot(w,np.log(a)+np.log(b))-np.log(sigma)
+            else:
+                distance=np.linalg.norm(points[i,:,None,:]-points[j,None,:,:],axis=2)
+                integral=w@np.log(distance/sigma)@w
+            V[i,j]=V[j,i]=-length[i]*length[j]*integral/(2*np.pi)
+    D=dual_constant_basis(nodes);G=mixed_gram(nodes)
+    coarse_length=_lengths(nodes)
+    E=np.zeros((nf,n))
+    for i in range(n):
+        E[2*i:2*i+2,i]=-1/coarse_length[i]
+        E[2*i:2*i+2,(i+1)%n]=1/coarse_length[i]
+    W=E.T@V@E;Vd=D@V@D.T
+    # Stabilise only the constant trace mode; W itself retains its exact null.
+    mass=(coarse_length+np.roll(coarse_length,1))/2
+    Ws=W+np.outer(mass,mass)/mass.sum()**2
+    Gi=np.linalg.solve(G,np.eye(n))
+    P=Gi.T@Ws@Gi
+    return dict(V=Vd,W=W,G=G,preconditioner=P,fine_V=V,sigma=sigma)
+
+
+def dual_conditioning(nodes,quadrature_order=16):
+    """Spectral condition of P V, evaluated through a symmetric congruence."""
+    from scipy.linalg import eigvalsh,cholesky
+    op=dual_boundary_operators(nodes,quadrature_order)
+    L=cholesky(op['preconditioner'],lower=True)
+    eigen=eigvalsh(L.T@op['V']@L)
+    raw=eigvalsh(op['V'])
+    if min(eigen)<=0 or min(raw)<=0:raise ValueError('operators are not positive definite')
+    return dict(n_boundary=len(nodes),cond_V=float(raw[-1]/raw[0]),
+                cond_preconditioned=float(eigen[-1]/eigen[0]),
+                eigen_min=float(eigen[0]),eigen_max=float(eigen[-1]),
+                constant_residual=float(np.linalg.norm(op['W']@np.ones(len(nodes)))))

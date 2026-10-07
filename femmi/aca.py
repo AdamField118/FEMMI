@@ -265,7 +265,7 @@ def single_layer_entry_fn(bnd, n_quad=12, degree=3, clustering="uniform"):
     It now takes `degree` like the rest of `bem_hp`, and `clustering` so the DOF
     positions match the mesh the operator was assembled on.
 
-    WHETHER ACA PAYS AT ALL (measured, MATH.md 18.3l): not at these sizes, and
+    WHETHER ACA PAYS AT ALL (measured, MATH.md 18.3.15): not at these sizes, and
     not on any geometry tried. Against dense assembly it runs at 0.52-0.78x on a
     uniform circular mesh (N_b = 144 and 240, degrees 3 and 5) and a flat 0.65x
     on catalog guard rings, across ACA tolerances 1e-6..1e-9 and admissibility

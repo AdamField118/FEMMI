@@ -23,13 +23,11 @@ PRECONDITIONING -- and an honest note
 The preconditioner here is an incomplete LU of the sparse FEM block K (with the
 gauge row), which is the dominant and best-conditioned part of the operator.
 
-It is NOT Calderon preconditioning. Calderon preconditioning of the single-layer
-operator V uses the HYPERSINGULAR operator W and the identity that VW is a
-compact perturbation of -I/4; femmi.bem assembles V, K and M_b but not W, so the
-ingredient does not exist yet. (`bem.calderon_matrix` is the coupling operator
-V^{-1}(1/2 M_b + K_h), not a preconditioner for V -- an easy name to misread.)
-Adding W is the natural follow-up and is what would make the iteration count
-genuinely mesh-independent.
+The FEM ILU is separate from the experimental dual-grid boundary
+preconditioner in femmi.calderon. Good conditioning of V alone does not prove
+mesh-independent iteration counts for the coupled FEM-BEM system. Automatic
+solver switching requires a measured matched-residual crossover.
+
 """
 
 from __future__ import annotations
@@ -143,4 +141,6 @@ def solve_coupled(ops, rhs, tol=1e-10, maxiter=500, operator=None,
     res = float(np.linalg.norm(A @ x - rhs) / (np.linalg.norm(rhs) + 1e-300))
     if return_info:
         return x, dict(iterations=n_it["k"], converged=(info == 0), residual=res)
+    if info != 0 or not np.isfinite(res) or res > max(10*tol, 1e-12):
+        raise RuntimeError(f"GMRES failed: info={info}, residual={res:.3g}")
     return x

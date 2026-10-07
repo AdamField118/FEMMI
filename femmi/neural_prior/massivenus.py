@@ -80,7 +80,8 @@ class MassiveNuSMaps:
             print(f"  MassiveNuS: pool of {len(self.pool)}/{self.n_disk} maps "
                   f"({H}x{W}) from {data_dir}")
 
-    def sample(self, n, seed):
+    def sample(self, n, seed, subtract_mean=True):
+        """Draw patches; training centres by default, truth may retain its DC."""
         rng = np.random.default_rng(seed)
         out = np.empty((n, self.n_pix, self.n_pix), np.float32)
         for i in range(n):
@@ -91,9 +92,11 @@ class MassiveNuSMaps:
             iy = int(rng.integers(0, H - self.n_pix + 1))
             ix = int(rng.integers(0, W - self.n_pix + 1))
             p = np.asarray(m[..., iy:iy + self.n_pix, ix:ix + self.n_pix], np.float32)
-            p = p - p.mean()
+            mean=p.mean()
+            p = p - mean
             if self.kappa_std:
                 p = p * (self.kappa_std / (p.std() + 1e-8))
+            if not subtract_mean:p=p+mean
             out[i] = p
         return out
 

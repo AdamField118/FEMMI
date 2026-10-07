@@ -1,37 +1,8 @@
-"""
-examples/paper/galaxy_density.py   [candidate paper claim]
-What SOURCE DENSITY does each method need?
+"""Legacy density plotter (historical selection rules).
 
-The mass-sheet line is closed: the DC mode's whole observable signature is an
-edge effect on any domain, so no element or mesh recovers it (MATH.md 6.3a). What
-replaces it is a claim about DATA EFFICIENCY, and this is the experiment behind
-it.
-
-The x-axis is the effective source density n_eff in gal/arcmin^2, not a raw
-galaxy count, because that is how weak-lensing surveys are specified: DES Y3
-reaches 5.6, HSC Y3 19.9, Euclid ~30. A count means nothing without the field
-area, and n_eff is the one number a survey cannot simply buy more of -- it is set
-by depth, seeing and shape-measurement success. The reference lines mark real
-surveys so the measured densities land on a scale a reader recognises.
-
-Everything is catalog-native: vertices sit AT galaxy positions for both FEM
-methods, the same galaxies go to all three, and the truth is an analytic GalSim
-NFW field that none of them generated. Accuracy is the DC-removed shape error,
-since that is what survives the mass-sheet limitation.
-
-Read the second panel: it converts the error curves into "the density the other
-method needs to match Argyris, divided by Argyris's density", which is the
-number a survey proposal would quote.
-
-EVERYTHING IS AVERAGED OVER SEEDS, and that is not decoration. On one
-realisation the equivalence factor is a ratio of interpolated densities on
-curves that are themselves noisy, and it swings from 0.58x to 2.9x across seeds
-0/1/2 -- P3 even beats Argyris at n_eff = 20 in two of the three. Quoting a
-single seed here would be quoting a draw from that spread. The error bars are
-standard errors on the mean of `--seeds` realisations.
-
-    python examples/paper/galaxy_density.py
-    python examples/paper/galaxy_density.py --n-eff 5 10 20 30 --seeds 0 1 2 3 4
+For publication use calibrated_comparison.py and report_calibration.py:
+shared catalogues, independently tuned arms, held-out seeds and paired errors.
+Legacy cached rows cannot be treated as the corrected experiment.
 """
 
 import argparse
@@ -186,7 +157,7 @@ def main():
     print(f"\nwrote {args.out}")
     print("Caveat that belongs with any quote of these numbers: random galaxy")
     print("positions make sliver triangles, and Argyris inverts a 21x21 Vandermonde")
-    print("per element -- see the mesh lines above and MATH.md 18.3i.")
+    print("per element -- see the mesh lines above and MATH.md 18.3.10.")
 
 
 if __name__ == "__main__":

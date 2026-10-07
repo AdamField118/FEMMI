@@ -123,7 +123,7 @@ def equilibrated_inverse(V, n_iter=3):
     O(1/h), Hessians O(1/h^2) -- and whose columns are monomials of mixed degree.
     A single scalar `h` cannot balance both, and on a catalog mesh the sliver
     triangles push the worst element's condition number to 1e11-1e14: three
-    surviving digits or fewer (MATH.md 18.3i).
+    surviving digits or fewer (MATH.md 18.3.10).
 
     The fix costs nothing and loses nothing. Row scaling D_r and column scaling
     D_c give
@@ -137,7 +137,7 @@ def equilibrated_inverse(V, n_iter=3):
     move a genuinely singular element, only stop a well-posed one from being
     destroyed by units.
 
-    MEASURED, AND IT IS A NULL RESULT (MATH.md 18.3k). Conditioning improves
+    MEASURED, AND IT IS A NULL RESULT (MATH.md 18.3.14). Conditioning improves
     7-20x on the median and 20-30x on the worst element, and the ill-conditioned
     count at n_eff = 30 drops from 6/1752 to 1/1752. Accuracy changes by
     -0.15% +/- 0.34%, i.e. not at all: double precision carries ~16 digits, so
@@ -532,7 +532,7 @@ def circular_triangulation(n_boundary, radius=2.5, n_rings=None, center=(0.0, 0.
     Why this matters more than it looks: on the square, once the exterior BEM
     coupling is active the reentrant corner singularity caps convergence at
     O(h^{5/3}) no matter how good the element is (MATH.md 18.5, and measured in
-    18.3f -- coupled Argyris fell from O(h^4) to ~O(h^1.2)). A polygon
+    18.3.7 -- coupled Argyris fell from O(h^4) to ~O(h^1.2)). A polygon
     approximating a circle has interior angles tending to pi, so there is no
     reentrant corner and no such cap.
 

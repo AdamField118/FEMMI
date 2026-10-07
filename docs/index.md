@@ -38,3 +38,10 @@ MAP reconstruction and full posterior uncertainty quantification.
 The mathematical foundations (weak-lensing forward model, FEM–BEM coupling,
 regularization, sampling) are documented in
 [`MATH.md`](https://github.com/AdamField118/FEMMI/blob/main/MATH.md).
+
+## C¹ estimators and fair comparisons
+
+Argyris and HCT catalogue paths accompany P3. Their observation operators differ,
+and their regularization settings are calibrated independently. See
+[Calibrated comparisons](calibration.md) for shared inputs, held-out seeds,
+noise/field scope, results, and reproducible commands.

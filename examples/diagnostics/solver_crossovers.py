@@ -1,49 +1,9 @@
-"""
-examples/diagnostics/solver_crossovers.py
-Where do the fast solvers actually start paying? (tasks #46, #47)
+"""Dense/ACA single-layer assembly timing on circles and catalogue rings.
 
-Both `femmi.aca` (H-matrix BEM) and `femmi.iterative` (matrix-free coupled
-solve) were built, tested, and then used by nothing. The tempting move is to
-switch them on and claim a speedup; the honest move is to measure where the
-crossover is first. This script is that measurement, and it overturned the
-prediction it was written to confirm.
-
-THE PREDICTION, AND WHAT WAS MEASURED
--------------------------------------
-The catalog fields here are small at the boundary:
-
-    catalog field, radius 3 arcmin
-    n_eff =  5 gal/arcmin^2  ->  N_b = 120,  n_dofs = 1458
-    n_eff = 30 gal/arcmin^2  ->  N_b = 290,  n_dofs = 8093
-
-Two opposite predictions are both tempting. One says an H-matrix at N_b = 290 is
-pure overhead, since a dense 290x290 factorises in microseconds. The other says
-it must still win, because the real cost of `assemble_single_layer_hp` is not
-linear algebra at all -- it is the O(N^2) Galerkin QUADRATURE in Python, and ACA
-never evaluates most of those entries.
-
-Measured, neither holds: ACA is SLOWER than dense everywhere tried.
-
-    geometry              N_b    dense/ACA
-    uniform circle (d=3)  144    0.52-0.78x   (tol 1e-6..1e-9, eta 1..2)
-    uniform circle (d=5)  240    0.56-0.68x
-    catalog guard ring    120    0.65x
-    catalog guard ring    240    0.65x
-
-The quadrature saving is real but it does not cover ACA's own costs: the cluster
-tree, the per-block pivoting, and the near-field blocks, which still need the
-tuned Duffy / log-Gauss treatment and are what a boundary this size is mostly
-made of. The ratio is FLAT in N_b and flat in the ACA parameters, so it is a
-per-entry cost difference rather than an overhead that amortises -- no crossover
-is approaching below the sizes this project runs.
-
-The compression and the 1e-9 accuracy are genuine; only the speed claim fails.
-`bem_hp.ACA_MIN_NB` is set beyond any reachable size accordingly.
-
-Run both halves and compare -- that contrast is the point of the script.
-
-    python examples/diagnostics/solver_crossovers.py
-    python examples/diagnostics/solver_crossovers.py --nb 128 256 512 1024
+Historical timings predate the CPU Numba backend and are not current speed
+claims. Run numerical_followup.py for warmed repeated measurements, saved raw
+results, actual direct/GMRES costs and dual-grid spectra. Neither a flat ratio
+nor a limited mesh range determines an unmeasured asymptotic crossover.
 """
 
 import argparse
@@ -136,19 +96,10 @@ def main():
     if allrows:
         best = max(t_d / t_a for _, t_d, t_a, _ in allrows)
         worst = min(t_d / t_a for _, t_d, t_a, _ in allrows)
-        if best < 1.0:
-            print(f"ACA is SLOWER everywhere measured: {worst:.2f}x to {best:.2f}x "
-                  "against dense assembly.\nThe ratio is flat in N_b, so this is a "
-                  "per-entry cost difference rather than an\noverhead that "
-                  "amortises -- no crossover is approaching at these sizes. The "
-                  "1e-9\naccuracy is real; the speed is not, which is why "
-                  "bem_hp.ACA_MIN_NB keeps it off\nby default (MATH.md 18.3l).")
-        else:
-            print(f"ACA reaches {best:.2f}x at best and {worst:.2f}x at worst. If "
-                  "the best case is on the\nuniform circular mesh and the worst on "
-                  "the catalog ring, that is the split\nMATH.md 18.3l describes: "
-                  "the saving is quadrature skipped, and irregular\nboundaries give "
-                  "it back in near-field blocks.")
+        print(f"Dense/ACA assembly ratio: {worst:.3g}x to {best:.3g}x in the tested cases. "
+              "Repeat with warm compilation and controlled load before a speed claim. "
+              "No crossover is inferred outside the measured range.")
+
 
 
 if __name__ == "__main__":

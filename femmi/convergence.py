@@ -12,7 +12,7 @@ FLOOR:
   * measuring the COUPLED C^1 solve the same way, which floored near 2.6e-2 and
     was written up as the square's corner singularity capping the rate at
     O(h^{5/3}). It wasn't. On a compactly supported field the same solver holds
-    O(h^4) (MATH.md 18.3f).
+    O(h^4) (MATH.md 18.3.7).
 
 Both times the data said the same thing and it was easy to miss: the error stops
 improving while h keeps shrinking, so a least-squares slope through log h still

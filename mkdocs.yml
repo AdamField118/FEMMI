@@ -42,6 +42,7 @@ nav:
   - Quickstart: quickstart.md
   - Configuration & CLI: configuration.md
   - Observation model: observation-model.md
+  - Calibrated comparisons: calibration.md
   - CPU performance: cpu-performance.md
   - Priors & sampling: priors-and-sampling.md
   - Neural prior: neural-prior.md

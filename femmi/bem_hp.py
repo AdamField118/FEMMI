@@ -321,7 +321,7 @@ def assemble_hypersingular_hp(bnd, degree, n_quad=25):
 # crossover, because none was found. `use_aca=True` remains available, and the
 # implementation is correct to 1e-9 -- it is simply not faster.
 #
-# See examples/diagnostics/solver_crossovers.py and MATH.md 18.3l.
+# See examples/diagnostics/solver_crossovers.py and MATH.md 18.3.15.
 ACA_MIN_NB = 10**9
 
 

@@ -1,0 +1,11 @@
+{
+  "name": "massivenus-external",
+  "n_eff": 10,
+  "radius": 3,
+  "noise_std": 0.26,
+  "truth": "massivenus",
+  "calibration_seeds": [100,101,102],
+  "evaluation_seeds": [0,1,2,3,4,5],
+  "calibration_truth_kw": {"data_dir": "data/massivenus/calibration", "n_pix": 256},
+  "evaluation_truth_kw": {"data_dir": "data/massivenus/evaluation", "n_pix": 256}
+}

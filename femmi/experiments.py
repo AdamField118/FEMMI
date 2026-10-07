@@ -366,7 +366,7 @@ def shear_convergence(nxs=(16, 24, 32, 40), half_width=2.5, R=1.5, p=6):
     Error is the true L2 norm (via the mass matrix), not a node sum, so the rate
     is a statement about the field and not about node placement.
 
-    Theory (approximation theory for P3, MATH.md 18.3): the second derivative of a
+    Theory (approximation theory for P3, MATH.md 18.3.1): the second derivative of a
     P3 field is O(h^2) in L2. Sampling it at the nodes -- exactly where the
     piecewise-cubic Hessian jumps -- pays a much larger constant and only reaches
     that rate asymptotically.
