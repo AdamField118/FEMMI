@@ -1,0 +1,14 @@
+{
+  "p3": {
+    "relative_difference": 1.0569332653718525e-11,
+    "residual": 7.31256866511266e-09
+  },
+  "argyris": {
+    "relative_difference": 0.0,
+    "residual": 2.529515724213432e-09
+  },
+  "hct": {
+    "relative_difference": 1.0125843150494827e-08,
+    "residual": 5.71621152576758e-09
+  }
+}

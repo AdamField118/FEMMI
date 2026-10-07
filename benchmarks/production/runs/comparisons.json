@@ -1,0 +1,353 @@
+[
+  {
+    "before": "benchmarks/production/runs/p3-numpy-0.json",
+    "after": "benchmarks/production/runs/p3-numba-0.json",
+    "parity": {
+      "prediction_0": 1.9813670808729402e-09,
+      "kappa_0": 1.2167941407319098e-09,
+      "prediction_1": 2.098690255391942e-09,
+      "kappa_1": 1.360631040647797e-09,
+      "prediction_2": 4.564675403039965e-09,
+      "kappa_2": 3.3442514062376192e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.2905060890000186,
+        "after": 1.1981186209998214,
+        "speedup": 1.077110451653861
+      },
+      "single_layer_s": {
+        "before": 0.027551287999813212,
+        "after": 0.012831536000021515,
+        "speedup": 2.1471543235172326
+      },
+      "coupled_factorization_s": {
+        "before": 0.008023341999887634,
+        "after": 0.010801633000028232,
+        "speedup": 0.7427897244672785
+      },
+      "reconstruction_s": {
+        "before": 0.10486275600032968,
+        "after": 0.09838694299992312,
+        "speedup": 1.0658198415658835
+      },
+      "total_s": {
+        "before": 1.3956900010002755,
+        "after": 1.2968220619998192,
+        "speedup": 1.0762386312644874
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/p3-numpy-1.json",
+    "after": "benchmarks/production/runs/p3-numba-1.json",
+    "parity": {
+      "prediction_0": 1.9813670808729402e-09,
+      "kappa_0": 1.2167941407319098e-09,
+      "prediction_1": 2.098690255391942e-09,
+      "kappa_1": 1.360631040647797e-09,
+      "prediction_2": 4.564675403039965e-09,
+      "kappa_2": 3.3442514062376192e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.284590936000086,
+        "after": 1.3133770990000357,
+        "speedup": 0.9780823321634993
+      },
+      "single_layer_s": {
+        "before": 0.02765807500009032,
+        "after": 0.013551593000102002,
+        "speedup": 2.040946403856885
+      },
+      "coupled_factorization_s": {
+        "before": 0.008305639999889536,
+        "after": 0.00838022999982968,
+        "speedup": 0.9910992896445968
+      },
+      "reconstruction_s": {
+        "before": 0.1101085539999076,
+        "after": 0.11379771500014613,
+        "speedup": 0.9675814140887293
+      },
+      "total_s": {
+        "before": 1.3950217359999897,
+        "after": 1.4274769910000487,
+        "speedup": 0.9772639032329888
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/p3-numpy-2.json",
+    "after": "benchmarks/production/runs/p3-numba-2.json",
+    "parity": {
+      "prediction_0": 1.9813670808729402e-09,
+      "kappa_0": 1.2167941407319098e-09,
+      "prediction_1": 2.098690255391942e-09,
+      "kappa_1": 1.360631040647797e-09,
+      "prediction_2": 4.564675403039965e-09,
+      "kappa_2": 3.3442514062376192e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.288329013999828,
+        "after": 1.3394804480001312,
+        "speedup": 0.9618124817897318
+      },
+      "single_layer_s": {
+        "before": 0.02668396399985795,
+        "after": 0.012608656000111296,
+        "speedup": 2.116321041641743
+      },
+      "coupled_factorization_s": {
+        "before": 0.007740023999986079,
+        "after": 0.007675958000163519,
+        "speedup": 1.0083463197455218
+      },
+      "reconstruction_s": {
+        "before": 0.10366049599997496,
+        "after": 0.1002804649999689,
+        "speedup": 1.033705777092349
+      },
+      "total_s": {
+        "before": 1.3923111759997937,
+        "after": 1.4401027690000774,
+        "speedup": 0.9668137621640244
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/argyris-numpy-0.json",
+    "after": "benchmarks/production/runs/argyris-numba-0.json",
+    "parity": {
+      "prediction_0": 3.5390272065193887e-11,
+      "kappa_0": 3.45298628478884e-10,
+      "prediction_1": 1.4320722733986594e-10,
+      "kappa_1": 1.389572630238446e-09,
+      "prediction_2": 6.723437021945266e-10,
+      "kappa_2": 8.10721028145156e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.0063073510000322,
+        "after": 1.046293101999936,
+        "speedup": 0.9617834133442407
+      },
+      "single_layer_s": {
+        "before": 0.031491060000007565,
+        "after": 0.013642628000070545,
+        "speedup": 2.3082840050937934
+      },
+      "coupled_factorization_s": {
+        "before": 0.03777783299983639,
+        "after": 0.03797227900008693,
+        "speedup": 0.9948792644168107
+      },
+      "reconstruction_s": {
+        "before": 0.23919677899993985,
+        "after": 0.27035315000011906,
+        "speedup": 0.8847567672129381
+      },
+      "total_s": {
+        "before": 1.2459521630000836,
+        "after": 1.3169485490002444,
+        "speedup": 0.9460902356025546
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/argyris-numpy-1.json",
+    "after": "benchmarks/production/runs/argyris-numba-1.json",
+    "parity": {
+      "prediction_0": 3.5390272065193887e-11,
+      "kappa_0": 3.45298628478884e-10,
+      "prediction_1": 1.4320722733986594e-10,
+      "kappa_1": 1.389572630238446e-09,
+      "prediction_2": 6.723437021945266e-10,
+      "kappa_2": 8.10721028145156e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 0.8676337500000955,
+        "after": 0.9075597040000503,
+        "speedup": 0.9560073526579221
+      },
+      "single_layer_s": {
+        "before": 0.028461567000022114,
+        "after": 0.014117951000116591,
+        "speedup": 2.015984260023786
+      },
+      "coupled_factorization_s": {
+        "before": 0.03652460900002552,
+        "after": 0.03986928499989517,
+        "speedup": 0.9161089545528984
+      },
+      "reconstruction_s": {
+        "before": 0.2626356380001198,
+        "after": 0.23274220600001172,
+        "speedup": 1.1284400990858812
+      },
+      "total_s": {
+        "before": 1.1305797580002945,
+        "after": 1.1406150340001204,
+        "speedup": 0.9912018729363645
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/argyris-numpy-2.json",
+    "after": "benchmarks/production/runs/argyris-numba-2.json",
+    "parity": {
+      "prediction_0": 3.5390272065193887e-11,
+      "kappa_0": 3.45298628478884e-10,
+      "prediction_1": 1.4320722733986594e-10,
+      "kappa_1": 1.389572630238446e-09,
+      "prediction_2": 6.723437021945266e-10,
+      "kappa_2": 8.10721028145156e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 0.9272792429999299,
+        "after": 1.022125502000108,
+        "speedup": 0.9072068363282377
+      },
+      "single_layer_s": {
+        "before": 0.029915294999909747,
+        "after": 0.014140704000055848,
+        "speedup": 2.115544954465605
+      },
+      "coupled_factorization_s": {
+        "before": 0.05704124400017463,
+        "after": 0.041680374000179654,
+        "speedup": 1.3685396393019114
+      },
+      "reconstruction_s": {
+        "before": 0.2800608230002126,
+        "after": 0.2873772380000901,
+        "speedup": 0.9745407289359669
+      },
+      "total_s": {
+        "before": 1.2076798290001989,
+        "after": 1.3098154730002989,
+        "speedup": 0.9220228756603819
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/hct-numpy-0.json",
+    "after": "benchmarks/production/runs/hct-numba-0.json",
+    "parity": {
+      "prediction_0": 2.0434979326951297e-10,
+      "kappa_0": 1.6138386939454744e-10,
+      "prediction_1": 4.244937829414793e-09,
+      "kappa_1": 2.7867148997234744e-09,
+      "prediction_2": 4.2728381807413164e-09,
+      "kappa_2": 2.964353882233911e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.2959482950000165,
+        "after": 1.2689719190000233,
+        "speedup": 1.0212584499279158
+      },
+      "single_layer_s": {
+        "before": 0.02805091799996262,
+        "after": 0.02089338900009352,
+        "speedup": 1.3425738639067633
+      },
+      "coupled_factorization_s": {
+        "before": 0.012168457000143462,
+        "after": 0.012449993000018367,
+        "speedup": 0.9773866539624168
+      },
+      "reconstruction_s": {
+        "before": 0.11563149400012662,
+        "after": 0.12261717299998054,
+        "speedup": 0.9430285429932802
+      },
+      "total_s": {
+        "before": 1.4119189510001888,
+        "after": 1.3918879139998808,
+        "speedup": 1.014391271595099
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/hct-numpy-1.json",
+    "after": "benchmarks/production/runs/hct-numba-1.json",
+    "parity": {
+      "prediction_0": 2.0434979326951297e-10,
+      "kappa_0": 1.6138386939454744e-10,
+      "prediction_1": 4.244937829414793e-09,
+      "kappa_1": 2.7867148997234744e-09,
+      "prediction_2": 4.2728381807413164e-09,
+      "kappa_2": 2.964353882233911e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.3110235540000303,
+        "after": 1.3452492520000305,
+        "speedup": 0.9745580992153569
+      },
+      "single_layer_s": {
+        "before": 0.027095174000123734,
+        "after": 0.01372940600003858,
+        "speedup": 1.973513930613429
+      },
+      "coupled_factorization_s": {
+        "before": 0.011988941000026898,
+        "after": 0.012488629000017681,
+        "speedup": 0.9599885623962345
+      },
+      "reconstruction_s": {
+        "before": 0.11197700699995039,
+        "after": 0.11795493699969484,
+        "speedup": 0.9493202221814597
+      },
+      "total_s": {
+        "before": 1.4233679740000298,
+        "after": 1.4635051039997506,
+        "speedup": 0.9725746566308335
+      }
+    }
+  },
+  {
+    "before": "benchmarks/production/runs/hct-numpy-2.json",
+    "after": "benchmarks/production/runs/hct-numba-2.json",
+    "parity": {
+      "prediction_0": 2.0434979326951297e-10,
+      "kappa_0": 1.6138386939454744e-10,
+      "prediction_1": 4.244937829414793e-09,
+      "kappa_1": 2.7867148997234744e-09,
+      "prediction_2": 4.2728381807413164e-09,
+      "kappa_2": 2.964353882233911e-09
+    },
+    "timings": {
+      "setup_s": {
+        "before": 1.3887276779998956,
+        "after": 1.3563470730000518,
+        "speedup": 1.0238733917331517
+      },
+      "single_layer_s": {
+        "before": 0.02761763500006964,
+        "after": 0.01329225800009226,
+        "speedup": 2.0777233634705214
+      },
+      "coupled_factorization_s": {
+        "before": 0.012485424000033163,
+        "after": 0.012131941999996343,
+        "speedup": 1.029136472960135
+      },
+      "reconstruction_s": {
+        "before": 0.14045921800016004,
+        "after": 0.1333597049999753,
+        "speedup": 1.0532358181220187
+      },
+      "total_s": {
+        "before": 1.5295140900000206,
+        "after": 1.4900105970000368,
+        "speedup": 1.0265122228523202
+      }
+    }
+  }
+]

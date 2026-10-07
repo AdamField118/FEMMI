@@ -38,13 +38,17 @@ class QuadraticMAP:
         adj[self.zero_nodes] = 0.
         return -2.*(self.M.T @ adj)
 
-    def solve(self, g1, g2, lam, length, x0=None, rtol=1e-8, maxiter=2000):
+    def solve(self, g1, g2, lam, length, x0=None, rtol=1e-8, maxiter=2000, residual_tolerance=None):
         from .observations import prepare_observations
         g1,g2,w = prepare_observations(g1,g2,len(self.weight),self.weight)
         if not np.isfinite(lam) or lam<=0 or not np.isfinite(length) or length<0:
             raise ValueError('quadratic MAP requires lambda>0 and length>=0')
-        # R=M at length zero is proper; legacy length=0 H1-only remains a
-        # distinct option in the old MAP APIs and is not this calibration family.
+        if not np.isfinite(rtol) or not 0 < rtol < 1:
+            raise ValueError('rtol must lie strictly between zero and one')
+        acceptance = max(100*rtol,1e-10) if residual_tolerance is None else residual_tolerance
+        if not np.isfinite(acceptance) or not rtol <= acceptance < 1:
+            raise ValueError('require rtol <= residual_tolerance < 1')
+        # R=M at length zero is a proper L2 prior.
         if length != self._length:
             self.R = (self.M+length**2*self.K).tocsc()
             self.Rlu = spla.splu(self.R)
@@ -75,7 +79,6 @@ class QuadraticMAP:
         # A stricter internal target leaves room for measured float64 residual
         # drift. The ACCEPTANCE tolerance is explicit and recorded, not CG's
         # success flag. It is 1e-6 at the default internal rtol=1e-8.
-        acceptance=max(100*rtol,1e-10)
         if code or not np.all(np.isfinite(k)) or residual>acceptance:
             raise RuntimeError(f'quadratic MAP did not converge: info={code}, residual={residual:.3g}')
         a,b = self.forward(k)

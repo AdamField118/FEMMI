@@ -2,8 +2,9 @@
 
 The maintained comparison is `examples/paper/calibrated_comparison.py`.
 It independently calibrates **P3, Argyris, HCT, and binned Kaiser–Squires**.
-Historical `density_sweep` defaults remain available for compatibility; they
-are not the settings used by this experiment.
+Obsolete density runners have been removed. The production mapper and calibration
+share the same verified quadratic solve. For pinned upstream KS/KS+, see
+[SMPy comparisons](smpy-benchmarks.md).
 
 ## Observation and estimator contract
 

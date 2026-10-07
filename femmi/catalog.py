@@ -1,20 +1,6 @@
-"""
-femmi/catalog.py
-Catalog-native mass reconstruction and an apples-to-apples Kaiser-Squires
-(Fourier-gridding) comparison, both driven directly by a galaxy shear catalog.
+"""Catalogue binning and independent analytic/simulation truth utilities.
 
-Two reconstruction paths that each "do their own thing" with the same catalog:
-
-  reconstruct_catalog(...)      FEMMI: nodes placed AT galaxy positions, FEM-BEM
-                                MAP solve with the data term restricted to those
-                                nodes (guard/boundary nodes carry no shear).
-  kaiser_squires_binned(...)    KS/SMPy style: bin the catalog shear onto a
-                                regular grid (weighted mean per pixel), optional
-                                Gaussian smoothing, FFT inversion.
-
-Plus analytic_gaussian_catalog(...), a self-consistent E-mode synthetic catalog
-(Gaussian convergence with its exact tangential shear) for tests and demos --
-independent of the FEMMI forward model, so it is a fair ground truth for both.
+Production reconstruction lives in femmi.mapping.
 """
 
 from __future__ import annotations
@@ -23,136 +9,6 @@ import os
 import numpy as np
 from dataclasses import dataclass
 from typing import Optional
-
-from .operators      import build_operators_catalog
-from .forward        import DifferentiableForward
-from .inverse        import MAPReconstructor, ReconstructionResult
-from .regularization import estimate_noise_level
-
-
-# ---------------------------------------------------------------------------
-# FEMMI catalog-native reconstruction
-# ---------------------------------------------------------------------------
-
-@dataclass
-class CatalogReconstruction:
-    kappa_nodes  : np.ndarray            # kappa at every mesh node
-    kappa_gal    : np.ndarray            # kappa at each input galaxy (source order)
-    ops          : object                # FEMOperators on the catalog mesh
-    catalog_mesh : object                # CatalogMesh (nodes, galaxy_nodes, ...)
-    data_weight  : np.ndarray            # per-node data weight actually used
-    lam_reg      : float
-    noise_std    : float
-    result       : ReconstructionResult
-
-    @property
-    def nodes(self):
-        return np.array(self.ops.mesh.nodes)
-
-
-def reconstruct_catalog(x, y, g1, g2, weight=None, center=(0.0, 0.0),
-                        radius=None, n_boundary=96, lam_reg=1e-2,
-                        wiener_length=None, noise_std=None, noise_source='mad',
-                        use_morozov=True, use_weights=False, maxiter=500,
-                        prior=None, prior_kw=None, verbose=True, **mesh_kw):
-    """
-    Reconstruct kappa directly from a galaxy shear catalog (catalog-native).
-
-    x, y      : galaxy positions in the flat frame (e.g. arcmin). For a
-                FlatCatalog, pass flat.x, flat.y with center=(0., 0.).
-    g1, g2    : observed shear on the (x, y) axes.
-    weight    : optional per-galaxy weight (used only if use_weights=True).
-    lam_reg   : regularisation strength (starting value; overridden by Morozov).
-    wiener_length : Matern-1/2 prior length; defaults to 0.2 * ring radius.
-    noise_std : per-component shear noise for Morozov. If None, estimated per
-                noise_source.
-    noise_source : how to estimate noise_std when it is None:
-                'mad'   -> MAD on the galaxy shear (biased high by the signal,
-                           which can saturate Morozov at lam_max);
-                'bmode' -> the B-mode noise floor (delta_noise), signal-free and
-                           usually smaller, giving a better-scaled Morozov solve
-                           at the cost of one extra fixed-lambda E/B solve.
-    prior     : optional non-Gaussian prior (femmi.priors). Either a Prior
-                instance or a string kind ('tv', 'sparse', 'maxent') built here
-                against the catalog mesh. None -> the default Wiener/Matern prior.
-                Morozov lambda-selection applies only to the default Wiener prior;
-                custom priors use the fixed lam_reg.
-    prior_kw  : keyword dict forwarded to make_prior when `prior` is a string.
-    use_morozov : select lambda automatically via the discrepancy principle.
-    use_weights : fold per-galaxy inverse-variance weights into the data term.
-                  Off by default (binary galaxy selection), which keeps noise_std
-                  a plain per-component shear std.
-
-    Returns
-    -------
-    CatalogReconstruction
-    """
-    x = np.asarray(x, np.float64); y = np.asarray(y, np.float64)
-    g1 = np.asarray(g1, np.float64); g2 = np.asarray(g2, np.float64)
-
-    ops, cm = build_operators_catalog(
-        x, y, center=center, radius=radius, n_boundary=n_boundary,
-        verbose=verbose, **mesh_kw)
-
-    n  = ops.n_nodes
-    gn = cm.galaxy_nodes
-    si = cm.source_index
-
-    g1n = np.zeros(n); g1n[gn] = g1[si]
-    g2n = np.zeros(n); g2n[gn] = g2[si]
-
-    dw = np.zeros(n)
-    if use_weights and weight is not None:
-        from .observations import observation_weights
-        w = observation_weights(len(x), weight)[si]
-        active = w > 0
-        if not active.any():
-            raise ValueError("no positive-weight sources remain in the catalogue mesh")
-        dw[gn] = w / np.mean(w[active])
-    else:
-        dw[gn] = 1.0
-
-    from .observations import prepare_observations, noise_scale
-    g1n, g2n, dw = prepare_observations(g1n, g2n, n, dw)
-
-    if wiener_length is None:
-        wiener_length = 0.2 * cm.radius
-
-    # Optional non-Gaussian prior: a string kind ('tv','sparse','maxent',...) is
-    # built here now that ops exists; a Prior instance is used as-is. None -> the
-    # default Wiener/Matern prior parameterised by wiener_length.
-    prior_obj = prior
-    if isinstance(prior, str):
-        from .priors import make_prior
-        prior_obj = make_prior(prior, ops, **(prior_kw or {}))
-
-    fwd = DifferentiableForward(ops, lam_reg=lam_reg)
-    rec = MAPReconstructor(
-        fwd, maxiter=maxiter, gtol=1e-8, callback_every=0,
-        wiener_length=wiener_length, data_weight=dw, prior=prior_obj)
-
-    if noise_std is None:
-        if noise_source == 'bmode':
-            if verbose:
-                print("Estimating noise from the B-mode floor (delta_noise)...")
-            noise_std = rec.estimate_noise_bmode(
-                g1n, g2n, maxiter=min(200, maxiter))
-            if verbose:
-                print(f"  delta_noise = {noise_std:.4e}")
-        else:
-            noise_std = noise_scale(g1n, g2n, dw)
-
-    rec.noise_std = noise_std if use_morozov else None
-    kappa, result = rec.reconstruct(g1n, g2n, verbose=verbose)
-
-    kappa_gal = np.full(len(x), np.nan)
-    kappa_gal[si] = kappa[gn]
-
-    return CatalogReconstruction(
-        kappa_nodes=kappa, kappa_gal=kappa_gal, ops=ops, catalog_mesh=cm,
-        data_weight=dw, lam_reg=float(fwd.lam_reg), noise_std=float(noise_std),
-        result=result)
-
 
 # ---------------------------------------------------------------------------
 # Kaiser-Squires on a Fourier grid (the SMPy-style path)
@@ -381,7 +237,7 @@ def field_to_catalog(field, n_gal=3000, shape_noise=0.05, rmax_arcmin=None,
     Sample a gridded shear field (from load_frontier_model) at random points to
     emulate a galaxy catalog: irregular positions, interpolated shear, optional
     shape noise, and the local convergence truth. Returns a dict compatible with
-    reconstruct_catalog / run_head_to_head (x, y, g1, g2, weight, kappa_true).
+    FlatCatalog (x, y, g1, g2, weight, kappa_true).
 
     kappa_max     : drop galaxies where the model kappa exceeds this (the
         strong-lensing / multiple-image core, where the weak-shear approximation

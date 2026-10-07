@@ -47,3 +47,5 @@ site/
 
 # Docs build deps (override the *.txt data ignore)
 !docs/requirements.txt
+
+!requirements-benchmark.txt

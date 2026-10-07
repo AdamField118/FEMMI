@@ -52,6 +52,19 @@ def cmd_run(args):
     run(_load(args))
 
 
+def cmd_map(args):
+    import numpy as np
+    from .mapping import MapperConfig, map_mass
+    from .io import FlatCatalog
+    with np.load(args.catalogue, allow_pickle=False) as data:
+        c = FlatCatalog(*(data[k] for k in ('x','y','g1','g2','weight')),
+            units=str(data['units']) if 'units' in data else 'arcmin',
+            z=data['z'] if 'z' in data else None)
+    result=map_mass(c,MapperConfig.from_file(args.config))
+    result.save(args.output)
+    print(result.diagnostics)
+
+
 def cmd_train_prior(args):
     cfg = _load(args)
     from .neural_prior.train import train_score_model
@@ -75,6 +88,12 @@ def build_parser():
                         help="YAML config (see configs/default.yaml); omit for built-in defaults")
         sp.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="override any config value, e.g. --set inverse.method=sample")
+
+    m = sub.add_parser("map", help="production shear catalogue MAP (P3, Argyris or HCT)")
+    m.add_argument('--catalogue', required=True, help='NPZ: x,y,g1,g2,weight in arcmin')
+    m.add_argument('--config', required=True, help='explicit MapperConfig YAML')
+    m.add_argument('--output', required=True, help='output NPZ')
+    m.set_defaults(func=cmd_map)
 
     r = sub.add_parser("run", help="build forward, get data, run MAP or sampling, save (the pipeline)")
     add_common(r); r.set_defaults(func=cmd_run)

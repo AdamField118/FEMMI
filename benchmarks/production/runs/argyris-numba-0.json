@@ -1,0 +1,104 @@
+{
+  "config": {
+    "method": "argyris",
+    "lam": 0.3,
+    "length": 0.6,
+    "radius": 3.0,
+    "center": [
+      0.0,
+      0.0
+    ],
+    "rtol": 1e-08,
+    "residual_tolerance": 1e-06,
+    "maxiter": 2000,
+    "observable": "shear",
+    "source_plane": "effective"
+  },
+  "kind": "argyris",
+  "sources": 200,
+  "dofs": 2037,
+  "phases": {
+    "numba_import_s": 0.16136514000004354,
+    "jit_compile_or_cache_load_s": 0.09298413000010441,
+    "jit_first_execution_s": 0.00011509000000842207,
+    "catalogue_s": 0.00030229700018935546,
+    "volume_assembly_s": 0.8555719469998166,
+    "single_layer_s": 0.013642628000070545,
+    "double_layer_s": 0.0007402060000458732,
+    "trace_s": 0.013888431999930617,
+    "coupled_factorization_s": 0.03797227900008693,
+    "setup_s": 1.046293101999936,
+    "prior_factorization_s": 0.02366435699991598,
+    "reconstruction_s": 0.27035315000011906,
+    "total_s": 1.3169485490002444,
+    "total_including_jit_s": 1.5714129090004008,
+    "peak_rss_mib": 467.17578125
+  },
+  "fits": [
+    {
+      "converged": true,
+      "iterations": 29,
+      "relative_residual": 7.713365968707964e-09,
+      "objective": 0.034355471121076245,
+      "residual_tolerance": 1e-06,
+      "refinements": 0,
+      "solver": "prior-preconditioned-cg",
+      "lam_used": 0.3,
+      "wiener_length": 0.6,
+      "setup_seconds": 1.046293101999936,
+      "solve_seconds": 0.11194981499988899,
+      "weighted_shear_residual": 0.005109061227037768,
+      "seconds": 0.11202709999997751,
+      "value_rmse": 0.019999092805624164
+    },
+    {
+      "converged": true,
+      "iterations": 29,
+      "relative_residual": 7.7198773896723e-09,
+      "objective": 0.034346582459980055,
+      "residual_tolerance": 1e-06,
+      "refinements": 0,
+      "solver": "prior-preconditioned-cg",
+      "lam_used": 0.3,
+      "wiener_length": 0.6,
+      "setup_seconds": 1.046293101999936,
+      "solve_seconds": 0.07866925899998023,
+      "weighted_shear_residual": 0.005095159456622128,
+      "seconds": 0.0787409250001474,
+      "value_rmse": 0.020028355055582894
+    },
+    {
+      "converged": true,
+      "iterations": 29,
+      "relative_residual": 7.463840676565047e-09,
+      "objective": 0.03414819368418385,
+      "residual_tolerance": 1e-06,
+      "refinements": 0,
+      "solver": "prior-preconditioned-cg",
+      "lam_used": 0.3,
+      "wiener_length": 0.6,
+      "setup_seconds": 1.046293101999936,
+      "solve_seconds": 0.07927932200004761,
+      "weighted_shear_residual": 0.0050455809139443655,
+      "seconds": 0.07958512499999415,
+      "value_rmse": 0.02008378626216141
+    }
+  ],
+  "backend": "numba",
+  "profiled": false,
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "1"
+  },
+  "versions": {
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "jax": "0.11.2",
+    "femmi": "0.1.0"
+  },
+  "note": "Phase subtimers are nested in setup/reconstruction; do not sum them twice."
+}

@@ -12,8 +12,6 @@ All scripts run from the repo root, e.g. `python examples/quickstart.py`.
 | script | what it teaches |
 |---|---|
 | `quickstart.py` | ~15 lines: catalog → reconstruction. The minimal end-to-end path. |
-| `catalog_comparison.py` | FEMMI vs Fourier Kaiser–Squires on the same catalog (head-to-head). |
-| `prior_comparison.py` | Swapping priors (Wiener / TV / sparse / max-entropy / neural). |
 | `uncertainty_demo.py` | Posterior sampling: mean + per-pixel uncertainty map. |
 | `plot_npz.py` | Plot the `.npz` a `femmi run` writes (truth / kappa / std / samples). |
 | `compare_runs.py` | Head-to-head of several runs on one field (Wiener vs neural vs hybrid): L2 table + side-by-side means + appearance-frequency maps. |
@@ -41,7 +39,6 @@ each is a standalone figure backed by `femmi.experiments`.
 | `paper/forward_convergence.py` | the potential ψ converges at the P3 theory rate `O(h⁴)` — the forward operator's validation. |
 | `paper/shear_recovery.py` | shear extraction reaches `O(h²)`; variational recovery beats nodal sampling by ~1.8× in constant; and noise amplified by `h⁻²` makes that rate unreachable catalog-native. |
 | `paper/argyris_vs_p3.py` | Historical structured-mesh experiment; not the current calibrated catalogue comparison. |
-| `paper/galaxy_density.py` | Legacy density runner/plotter; its default settings are not the publication calibration. Use `paper/calibrated_comparison.py` and `paper/report_calibration.py`; see `benchmarks/calibration/RESULTS.md`. |
 | `paper/element_comparison.py` | **element choice for shear**: P3 nodal / P3 recovered / HCT / Argyris on one plot. Argyris reaches `O(h⁴)` — 42× more accurate at `h=0.156` for `1.04×` the DOFs. |
 | — | **C¹ + BEM far-field** (`femmi.c1_coupling`): on a field whose ψ does not vanish at the boundary, the coupled Argyris solve beats a Dirichlet pin by 5–9×, and on a compact field it holds the full `O(h⁴)` on both square and circular domains. The circular domain wins on constant, not rate: 2× the accuracy for 25% fewer DOFs. |
 
@@ -76,3 +73,8 @@ not its historical speed factors or an extrapolated crossover.
 `diagnostics/numerical_followup.py` measures the actual dual BEM spectrum,
 direct/GMRES costs at checked residuals, and warm dense/ACA timings.
 No automatic solver threshold is inferred from assembly profiles.
+
+The maintained catalogue quickstart is `quickstart.py`. Use
+`paper/benchmark_smpy.py` for pinned upstream comparisons and
+`diagnostics/profile_cpu.py` for the production solver. See docs/mapper.md,
+docs/smpy-benchmarks.md and docs/production-performance.md.

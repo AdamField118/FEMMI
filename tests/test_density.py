@@ -1,29 +1,4 @@
-"""
-tests/test_density.py
-Catalog-native reconstruction and the source-density comparison (femmi.density).
-
-This is the experiment behind the candidate paper claim, so the tests are about
-the things that would invalidate it rather than the headline number:
-
-  * the density <-> count conversion is exact and round-trips, since the whole
-    experiment is parameterised by n_eff [gal/arcmin^2] and every reported
-    density is derived from a count through it;
-  * catalog geometry really does put a vertex on every galaxy, with the boundary
-    made only of ring vertices that carry no data;
-  * the mesh-quality diagnostic actually reports the sliver problem, because the
-    claim is not quotable without it;
-  * accuracy improves with source density for every method (a curve that did not
-    would mean the comparison is noise);
-  * the sweep really is multi-seed and the spread survives into the reported
-    row, because a single realisation of this experiment is not reproducible in
-    the direction the claim depends on;
-  * ring vertices are excluded from the data term -- weighting them in would let
-    the reconstruction fit shear that was never observed.
-
-Run:
-    python -m pytest tests/test_density.py -v
-"""
-
+"""Catalogue geometry, source counts and mesh quality contracts."""
 import sys, os
 import numpy as np
 import pytest
@@ -32,8 +7,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from femmi.elements import C1Space, catalog_triangulation
 from femmi.c1_coupling import boundary_loop
-from femmi.density import (mesh_quality, sample_catalog, argyris_catalog_run,
-                           ks_catalog_run, density_sweep, average_over_seeds,
+from femmi.density import (mesh_quality, sample_catalog,
+                           average_over_seeds,
                            to_table, n_gal_for_density, density_for_n_gal,
                            SURVEY_NEFF)
 
@@ -60,18 +35,6 @@ def test_survey_densities_are_plausible():
     assert SURVEY_NEFF["DES Y3"] < SURVEY_NEFF["HSC Y3"] < SURVEY_NEFF["Euclid"]
 
 
-def test_runs_report_the_density_they_actually_used():
-    """Argyris drops the guard ring from the data term, so its EFFECTIVE density
-    is below the nominal one. Reporting the nominal number would overstate how
-    much data it was given."""
-    drawn = n_gal_for_density(10.0, 3.0)
-    a = argyris_catalog_run(10.0, noise_std=0.05, seed=0, radius=3.0)
-    assert a["n_eff_nominal"] == 10.0
-    assert a["n_gal"] <= drawn                 # dedup and ring clipping only drop
-    assert a["n_eff"] == pytest.approx(density_for_n_gal(a["n_gal"], 3.0))
-    k = ks_catalog_run(10.0, noise_std=0.05, seed=0, radius=3.0)
-    assert k["n_gal"] == drawn                 # KS uses every galaxy
-    assert abs(k["n_eff"] - 10.0) < 0.05       # to within one whole galaxy
 
 
 def test_catalog_triangulation_puts_a_vertex_on_every_galaxy():
@@ -124,56 +87,12 @@ def test_ring_vertices_carry_no_data_weight():
     assert np.all(rec.w[~ring] == 1.0)
 
 
-def test_accuracy_improves_with_source_density():
-    """The load-bearing property of the sweep: if error did not fall with density
-    for every method, the comparison would be measuring noise."""
-    rows = density_sweep(n_effs=(5.0, 15.0), noise_std=0.05, radius=3.0,
-                         seeds=(0,), methods=("argyris", "ks"), verbose=False)
-    for name in ("Argyris", "Kaiser"):
-        c = sorted([r for r in rows if r["method"].startswith(name)],
-                   key=lambda z: z["n_eff_nominal"])
-        assert len(c) == 2
-        assert c[1]["n_eff"] > c[0]["n_eff"]
-        assert c[1]["shape_l2"] < c[0]["shape_l2"]
 
 
-def test_seeds_are_averaged_with_a_standard_error():
-    """A single realisation of this experiment is not reproducible in the
-    direction that matters -- the equivalence factor swings by a factor of five
-    across seeds -- so the sweep is multi-seed and the spread must survive into
-    the reported row rather than being averaged away silently."""
-    raw = density_sweep(n_effs=(5.0,), noise_std=0.05, radius=3.0,
-                        seeds=(0, 1), methods=("ks",), verbose=False)
-    assert [r["seed"] for r in raw] == [0, 1]
-    assert raw[0]["shape_l2"] != raw[1]["shape_l2"]      # different catalogs
-
-    avg = average_over_seeds(raw)
-    assert len(avg) == 1
-    a = avg[0]
-    assert a["n_seeds"] == 2 and a["seeds"] == [0, 1]
-    assert a["shape_l2"] == pytest.approx(
-        0.5 * (raw[0]["shape_l2"] + raw[1]["shape_l2"]))
-    # standard error of the mean, not the sample spread
-    assert a["shape_l2_std"] == pytest.approx(
-        0.5 * abs(raw[0]["shape_l2"] - raw[1]["shape_l2"]))
-    assert "+/-" in to_table(avg)
 
 
-def test_argyris_beats_ks_on_the_same_catalog():
-    """Same galaxies, same noise, same truth, at a DES-like source density."""
-    a = argyris_catalog_run(10.0, noise_std=0.05, seed=0)
-    k = ks_catalog_run(10.0, noise_std=0.05, seed=0)
-    assert a["shape_l2"] < k["shape_l2"]
 
 
-def test_table_renders_and_survives_a_failing_cell():
-    rows = density_sweep(n_effs=(5.0,), seeds=(0,), methods=("ks",), verbose=False)
-    rows.append(dict(method="broken", n_eff_nominal=1.0, n_gal=1, error="boom"))
-    txt = to_table(rows)
-    assert "Kaiser" in txt and "boom" in txt
-    assert "n_eff" in txt and "/arcmin2" in txt
-    # a failing cell must not poison the average either
-    assert [r["method"] for r in average_over_seeds(rows)] == ["Kaiser-Squires"]
 
 
 if __name__ == "__main__":

@@ -7,11 +7,12 @@ https://github.com/b-remy/score-estimation-comparison, branch lensing-recon).
 Their work is cited, not vendored. See README.md in this directory -- including
 "What is the training data?".
 
-One flag away: `reconstruct_catalog(..., prior='neural')` or
+In the experimental pipeline,
 `make_prior('neural', ops)` trains a small default score model on self-contained
 synthetic non-Gaussian maps on first use and caches it. Because FEMMI's forward
 is differentiable, the same learned score drives posterior sampling
-(`femmi.sampling.sample_posterior(method='langevin')`), not just MAP.
+(`femmi.sampling.sample_posterior(method='langevin')`). Score-only priors
+are rejected by MAP because they do not supply a consistent energy.
 Requires flax + optax (`pip install femmi[neural]`).
 
 WHY THE IMPORTS ARE LAZY

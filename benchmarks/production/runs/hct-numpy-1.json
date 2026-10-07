@@ -1,0 +1,101 @@
+{
+  "config": {
+    "method": "hct",
+    "lam": 0.3,
+    "length": 0.6,
+    "radius": 3.0,
+    "center": [
+      0.0,
+      0.0
+    ],
+    "rtol": 1e-08,
+    "residual_tolerance": 1e-06,
+    "maxiter": 2000,
+    "observable": "shear",
+    "source_plane": "effective"
+  },
+  "kind": "hct",
+  "sources": 200,
+  "dofs": 1347,
+  "phases": {
+    "catalogue_s": 0.00036741300004905497,
+    "volume_assembly_s": 1.0972207519998847,
+    "single_layer_s": 0.027095174000123734,
+    "double_layer_s": 0.005018156000005547,
+    "trace_s": 0.008893420000049446,
+    "coupled_factorization_s": 0.011988941000026898,
+    "setup_s": 1.3110235540000303,
+    "prior_factorization_s": 0.008651901999883194,
+    "reconstruction_s": 0.11197700699995039,
+    "total_s": 1.4233679740000298,
+    "total_including_jit_s": 1.4233679740000298,
+    "peak_rss_mib": 329.37109375
+  },
+  "fits": [
+    {
+      "converged": true,
+      "iterations": 35,
+      "relative_residual": 8.901391952126236e-09,
+      "objective": 0.04690777542135144,
+      "residual_tolerance": 1e-06,
+      "refinements": 0,
+      "solver": "prior-preconditioned-cg",
+      "lam_used": 0.3,
+      "wiener_length": 0.6,
+      "setup_seconds": 1.3110235540000303,
+      "solve_seconds": 0.04334793400016679,
+      "weighted_shear_residual": 0.015499699283959837,
+      "seconds": 0.04341954000005899,
+      "value_rmse": 0.019913355800076093
+    },
+    {
+      "converged": true,
+      "iterations": 35,
+      "relative_residual": 8.953655889545908e-09,
+      "objective": 0.04656090902604951,
+      "residual_tolerance": 1e-06,
+      "refinements": 0,
+      "solver": "prior-preconditioned-cg",
+      "lam_used": 0.3,
+      "wiener_length": 0.6,
+      "setup_seconds": 1.3110235540000303,
+      "solve_seconds": 0.03352191399994808,
+      "weighted_shear_residual": 0.015175812675351464,
+      "seconds": 0.033584285999950225,
+      "value_rmse": 0.019899780880175553
+    },
+    {
+      "converged": true,
+      "iterations": 35,
+      "relative_residual": 8.575750106708048e-09,
+      "objective": 0.04642924409698102,
+      "residual_tolerance": 1e-06,
+      "refinements": 0,
+      "solver": "prior-preconditioned-cg",
+      "lam_used": 0.3,
+      "wiener_length": 0.6,
+      "setup_seconds": 1.3110235540000303,
+      "solve_seconds": 0.034881064000046536,
+      "weighted_shear_residual": 0.015168437014027864,
+      "seconds": 0.03497318099994118,
+      "value_rmse": 0.019971249055306117
+    }
+  ],
+  "backend": "numpy",
+  "profiled": false,
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "1"
+  },
+  "versions": {
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "jax": "0.11.2",
+    "femmi": "0.1.0"
+  },
+  "note": "Phase subtimers are nested in setup/reconstruction; do not sum them twice."
+}

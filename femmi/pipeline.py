@@ -18,7 +18,7 @@ import numpy as np
 from .operators import build_operators, build_operators_catalog, dirichlet_from_operators
 from .forward   import DifferentiableForward
 from .inverse   import MAPReconstructor
-from .catalog   import (reconstruct_catalog, analytic_gaussian_catalog,
+from .catalog   import (analytic_gaussian_catalog,
                         analytic_gaussian_shear, lognormal_shear,
                         load_frontier_model, field_to_catalog)
 
@@ -34,6 +34,8 @@ def build_forward_and_data(cfg):
     to_galaxies(kappa_nodes) maps a node field back to source order (identity for
     the structured-grid geometry).
     """
+    if cfg.get("data.reduced_shear"):
+        raise ValueError("linear FEMMI pipeline requires shear, not reduced shear")
     geom = cfg.get("forward.geometry")
     src  = cfg.get("data.source")
     sn   = float(cfg.get("data.shape_noise"))
@@ -68,7 +70,7 @@ def build_forward_and_data(cfg):
                     to_galaxies=lambda kn: kn)
 
     # --- catalog-native: get (x, y, g1, g2) then build the catalog mesh -----
-    x, y, g1, g2, truth_gal, center = _get_catalog(cfg)
+    x, y, g1, g2, truth_gal, center, source_weight = _get_catalog(cfg)
     ops, cm = build_operators_catalog(
         x, y, center=center, radius=cfg.get("forward.radius"),
         n_boundary=cfg.get("forward.n_boundary"), verbose=False,
@@ -76,7 +78,7 @@ def build_forward_and_data(cfg):
     n = ops.n_nodes; gn, si = cm.galaxy_nodes, cm.source_index
     g1n = np.zeros(n); g1n[gn] = np.asarray(g1)[si]
     g2n = np.zeros(n); g2n[gn] = np.asarray(g2)[si]
-    weight = np.zeros(n); weight[gn] = 1.0
+    weight = np.zeros(n); weight[gn] = np.asarray(source_weight)[si]
     _apply_mask(cfg, np.asarray(ops.mesh.nodes), g1n, g2n, weight)
     truth_nodes = np.full(n, np.nan)
     if truth_gal is not None:
@@ -99,7 +101,7 @@ def _get_catalog(cfg):
                                         shape_noise=cfg.get("data.shape_noise"),
                                         seed=cfg.get("data.seed"))
         return (cat["x"], cat["y"], cat["g1"], cat["g2"], cat["kappa_true"],
-                cat.get("center", (0.0, 0.0)))
+                cat.get("center", (0.0, 0.0)), cat.get("weight", np.ones(len(cat["x"]))))
     if src == "catalog_fits":
         from .io import read_fits_catalog
         path = cfg.get("data.fits")
@@ -107,7 +109,7 @@ def _get_catalog(cfg):
             raise ValueError("data.source='catalog_fits' requires data.fits (a FITS path)")
         flat = read_fits_catalog(path, hdu=cfg.get("data.hdu")).to_tangent_plane(
             units="arcmin", flip_g2=cfg.get("data.flip_g2"))
-        return (flat.x, flat.y, flat.g1, flat.g2, None, (0.0, 0.0))
+        return (flat.x, flat.y, flat.g1, flat.g2, None, (0.0, 0.0), flat.weight)
     if src == "frontier":
         d = cfg.get("data.frontier_dir")
         if not d:
@@ -119,7 +121,7 @@ def _get_catalog(cfg):
                                reduced_shear=cfg.get("data.reduced_shear"),
                                rmax_arcmin=cfg.get("data.rmax"), seed=1)
         return (cat["x"], cat["y"], cat["g1"], cat["g2"], cat["kappa_true"],
-                cat.get("center", (0.0, 0.0)))
+                cat.get("center", (0.0, 0.0)), cat.get("weight", np.ones(len(cat["x"]))))
     raise ValueError(f"unknown data.source={src!r}")
 
 

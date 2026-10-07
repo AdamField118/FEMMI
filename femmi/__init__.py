@@ -79,8 +79,6 @@ if _JAX_AVAILABLE:
         generate_p3_adaptive_mesh,
     )
     from .catalog import (
-        CatalogReconstruction,
-        reconstruct_catalog,
         bin_shear_to_grid,
         kaiser_squires_binned,
         analytic_gaussian_catalog,
@@ -145,3 +143,6 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
+
+from .mapping import MapperConfig, FEMMapper, MassMap, map_mass
+__all__ += ["MapperConfig", "FEMMapper", "MassMap", "map_mass"]

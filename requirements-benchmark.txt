@@ -1,0 +1,3 @@
+# Immutable upstream implementation; do not replace with the unrelated smpy package.
+SMPy @ git+https://github.com/GeorgeVassilakis/SMPy.git@26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe
+-e .[speed,paper,dev]

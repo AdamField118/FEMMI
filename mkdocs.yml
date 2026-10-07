@@ -40,6 +40,9 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Quickstart: quickstart.md
+  - Catalogue mapper: mapper.md
+  - SMPy benchmarks: smpy-benchmarks.md
+  - Production performance: production-performance.md
   - Configuration & CLI: configuration.md
   - Observation model: observation-model.md
   - Calibrated comparisons: calibration.md

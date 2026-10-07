@@ -1,0 +1,1235 @@
+[
+  {
+    "method": "p3",
+    "seed": 0,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "ed5d587a68262d0f6bc660a4336717a86a67c9569dcbe63b82b3651f243ba33d",
+    "seconds": 0.014342051999847172,
+    "setup_seconds": 0.011766490999889356,
+    "solve_seconds": 0.0025755609999578155,
+    "dofs": 325,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 1.512086225736097e-09,
+    "objective": 0.4788310041002917,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 3.0,
+    "wiener_length": 1.0392304845413265,
+    "weighted_shear_residual": 0.4486861605682999,
+    "rel_l2": 1.0098357185291111,
+    "shape_l2": 0.6942150649414436,
+    "mean_err": 0.05963896880201346,
+    "field_offset": -0.07423087484025626,
+    "field_pixels": 448,
+    "field_rmse": 0.049179601587299754,
+    "interior_pixels": 252,
+    "interior_rmse": 0.02115621346231668,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.02842984777198657,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16184503991864124,
+    "field_shape_l2": 0.8698377011231305,
+    "aperture_contrast_error": -0.15214868137650114,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "argyris",
+    "seed": 0,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "ed5d587a68262d0f6bc660a4336717a86a67c9569dcbe63b82b3651f243ba33d",
+    "seconds": 0.13889641300011135,
+    "setup_seconds": 0.1340797160000875,
+    "solve_seconds": 0.004816697000023851,
+    "dofs": 366,
+    "converged": true,
+    "iterations": 8,
+    "relative_residual": 7.96816803379291e-09,
+    "objective": 0.45109749695926427,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 0.9486832980505138,
+    "wiener_length": 1.8,
+    "weighted_shear_residual": 0.3987373301143194,
+    "rel_l2": 0.9510873903560457,
+    "shape_l2": 0.7223195650222171,
+    "mean_err": 0.05563225121212343,
+    "field_offset": -0.06886210457288146,
+    "field_pixels": 448,
+    "field_rmse": 0.04952048626825603,
+    "interior_pixels": 252,
+    "interior_rmse": 0.022254916125246268,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.028766063321156384,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16183538511740483,
+    "field_shape_l2": 0.8758669152212712,
+    "aperture_contrast_error": -0.15313421829156712,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "hct",
+    "seed": 0,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "ed5d587a68262d0f6bc660a4336717a86a67c9569dcbe63b82b3651f243ba33d",
+    "seconds": 0.19703661199991984,
+    "setup_seconds": 0.19465438699990045,
+    "solve_seconds": 0.002382225000019389,
+    "dofs": 237,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 1.2246547830373273e-09,
+    "objective": 0.47164169226905434,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 5.196152422706632,
+    "wiener_length": 0.6,
+    "weighted_shear_residual": 0.4359331636757423,
+    "rel_l2": 0.9729623194178111,
+    "shape_l2": 0.6790005558442341,
+    "mean_err": 0.05738551435068051,
+    "field_offset": -0.07159507180685419,
+    "field_pixels": 448,
+    "field_rmse": 0.04827346695585335,
+    "interior_pixels": 252,
+    "interior_rmse": 0.020922273521311725,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.027900627051188145,
+    "mask_pixels": 32,
+    "mask_rmse": 0.158706778213501,
+    "field_shape_l2": 0.8538109331281464,
+    "aperture_contrast_error": -0.1489732068234938,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "smpy_ks",
+    "seed": 0,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "ed5d587a68262d0f6bc660a4336717a86a67c9569dcbe63b82b3651f243ba33d",
+    "seconds": 0.00481597599991801,
+    "setup_seconds": 0.0,
+    "solve_seconds": 0.00481597599991801,
+    "dofs": 121,
+    "completed": true,
+    "ks_grid_size": 11,
+    "ks_smoothing_px": 1.4142135623730951,
+    "smpy_method": "kaiser_squires",
+    "smpy_commit": "26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe",
+    "smpy_config": {
+      "general": {
+        "input_path": "",
+        "input_hdu": 1,
+        "output_directory": ".",
+        "output_base_name": "smpy_output",
+        "coordinate_system": "radec",
+        "radec": {
+          "resolution": 0.4,
+          "coord1": "ra",
+          "coord2": "dec"
+        },
+        "pixel": {
+          "downsample_factor": 1,
+          "coord1": "X_IMAGE",
+          "coord2": "Y_IMAGE",
+          "pixel_axis_reference": "catalog"
+        },
+        "g1_col": "g1",
+        "g2_col": "g2",
+        "weight_col": null,
+        "method": "kaiser_squires",
+        "create_snr": false,
+        "create_counts_map": false,
+        "overlay_counts_map": false,
+        "mode": [
+          "E"
+        ],
+        "print_timing": false,
+        "save_fits": false,
+        "save_plots": false
+      },
+      "methods": {
+        "kaiser_squires": {
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 1.4142135623730951
+          }
+        },
+        "aperture_mass": {
+          "filter": {
+            "type": "schirmer",
+            "scale": 60,
+            "truncation": 1.0,
+            "l": 3
+          }
+        },
+        "ks_plus": {
+          "inpainting_iterations": 100,
+          "reduced_shear_iterations": 3,
+          "nscales": null,
+          "extension_size": "double",
+          "use_wavelet_constraints": true,
+          "constrain_B": false,
+          "threshold_schedule": "exp",
+          "threshold_tau": null,
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 2.0
+          }
+        }
+      },
+      "plotting": {
+        "figsize": [
+          12,
+          8
+        ],
+        "fontsize": 15,
+        "cmap": "viridis",
+        "xlabel": "auto",
+        "ylabel": "auto",
+        "plot_title": "Mass Map",
+        "gridlines": true,
+        "vmax": null,
+        "vmin": null,
+        "threshold": null,
+        "verbose": null,
+        "cluster_center": null,
+        "xray_contours": {
+          "ctr_file": null,
+          "show_on_convergence": false,
+          "show_on_snr": false,
+          "color": "cyan",
+          "linewidth": 0.8,
+          "alpha": 0.7
+        },
+        "scaling": {
+          "type": "linear",
+          "gamma": 2,
+          "percentile": null,
+          "convergence": {
+            "linthresh": 0.1,
+            "linscale": 1.0
+          },
+          "snr": {
+            "linthresh": 5,
+            "linscale": 0.5
+          }
+        }
+      },
+      "snr": {
+        "shuffle_type": "spatial",
+        "num_shuffles": 100,
+        "seed": 0,
+        "smoothing": {
+          "type": "gaussian",
+          "sigma": 2.0
+        },
+        "plot_title": "Signal-to-Noise Map"
+      }
+    },
+    "inpainting_iterations": null,
+    "reduced_shear_iterations": null,
+    "rel_l2": 1.011704166053721,
+    "shape_l2": 0.7430438115841205,
+    "mean_err": 0.05938352203843258,
+    "field_offset": -0.07363264050677902,
+    "field_pixels": 448,
+    "field_rmse": 0.04882751535069377,
+    "interior_pixels": 252,
+    "interior_rmse": 0.0206848092076769,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.028958793778457195,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16034486094879413,
+    "field_shape_l2": 0.8636103655457404,
+    "aperture_contrast_error": -0.14986645001319499,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "smpy_ks_plus",
+    "seed": 0,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "ed5d587a68262d0f6bc660a4336717a86a67c9569dcbe63b82b3651f243ba33d",
+    "seconds": 0.09825375599984909,
+    "setup_seconds": 0.0,
+    "solve_seconds": 0.09825375599984909,
+    "dofs": 400,
+    "completed": true,
+    "ks_grid_size": 20,
+    "ks_smoothing_px": 0.7071067811865476,
+    "smpy_method": "ks_plus",
+    "smpy_commit": "26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe",
+    "smpy_config": {
+      "general": {
+        "input_path": "",
+        "input_hdu": 1,
+        "output_directory": ".",
+        "output_base_name": "smpy_output",
+        "coordinate_system": "radec",
+        "radec": {
+          "resolution": 0.4,
+          "coord1": "ra",
+          "coord2": "dec"
+        },
+        "pixel": {
+          "downsample_factor": 1,
+          "coord1": "X_IMAGE",
+          "coord2": "Y_IMAGE",
+          "pixel_axis_reference": "catalog"
+        },
+        "g1_col": "g1",
+        "g2_col": "g2",
+        "weight_col": null,
+        "method": "ks_plus",
+        "create_snr": false,
+        "create_counts_map": false,
+        "overlay_counts_map": false,
+        "mode": [
+          "E"
+        ],
+        "print_timing": false,
+        "save_fits": false,
+        "save_plots": false
+      },
+      "methods": {
+        "kaiser_squires": {
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 2.0
+          }
+        },
+        "aperture_mass": {
+          "filter": {
+            "type": "schirmer",
+            "scale": 60,
+            "truncation": 1.0,
+            "l": 3
+          }
+        },
+        "ks_plus": {
+          "inpainting_iterations": 100,
+          "reduced_shear_iterations": 1,
+          "nscales": null,
+          "extension_size": "double",
+          "use_wavelet_constraints": true,
+          "constrain_B": false,
+          "threshold_schedule": "exp",
+          "threshold_tau": null,
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 0.7071067811865476
+          }
+        }
+      },
+      "plotting": {
+        "figsize": [
+          12,
+          8
+        ],
+        "fontsize": 15,
+        "cmap": "viridis",
+        "xlabel": "auto",
+        "ylabel": "auto",
+        "plot_title": "Mass Map",
+        "gridlines": true,
+        "vmax": null,
+        "vmin": null,
+        "threshold": null,
+        "verbose": null,
+        "cluster_center": null,
+        "xray_contours": {
+          "ctr_file": null,
+          "show_on_convergence": false,
+          "show_on_snr": false,
+          "color": "cyan",
+          "linewidth": 0.8,
+          "alpha": 0.7
+        },
+        "scaling": {
+          "type": "linear",
+          "gamma": 2,
+          "percentile": null,
+          "convergence": {
+            "linthresh": 0.1,
+            "linscale": 1.0
+          },
+          "snr": {
+            "linthresh": 5,
+            "linscale": 0.5
+          }
+        }
+      },
+      "snr": {
+        "shuffle_type": "spatial",
+        "num_shuffles": 100,
+        "seed": 0,
+        "smoothing": {
+          "type": "gaussian",
+          "sigma": 2.0
+        },
+        "plot_title": "Signal-to-Noise Map"
+      }
+    },
+    "inpainting_iterations": 100,
+    "reduced_shear_iterations": 1,
+    "rel_l2": 1.0694903692560338,
+    "shape_l2": 0.8371903179603767,
+    "mean_err": 0.06234812705077181,
+    "field_offset": -0.07478062718584406,
+    "field_pixels": 448,
+    "field_rmse": 0.050180978794518494,
+    "interior_pixels": 252,
+    "interior_rmse": 0.02245393993471609,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03038911700107679,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16294320014321945,
+    "field_shape_l2": 0.8875490208526742,
+    "aperture_contrast_error": -0.15255351616665921,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "p3",
+    "seed": 1,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "bb2fd1eeaf2e046c946906d6c83467cc34bec9a7aff3cffadfeab25c95115321",
+    "seconds": 0.014956450999761728,
+    "setup_seconds": 0.01233046600009402,
+    "solve_seconds": 0.0026259849996677076,
+    "dofs": 325,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 1.5002882063570133e-09,
+    "objective": 0.5442686999770351,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 3.0,
+    "wiener_length": 1.0392304845413265,
+    "weighted_shear_residual": 0.5006942032522094,
+    "rel_l2": 1.0615015926867326,
+    "shape_l2": 1.0348722541788011,
+    "mean_err": 0.06564536317254482,
+    "field_offset": -0.0773314426345002,
+    "field_pixels": 448,
+    "field_rmse": 0.05273226674928779,
+    "interior_pixels": 252,
+    "interior_rmse": 0.02681433355413471,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03356326311706633,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16581381379703317,
+    "field_shape_l2": 0.9326735517120855,
+    "aperture_contrast_error": -0.1553332496209985,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "argyris",
+    "seed": 1,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "bb2fd1eeaf2e046c946906d6c83467cc34bec9a7aff3cffadfeab25c95115321",
+    "seconds": 0.14110967099941263,
+    "setup_seconds": 0.13683727899979203,
+    "solve_seconds": 0.004272391999620595,
+    "dofs": 366,
+    "converged": true,
+    "iterations": 8,
+    "relative_residual": 3.3444293655613613e-09,
+    "objective": 0.508557708552041,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 0.9486832980505138,
+    "wiener_length": 1.8,
+    "weighted_shear_residual": 0.4379666905294899,
+    "rel_l2": 1.144233753390523,
+    "shape_l2": 1.099521569339488,
+    "mean_err": 0.07100102858291459,
+    "field_offset": -0.0835199357940127,
+    "field_pixels": 448,
+    "field_rmse": 0.0526070509141216,
+    "interior_pixels": 252,
+    "interior_rmse": 0.028337771147190185,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.0350996977229104,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16157731045564536,
+    "field_shape_l2": 0.9304588641040162,
+    "aperture_contrast_error": -0.15197555816500105,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "hct",
+    "seed": 1,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "bb2fd1eeaf2e046c946906d6c83467cc34bec9a7aff3cffadfeab25c95115321",
+    "seconds": 0.19736005500044485,
+    "setup_seconds": 0.19499174100019445,
+    "solve_seconds": 0.0023683140002503933,
+    "dofs": 237,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 1.4958949860627458e-09,
+    "objective": 0.5383912983025526,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 5.196152422706632,
+    "wiener_length": 0.6,
+    "weighted_shear_residual": 0.490374137034821,
+    "rel_l2": 1.0133935670754863,
+    "shape_l2": 1.0329805702617927,
+    "mean_err": 0.06197191226354948,
+    "field_offset": -0.0743207287538381,
+    "field_pixels": 448,
+    "field_rmse": 0.05204419422808674,
+    "interior_pixels": 252,
+    "interior_rmse": 0.026571018185662085,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03297699392945228,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16366773826036535,
+    "field_shape_l2": 0.9205036397825411,
+    "aperture_contrast_error": -0.15246563817390857,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "smpy_ks",
+    "seed": 1,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "bb2fd1eeaf2e046c946906d6c83467cc34bec9a7aff3cffadfeab25c95115321",
+    "seconds": 0.004900981999981013,
+    "setup_seconds": 0.0,
+    "solve_seconds": 0.004900981999981013,
+    "dofs": 121,
+    "completed": true,
+    "ks_grid_size": 11,
+    "ks_smoothing_px": 1.4142135623730951,
+    "smpy_method": "kaiser_squires",
+    "smpy_commit": "26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe",
+    "smpy_config": {
+      "general": {
+        "input_path": "",
+        "input_hdu": 1,
+        "output_directory": ".",
+        "output_base_name": "smpy_output",
+        "coordinate_system": "radec",
+        "radec": {
+          "resolution": 0.4,
+          "coord1": "ra",
+          "coord2": "dec"
+        },
+        "pixel": {
+          "downsample_factor": 1,
+          "coord1": "X_IMAGE",
+          "coord2": "Y_IMAGE",
+          "pixel_axis_reference": "catalog"
+        },
+        "g1_col": "g1",
+        "g2_col": "g2",
+        "weight_col": null,
+        "method": "kaiser_squires",
+        "create_snr": false,
+        "create_counts_map": false,
+        "overlay_counts_map": false,
+        "mode": [
+          "E"
+        ],
+        "print_timing": false,
+        "save_fits": false,
+        "save_plots": false
+      },
+      "methods": {
+        "kaiser_squires": {
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 1.4142135623730951
+          }
+        },
+        "aperture_mass": {
+          "filter": {
+            "type": "schirmer",
+            "scale": 60,
+            "truncation": 1.0,
+            "l": 3
+          }
+        },
+        "ks_plus": {
+          "inpainting_iterations": 100,
+          "reduced_shear_iterations": 3,
+          "nscales": null,
+          "extension_size": "double",
+          "use_wavelet_constraints": true,
+          "constrain_B": false,
+          "threshold_schedule": "exp",
+          "threshold_tau": null,
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 2.0
+          }
+        }
+      },
+      "plotting": {
+        "figsize": [
+          12,
+          8
+        ],
+        "fontsize": 15,
+        "cmap": "viridis",
+        "xlabel": "auto",
+        "ylabel": "auto",
+        "plot_title": "Mass Map",
+        "gridlines": true,
+        "vmax": null,
+        "vmin": null,
+        "threshold": null,
+        "verbose": null,
+        "cluster_center": null,
+        "xray_contours": {
+          "ctr_file": null,
+          "show_on_convergence": false,
+          "show_on_snr": false,
+          "color": "cyan",
+          "linewidth": 0.8,
+          "alpha": 0.7
+        },
+        "scaling": {
+          "type": "linear",
+          "gamma": 2,
+          "percentile": null,
+          "convergence": {
+            "linthresh": 0.1,
+            "linscale": 1.0
+          },
+          "snr": {
+            "linthresh": 5,
+            "linscale": 0.5
+          }
+        }
+      },
+      "snr": {
+        "shuffle_type": "spatial",
+        "num_shuffles": 100,
+        "seed": 0,
+        "smoothing": {
+          "type": "gaussian",
+          "sigma": 2.0
+        },
+        "plot_title": "Signal-to-Noise Map"
+      }
+    },
+    "inpainting_iterations": null,
+    "reduced_shear_iterations": null,
+    "rel_l2": 0.9863986526787887,
+    "shape_l2": 0.9435071558814129,
+    "mean_err": 0.06127141335248041,
+    "field_offset": -0.07370708873634478,
+    "field_pixels": 448,
+    "field_rmse": 0.05031135309633786,
+    "interior_pixels": 252,
+    "interior_rmse": 0.023371554274346167,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.031153914109175857,
+    "mask_pixels": 32,
+    "mask_rmse": 0.16174529726793233,
+    "field_shape_l2": 0.8898549460598718,
+    "aperture_contrast_error": -0.15099384755890152,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "smpy_ks_plus",
+    "seed": 1,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "bb2fd1eeaf2e046c946906d6c83467cc34bec9a7aff3cffadfeab25c95115321",
+    "seconds": 0.09739265300004263,
+    "setup_seconds": 0.0,
+    "solve_seconds": 0.09739265300004263,
+    "dofs": 400,
+    "completed": true,
+    "ks_grid_size": 20,
+    "ks_smoothing_px": 0.7071067811865476,
+    "smpy_method": "ks_plus",
+    "smpy_commit": "26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe",
+    "smpy_config": {
+      "general": {
+        "input_path": "",
+        "input_hdu": 1,
+        "output_directory": ".",
+        "output_base_name": "smpy_output",
+        "coordinate_system": "radec",
+        "radec": {
+          "resolution": 0.4,
+          "coord1": "ra",
+          "coord2": "dec"
+        },
+        "pixel": {
+          "downsample_factor": 1,
+          "coord1": "X_IMAGE",
+          "coord2": "Y_IMAGE",
+          "pixel_axis_reference": "catalog"
+        },
+        "g1_col": "g1",
+        "g2_col": "g2",
+        "weight_col": null,
+        "method": "ks_plus",
+        "create_snr": false,
+        "create_counts_map": false,
+        "overlay_counts_map": false,
+        "mode": [
+          "E"
+        ],
+        "print_timing": false,
+        "save_fits": false,
+        "save_plots": false
+      },
+      "methods": {
+        "kaiser_squires": {
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 2.0
+          }
+        },
+        "aperture_mass": {
+          "filter": {
+            "type": "schirmer",
+            "scale": 60,
+            "truncation": 1.0,
+            "l": 3
+          }
+        },
+        "ks_plus": {
+          "inpainting_iterations": 100,
+          "reduced_shear_iterations": 1,
+          "nscales": null,
+          "extension_size": "double",
+          "use_wavelet_constraints": true,
+          "constrain_B": false,
+          "threshold_schedule": "exp",
+          "threshold_tau": null,
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 0.7071067811865476
+          }
+        }
+      },
+      "plotting": {
+        "figsize": [
+          12,
+          8
+        ],
+        "fontsize": 15,
+        "cmap": "viridis",
+        "xlabel": "auto",
+        "ylabel": "auto",
+        "plot_title": "Mass Map",
+        "gridlines": true,
+        "vmax": null,
+        "vmin": null,
+        "threshold": null,
+        "verbose": null,
+        "cluster_center": null,
+        "xray_contours": {
+          "ctr_file": null,
+          "show_on_convergence": false,
+          "show_on_snr": false,
+          "color": "cyan",
+          "linewidth": 0.8,
+          "alpha": 0.7
+        },
+        "scaling": {
+          "type": "linear",
+          "gamma": 2,
+          "percentile": null,
+          "convergence": {
+            "linthresh": 0.1,
+            "linscale": 1.0
+          },
+          "snr": {
+            "linthresh": 5,
+            "linscale": 0.5
+          }
+        }
+      },
+      "snr": {
+        "shuffle_type": "spatial",
+        "num_shuffles": 100,
+        "seed": 0,
+        "smoothing": {
+          "type": "gaussian",
+          "sigma": 2.0
+        },
+        "plot_title": "Signal-to-Noise Map"
+      }
+    },
+    "inpainting_iterations": 100,
+    "reduced_shear_iterations": 1,
+    "rel_l2": 1.017564972556987,
+    "shape_l2": 1.150007888138613,
+    "mean_err": 0.06030055365586328,
+    "field_offset": -0.07478921853932675,
+    "field_pixels": 448,
+    "field_rmse": 0.05825018629249931,
+    "interior_pixels": 252,
+    "interior_rmse": 0.02906345766096598,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03700464898259192,
+    "mask_pixels": 32,
+    "mask_rmse": 0.1839385756383165,
+    "field_shape_l2": 1.0302687801307107,
+    "aperture_contrast_error": -0.17707767408297584,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "p3",
+    "seed": 2,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "a5fa5267126d8353d883b16ad761050bb63f27845ba30851a157b796774d3645",
+    "seconds": 0.015313118999983999,
+    "setup_seconds": 0.012328663000062079,
+    "solve_seconds": 0.00298445599992192,
+    "dofs": 325,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 7.875258849584421e-09,
+    "objective": 0.5510246983630773,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 3.0,
+    "wiener_length": 1.0392304845413265,
+    "weighted_shear_residual": 0.5105207629342161,
+    "rel_l2": 1.24784868250938,
+    "shape_l2": 0.8440535639673092,
+    "mean_err": 0.07611668748239417,
+    "field_offset": -0.08980874220244664,
+    "field_pixels": 448,
+    "field_rmse": 0.05317653243679628,
+    "interior_pixels": 252,
+    "interior_rmse": 0.023726999495358857,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03225573849763246,
+    "mask_pixels": 32,
+    "mask_rmse": 0.17269279164846713,
+    "field_shape_l2": 0.9405312616535597,
+    "aperture_contrast_error": -0.16435429658636097,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "argyris",
+    "seed": 2,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "a5fa5267126d8353d883b16ad761050bb63f27845ba30851a157b796774d3645",
+    "seconds": 0.1524877829997422,
+    "setup_seconds": 0.1480119799998647,
+    "solve_seconds": 0.004475802999877487,
+    "dofs": 366,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 9.485283360369758e-09,
+    "objective": 0.5415952205566861,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 0.9486832980505138,
+    "wiener_length": 1.8,
+    "weighted_shear_residual": 0.4801854276598911,
+    "rel_l2": 0.9853083807685005,
+    "shape_l2": 0.9542114158129188,
+    "mean_err": 0.05752027489424091,
+    "field_offset": -0.07348313667628559,
+    "field_pixels": 448,
+    "field_rmse": 0.053630034034460185,
+    "interior_pixels": 252,
+    "interior_rmse": 0.025649884411081326,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03232668281044116,
+    "mask_pixels": 32,
+    "mask_rmse": 0.1724231301365071,
+    "field_shape_l2": 0.9485523267788516,
+    "aperture_contrast_error": -0.16594954534256418,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "hct",
+    "seed": 2,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "a5fa5267126d8353d883b16ad761050bb63f27845ba30851a157b796774d3645",
+    "seconds": 0.22205506700038313,
+    "setup_seconds": 0.21943045300031372,
+    "solve_seconds": 0.002624614000069414,
+    "dofs": 237,
+    "converged": true,
+    "iterations": 7,
+    "relative_residual": 3.0521517043116204e-09,
+    "objective": 0.5682731295444949,
+    "residual_tolerance": 1e-06,
+    "refinements": 0,
+    "solver": "prior-preconditioned-cg",
+    "lam_used": 5.196152422706632,
+    "wiener_length": 0.6,
+    "weighted_shear_residual": 0.5289205054001203,
+    "rel_l2": 0.9871351072805593,
+    "shape_l2": 0.8920695138449507,
+    "mean_err": 0.0582904571843298,
+    "field_offset": -0.07330189157366239,
+    "field_pixels": 448,
+    "field_rmse": 0.05279731717383694,
+    "interior_pixels": 252,
+    "interior_rmse": 0.023968420840898015,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03202638386719798,
+    "mask_pixels": 32,
+    "mask_rmse": 0.1710118867313592,
+    "field_shape_l2": 0.9338240960418616,
+    "aperture_contrast_error": -0.16243835185527863,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "smpy_ks",
+    "seed": 2,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "a5fa5267126d8353d883b16ad761050bb63f27845ba30851a157b796774d3645",
+    "seconds": 0.004715577999832021,
+    "setup_seconds": 0.0,
+    "solve_seconds": 0.004715577999832021,
+    "dofs": 121,
+    "completed": true,
+    "ks_grid_size": 11,
+    "ks_smoothing_px": 1.4142135623730951,
+    "smpy_method": "kaiser_squires",
+    "smpy_commit": "26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe",
+    "smpy_config": {
+      "general": {
+        "input_path": "",
+        "input_hdu": 1,
+        "output_directory": ".",
+        "output_base_name": "smpy_output",
+        "coordinate_system": "radec",
+        "radec": {
+          "resolution": 0.4,
+          "coord1": "ra",
+          "coord2": "dec"
+        },
+        "pixel": {
+          "downsample_factor": 1,
+          "coord1": "X_IMAGE",
+          "coord2": "Y_IMAGE",
+          "pixel_axis_reference": "catalog"
+        },
+        "g1_col": "g1",
+        "g2_col": "g2",
+        "weight_col": null,
+        "method": "kaiser_squires",
+        "create_snr": false,
+        "create_counts_map": false,
+        "overlay_counts_map": false,
+        "mode": [
+          "E"
+        ],
+        "print_timing": false,
+        "save_fits": false,
+        "save_plots": false
+      },
+      "methods": {
+        "kaiser_squires": {
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 1.4142135623730951
+          }
+        },
+        "aperture_mass": {
+          "filter": {
+            "type": "schirmer",
+            "scale": 60,
+            "truncation": 1.0,
+            "l": 3
+          }
+        },
+        "ks_plus": {
+          "inpainting_iterations": 100,
+          "reduced_shear_iterations": 3,
+          "nscales": null,
+          "extension_size": "double",
+          "use_wavelet_constraints": true,
+          "constrain_B": false,
+          "threshold_schedule": "exp",
+          "threshold_tau": null,
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 2.0
+          }
+        }
+      },
+      "plotting": {
+        "figsize": [
+          12,
+          8
+        ],
+        "fontsize": 15,
+        "cmap": "viridis",
+        "xlabel": "auto",
+        "ylabel": "auto",
+        "plot_title": "Mass Map",
+        "gridlines": true,
+        "vmax": null,
+        "vmin": null,
+        "threshold": null,
+        "verbose": null,
+        "cluster_center": null,
+        "xray_contours": {
+          "ctr_file": null,
+          "show_on_convergence": false,
+          "show_on_snr": false,
+          "color": "cyan",
+          "linewidth": 0.8,
+          "alpha": 0.7
+        },
+        "scaling": {
+          "type": "linear",
+          "gamma": 2,
+          "percentile": null,
+          "convergence": {
+            "linthresh": 0.1,
+            "linscale": 1.0
+          },
+          "snr": {
+            "linthresh": 5,
+            "linscale": 0.5
+          }
+        }
+      },
+      "snr": {
+        "shuffle_type": "spatial",
+        "num_shuffles": 100,
+        "seed": 0,
+        "smoothing": {
+          "type": "gaussian",
+          "sigma": 2.0
+        },
+        "plot_title": "Signal-to-Noise Map"
+      }
+    },
+    "inpainting_iterations": null,
+    "reduced_shear_iterations": null,
+    "rel_l2": 0.9924129902606986,
+    "shape_l2": 0.9063412819284843,
+    "mean_err": 0.0585068373679228,
+    "field_offset": -0.07438709761944542,
+    "field_pixels": 448,
+    "field_rmse": 0.05299002198702418,
+    "interior_pixels": 252,
+    "interior_rmse": 0.02434202368763836,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.03157817047251994,
+    "mask_pixels": 32,
+    "mask_rmse": 0.17185585818153687,
+    "field_shape_l2": 0.937232458580151,
+    "aperture_contrast_error": -0.1640062329167416,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  },
+  {
+    "method": "smpy_ks_plus",
+    "seed": 2,
+    "n_eff_nominal": 2.0,
+    "n_eff": 1.9894367886486917,
+    "n_gal": 25,
+    "radius_arcmin": 2.0,
+    "catalogue_hash": "a5fa5267126d8353d883b16ad761050bb63f27845ba30851a157b796774d3645",
+    "seconds": 0.10808731800034366,
+    "setup_seconds": 0.0,
+    "solve_seconds": 0.10808731800034366,
+    "dofs": 400,
+    "completed": true,
+    "ks_grid_size": 20,
+    "ks_smoothing_px": 0.7071067811865476,
+    "smpy_method": "ks_plus",
+    "smpy_commit": "26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe",
+    "smpy_config": {
+      "general": {
+        "input_path": "",
+        "input_hdu": 1,
+        "output_directory": ".",
+        "output_base_name": "smpy_output",
+        "coordinate_system": "radec",
+        "radec": {
+          "resolution": 0.4,
+          "coord1": "ra",
+          "coord2": "dec"
+        },
+        "pixel": {
+          "downsample_factor": 1,
+          "coord1": "X_IMAGE",
+          "coord2": "Y_IMAGE",
+          "pixel_axis_reference": "catalog"
+        },
+        "g1_col": "g1",
+        "g2_col": "g2",
+        "weight_col": null,
+        "method": "ks_plus",
+        "create_snr": false,
+        "create_counts_map": false,
+        "overlay_counts_map": false,
+        "mode": [
+          "E"
+        ],
+        "print_timing": false,
+        "save_fits": false,
+        "save_plots": false
+      },
+      "methods": {
+        "kaiser_squires": {
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 2.0
+          }
+        },
+        "aperture_mass": {
+          "filter": {
+            "type": "schirmer",
+            "scale": 60,
+            "truncation": 1.0,
+            "l": 3
+          }
+        },
+        "ks_plus": {
+          "inpainting_iterations": 100,
+          "reduced_shear_iterations": 1,
+          "nscales": null,
+          "extension_size": "double",
+          "use_wavelet_constraints": true,
+          "constrain_B": false,
+          "threshold_schedule": "exp",
+          "threshold_tau": null,
+          "smoothing": {
+            "type": "gaussian",
+            "sigma": 0.7071067811865476
+          }
+        }
+      },
+      "plotting": {
+        "figsize": [
+          12,
+          8
+        ],
+        "fontsize": 15,
+        "cmap": "viridis",
+        "xlabel": "auto",
+        "ylabel": "auto",
+        "plot_title": "Mass Map",
+        "gridlines": true,
+        "vmax": null,
+        "vmin": null,
+        "threshold": null,
+        "verbose": null,
+        "cluster_center": null,
+        "xray_contours": {
+          "ctr_file": null,
+          "show_on_convergence": false,
+          "show_on_snr": false,
+          "color": "cyan",
+          "linewidth": 0.8,
+          "alpha": 0.7
+        },
+        "scaling": {
+          "type": "linear",
+          "gamma": 2,
+          "percentile": null,
+          "convergence": {
+            "linthresh": 0.1,
+            "linscale": 1.0
+          },
+          "snr": {
+            "linthresh": 5,
+            "linscale": 0.5
+          }
+        }
+      },
+      "snr": {
+        "shuffle_type": "spatial",
+        "num_shuffles": 100,
+        "seed": 0,
+        "smoothing": {
+          "type": "gaussian",
+          "sigma": 2.0
+        },
+        "plot_title": "Signal-to-Noise Map"
+      }
+    },
+    "inpainting_iterations": 100,
+    "reduced_shear_iterations": 1,
+    "rel_l2": 1.0454906503731418,
+    "shape_l2": 1.1167710172089111,
+    "mean_err": 0.05983733927118053,
+    "field_offset": -0.07510250070111521,
+    "field_pixels": 448,
+    "field_rmse": 0.05622696368841796,
+    "interior_pixels": 252,
+    "interior_rmse": 0.02742810344100989,
+    "boundary_pixels": 164,
+    "boundary_rmse": 0.037122200408475414,
+    "mask_pixels": 32,
+    "mask_rmse": 0.17684367374254842,
+    "field_shape_l2": 0.9944841205972151,
+    "aperture_contrast_error": -0.16931090004258403,
+    "scenario": "masked-integration",
+    "calibration_boundary_unresolved": false
+  }
+]

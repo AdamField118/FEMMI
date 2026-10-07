@@ -58,52 +58,19 @@ def make_catalogue(n_eff,seed,radius=3.,noise_std=.05,truth='nfw',
     return Catalogue(x,y,a,b,w,kt,float(radius),int(seed),float(n_eff))
 
 
-class FEMCatalogueModel:
-    """One reusable mesh/factorization for one catalogue and one FEM arm."""
-    def __init__(self,catalogue,kind):
-        from .quadratic import QuadraticMAP
-        self.catalogue,self.kind=catalogue,kind
-        c=catalogue
-        start=time.perf_counter()
-        nb=max(18,3*int(np.ceil(2*np.sqrt(len(c.x))/3)))
-        radius=1.12*c.radius
-        if kind=='p3':
-            from .operators import build_operators_catalog
-            ops,cm=build_operators_catalog(c.x,c.y,center=(0.,0.),radius=radius,
-                   n_boundary=nb,dedup_radius=0.,guard_ring=False,verbose=False)
-            if not np.array_equal(cm.source_index,np.arange(len(c.x))):
-                raise ValueError('P3 changed the common catalogue selection')
-            idx=cm.galaxy_nodes
-            S1,S2=ops.S1[idx],ops.S2[idx]
-            lu,zero=ops.A_coupled_lu,ops._rhs_zero_nodes()
-            self.value_indices=idx
-        elif kind in ('argyris','hct'):
-            from .elements import C1Space,catalog_triangulation
-            from .c1_coupling import C1CoupledOperators
-            from .c1_inverse import shear_operators
-            v,t,ring,idx=catalog_triangulation(c.x,c.y,radius=radius,center=(0.,0.),n_boundary=nb,dedup=0.)
-            if np.any(idx<0) or len(np.unique(idx))!=len(c.x):
-                raise ValueError('C1 changed the common catalogue selection')
-            space=C1Space(v,t,kind)
-            self.space=space
-            ops=C1CoupledOperators(space,degree=5 if kind=='argyris' else 3)
-            S1,S2=(s[idx] for s in shear_operators(space))
-            lu,zero=ops.A_lu,[ops.idx_gauge]
-            self.value_indices=idx*space.n_vert_dofs
-        else:
-            raise ValueError('unknown FEM kind')
-        self.solver=QuadraticMAP(ops.M,ops.K,S1,S2,lu,zero,c.weight)
-        self.dofs=ops.M.shape[0]
-        self.setup_seconds=time.perf_counter()-start
+def catalogue_mapper(catalogue, kind):
+    from .mapping import FEMMapper, MapperConfig
+    return FEMMapper(catalogue, MapperConfig(kind, 1., 1., catalogue.radius))
 
-    def fit(self,lam,length,rtol=1e-8):
-        c=self.catalogue;start=time.perf_counter()
-        k,info=self.solver.solve(c.g1,c.g2,lam,length,rtol=rtol)
-        info.update(lam_used=float(lam),wiener_length=float(length))
-        return k[self.value_indices],info,time.perf_counter()-start
+
+def fem_fit(model, lam, length):
+    result = model.reconstruct(lam=lam, length=length)
+    model.last_result = result
+    return result.kappa, result.diagnostics, result.diagnostics['solve_seconds']
 
 
 def result_row(c,method,values,info,seconds,dofs,setup_seconds=0.):
+    info={k:v for k,v in info.items() if k not in ("setup_seconds","solve_seconds")}
     row=dict(method=method,seed=c.seed,n_eff_nominal=c.nominal_density,
              n_eff=float(c.weight.sum()**2/np.dot(c.weight,c.weight)/(np.pi*c.radius**2)),
              n_gal=len(c.x),radius_arcmin=c.radius,catalogue_hash=c.fingerprint,
@@ -191,6 +158,12 @@ def calibrate_and_evaluate(config,output):
     if not cal or not ev or set(cal)&set(ev) or len(set(cal))!=len(cal) or len(set(ev))!=len(ev):
         raise ValueError('calibration/evaluation seeds must be unique and disjoint')
     methods=config.get('methods',['p3','argyris','hct','ks'])
+    allowed={'p3','argyris','hct','ks','smpy_ks','smpy_ks_plus'}
+    if not methods or len(set(methods))!=len(methods) or not set(methods)<=allowed:
+        raise ValueError('supply unique supported convergence methods')
+    if any(m.startswith('smpy_') for m in methods):
+        from .smpy import verify_installation
+        verify_installation()
     kwargs={k:v for k,v in config.items() if k in ('n_eff','radius','noise_std','truth','truth_kw','catalog_kw','halos')}
     cal_kwargs=dict(kwargs);eval_kwargs=dict(kwargs)
     for stage,target in (('calibration',cal_kwargs),('evaluation',eval_kwargs)):
@@ -210,7 +183,7 @@ def calibrate_and_evaluate(config,output):
     report=dict(config=config,calibrations={},data_manifest=manifest,provenance=dict(
         c1_coupled_solve="diagonally equilibrated SuperLU; matched transpose scaling",
         solver_acceptance="fresh normal-equation relative residual <=1e-6 (internal CG target 1e-8)",
-        base_commit="8cb095ccd6333b057a7c931935b52bf42d035450",
+        base_commit="9f0394aec74e51ee3792fc07eb462dbfffcf919a",
         python=platform.python_version(),platform=platform.platform(),
         packages={p:importlib.metadata.version(p) for p in ('numpy','scipy','galsim')},
         threads={k:os.environ.get(k) for k in ('OPENBLAS_NUM_THREADS','OMP_NUM_THREADS','FEMMI_BEM_BACKEND')},
@@ -218,21 +191,26 @@ def calibrate_and_evaluate(config,output):
         regularizer="lambda * kappa.T @ (M + length**2 K) @ kappa",
         noise="independent component sigma/sqrt(normalized weight)",
         boundary="ring radius 1.12R; common source list; no measured guard nodes"))
+    def grid_fit(c,method,a,b):
+        if method=='ks': return ks_fit(c,a,b)
+        from .smpy import reconstruct
+        return reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))[:3]
     for method in methods:
-        models=[] if method=='ks' else [FEMCatalogueModel(c,method) for c in cats]
+        gridded=method in ('ks','smpy_ks','smpy_ks_plus')
+        models=[] if gridded else [catalogue_mapper(c,method) for c in cats]
         def evaluate(a,b):
             rows=[]
             for j,c in enumerate(cats):
                 try:
-                    k,info,sec=ks_fit(c,a,b) if method=='ks' else models[j].fit(a,b)
-                    rows.append(result_row(c,method,k,info,sec,int(a)**2 if method=='ks' else models[j].dofs))
+                    k,info,sec=grid_fit(c,method,a,b) if gridded else fem_fit(models[j],a,b)
+                    rows.append(result_row(c,method,k,info,sec,int(a)**2 if gridded else models[j].dofs))
                 except (RuntimeError,ValueError) as exc:
                     return dict(score=float('inf'),rows=rows,error=str(exc))
             return dict(score=float(np.mean([r['shape_l2'] for r in rows])),rows=rows)
-        axes=(config.get('ks_axes',[[6,12,24,48],[0,.5,1.,2.]]) if method=='ks'
+        axes=(config.get('ks_axes',[[6,12,24,48],[0,.5,1.,2.]]) if gridded
               else config.get('fem_axes',[[.03,.3,3.,30.],[.2,.6,1.8,5.4]]))
         try:
-            report['calibrations'][method]=adaptive_grid(evaluate,axes,config.get('max_expansions',6),method=='ks',config.get('refine',True))
+            report['calibrations'][method]=adaptive_grid(evaluate,axes,config.get('max_expansions',6),gridded,config.get('refine',True))
         except CalibrationFailure as exc:
             report['calibrations'][method]=dict(error=str(exc),candidates=exc.candidates,
                 boundary_unresolved=True)
@@ -242,19 +220,40 @@ def calibrate_and_evaluate(config,output):
         print(method,report['calibrations'][method]['parameters'],
               'edge',report['calibrations'][method]['boundary_unresolved'],flush=True)
         del models
+    if any(r['boundary_unresolved'] for r in report['calibrations'].values()) and not config.get('allow_unresolved',False):
+        raise CalibrationFailure('expand unresolved calibration grids before evaluation', report['calibrations'])
     rows=[]
     for seed in ev:
         c=make_catalogue(seed=seed,**eval_kwargs);c.save(output/f'catalogue-eval-{seed}.npz')
         for method in methods:
             a,b=report['calibrations'][method]['parameters']
             try:
-                if method=='ks':
-                    k,info,sec=ks_fit(c,a,b);dofs=int(a)**2;setup=0.
+                if method in ('ks','smpy_ks','smpy_ks_plus'):
+                    k,info,sec=grid_fit(c,method,a,b);dofs=int(a)**2;setup=0.
                 else:
-                    model=FEMCatalogueModel(c,method)
-                    k,info,sec=model.fit(a,b);dofs=model.dofs;setup=model.setup_seconds
+                    model=catalogue_mapper(c,method)
+                    k,info,sec=fem_fit(model,a,b);dofs=model.dofs;setup=model.setup_seconds
                 row=result_row(c,method,k,info,sec,dofs,setup)
-                np.savez_compressed(output/f'map-{method}-{seed}.npz',kappa=k)
+                arrays=dict(kappa=k)
+                if config.get('evaluation_grid'):
+                    from .comparison import evaluation_field,spatial_metrics
+                    points,kt,_,_,regions=evaluation_field(eval_kwargs,seed,config['evaluation_grid'])
+                    if method in ('smpy_ks','smpy_ks_plus'):
+                        from .smpy import reconstruct,sample_grid
+                        _,_,_,grid,bmode=reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))
+                        values=sample_grid(grid,points,c.radius)
+                        arrays.update(grid=grid,bmode=bmode)
+                    elif method=='ks':
+                        from .catalog import kaiser_squires_binned
+                        values=kaiser_squires_binned(c.x,c.y,c.g1,c.g2,weight=c.weight,
+                            grid_size=int(a),smoothing_px=b,extent=(-c.radius,c.radius,-c.radius,c.radius),eval_pts=points)
+                    else:
+                        # Reuse the accepted solve, never refit for spatial scoring.
+                        values=model.evaluate(model.last_result.coefficients,points)
+                    row.update(spatial_metrics(values,kt,points,regions,c.radius))
+                    arrays.update(evaluation_points=points,field_kappa=values,field_truth=kt,
+                                  field_valid=regions['field'],mask_region=regions['mask'])
+                np.savez_compressed(output/f'map-{method}-{seed}.npz',**arrays)
             except (RuntimeError,ValueError) as exc:
                 row=dict(method=method,seed=seed,n_eff_nominal=c.nominal_density,
                          catalogue_hash=c.fingerprint,error=str(exc))

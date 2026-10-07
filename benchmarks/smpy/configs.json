@@ -1,0 +1,207 @@
+[
+  {
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "n_eff": 5.0,
+    "radius": 3.0,
+    "noise_std": 0.1,
+    "calibration_seeds": [
+      100,
+      101,
+      102
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "evaluation_grid": 40,
+    "max_expansions": 6,
+    "ks_plus_iterations": 100,
+    "name": "nfw"
+  },
+  {
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "n_eff": 5.0,
+    "radius": 3.0,
+    "noise_std": 0.1,
+    "calibration_seeds": [
+      100,
+      101,
+      102
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "evaluation_grid": 40,
+    "max_expansions": 6,
+    "ks_plus_iterations": 100,
+    "name": "two-halos",
+    "halos": [
+      [
+        200000000000000.0,
+        4,
+        [
+          -0.7,
+          0.3
+        ]
+      ],
+      [
+        100000000000000.0,
+        5,
+        [
+          0.8,
+          -0.4
+        ]
+      ]
+    ]
+  },
+  {
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "n_eff": 5.0,
+    "radius": 3.0,
+    "noise_std": 0.1,
+    "calibration_seeds": [
+      100,
+      101,
+      102
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "evaluation_grid": 40,
+    "max_expansions": 6,
+    "ks_plus_iterations": 100,
+    "name": "masked",
+    "catalog_kw": {
+      "masks": [
+        [
+          0,
+          0,
+          0.6
+        ]
+      ]
+    }
+  },
+  {
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "n_eff": 5.0,
+    "radius": 3.0,
+    "noise_std": 0.1,
+    "calibration_seeds": [
+      100,
+      101,
+      102
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "evaluation_grid": 40,
+    "max_expansions": 6,
+    "ks_plus_iterations": 100,
+    "name": "weights",
+    "catalog_kw": {
+      "weight_scatter": 0.7
+    }
+  },
+  {
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "n_eff": 5.0,
+    "radius": 3.0,
+    "noise_std": 0.1,
+    "calibration_seeds": [
+      100,
+      101,
+      102
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "evaluation_grid": 40,
+    "max_expansions": 6,
+    "ks_plus_iterations": 100,
+    "name": "lognormal",
+    "truth": "lognormal"
+  },
+  {
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "n_eff": 5.0,
+    "radius": 3.0,
+    "noise_std": 0.3,
+    "calibration_seeds": [
+      100,
+      101,
+      102
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "evaluation_grid": 40,
+    "max_expansions": 6,
+    "ks_plus_iterations": 100,
+    "name": "noise-0.3"
+  }
+]

@@ -27,11 +27,9 @@ J_{\rm data}=\sum_{a=1}^2\sum_{i:w_i>0}w_i(F_a\kappa-d_a)_i^2.
   B-mode residual diagnostics use whitened components `sqrt(w)*gamma`.
   Signal and fitted degrees of freedom can bias these noise estimates; they
   are diagnostics, not independent noise calibrations.
-- In `reconstruct_catalog(..., use_weights=True)`, supplied galaxy weights are
-  divided by the mean of **positive retained** weights. Supply `noise_std` in
-  that normalized convention. `CatalogReconstruction.data_weight` records the
-  actual weights. Multiplying precision weights changes the required noise
-  scale and regularization strength; it is not a neutral operation by itself.
+- `FEMMapper` uses supplied weights exactly, without normalization. Scale lambda
+  with the weights to preserve the same objective. Its configuration and result
+  retain the actual convention; see [Catalogue mapper](mapper.md).
 - Catalogue guard/boundary nodes carry no observations. The structured pipeline
   also excludes P3 boundary rows, whose shear predictions are intentionally zero.
   Low-level array APIs default to all supplied rows: pass explicit weights when

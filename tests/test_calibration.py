@@ -4,7 +4,7 @@ import pytest
 from scipy import sparse
 from scipy.sparse.linalg import splu
 from femmi.quadratic import QuadraticMAP
-from femmi.calibration import adaptive_grid,make_catalogue,FEMCatalogueModel,calibrate_and_evaluate
+from femmi.calibration import adaptive_grid,make_catalogue,catalogue_mapper,fem_fit,calibrate_and_evaluate
 from femmi.density import paired_comparison,sample_catalog
 
 
@@ -64,11 +64,11 @@ def test_mask_remains_empty_after_clustering():
 def test_catalogue_operator_adjoint_and_converged_map(kind):
     pytest.importorskip('galsim')
     c=make_catalogue(1,71,radius=2,catalog_kw=dict(weight_scatter=.5))
-    model=FEMCatalogueModel(c,kind);rng=np.random.default_rng(2)
+    model=catalogue_mapper(c,kind);rng=np.random.default_rng(2)
     x=rng.normal(size=model.dofs);a=rng.normal(size=len(c.x));b=rng.normal(size=len(c.x))
     u,v=model.solver.forward(x)
     assert np.dot(a,u)+np.dot(b,v)==pytest.approx(np.dot(x,model.solver.transpose(a,b)),rel=1e-9,abs=1e-9)
-    values,info,_=model.fit(1,1)
+    values,info,_=fem_fit(model,1,1)
     assert info['converged'] and len(values)==len(c.x)
     assert c.fingerprint==make_catalogue(1,71,radius=2,catalog_kw=dict(weight_scatter=.5)).fingerprint
 
@@ -112,8 +112,8 @@ def test_argyris_dense_catalogue_fresh_residual_regression():
     pytest.importorskip('galsim')
     # This catalogue produced a misleading recursive CG success while the
     # fresh normal-equation residual remained ~7e-6 before LU equilibration.
-    c=make_catalogue(20,2);model=FEMCatalogueModel(c,'argyris')
-    _,info,_=model.fit(.09486832980505137,5.4)
+    c=make_catalogue(20,2);model=catalogue_mapper(c,'argyris')
+    _,info,_=fem_fit(model,.09486832980505137,5.4)
     assert info['relative_residual']<1e-7
 
 

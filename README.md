@@ -10,6 +10,19 @@ New here? [`examples/quickstart.py`](examples/quickstart.py) reconstructs a mass
 
 ---
 
+## Current catalogue API
+
+Use `FEMMapper` / `map_mass` with an explicit `MapperConfig` for P3, Argyris or
+HCT quadratic MAP. See [the catalogue guide](docs/mapper.md) for weights,
+coordinates, saved maps and held-out shear selection. The production solver uses
+prior-preconditioned CG and checks a fresh normal-equation residual.
+
+[The SMPy benchmark](docs/smpy-benchmarks.md) pins upstream KS and KS+ and uses
+shared catalogues, independent tuning and paired spatial evaluation.
+[The production profiler](docs/production-performance.md) measures the same
+mapper, including repeated fits on one mesh. Experimental nonquadratic priors,
+JAX forwards and posterior sampling remain available through the research pipeline.
+
 ## Overview
 
 FEMMI reconstructs the projected mass density $\kappa(\boldsymbol{\theta})$ of a gravitational lens from observed weak-lensing shear $(\gamma_1, \gamma_2)$. The lensing potential $\psi$ satisfies
@@ -36,7 +49,7 @@ recalibration and regeneration before use in a publication.
 | Far-field boundary condition | Fourier-grid boundary assumptions | Harmonic exterior represented by BEM |
 | Regularisation parameter | Manual smoothing kernel | Morozov discrepancy principle |
 | DC / mass-sheet mode | In $F$'s null space (exactly) | Response depends on discretization and exterior assumptions |
-| Inverse method | Direct FFT | MAP + L-BFGS, Matérn prior |
+| Inverse method | Direct FFT | Quadratic MAP + checked CG, Matérn prior |
 | Masked / missing data | Unreliable near mask | Inpainting via prior covariance |
 | E/B-mode null test | 45-deg rotation | 45-deg rotation (same solver) |
 | Source positions | Binned grid | Catalog-native (raw galaxy positions) |
@@ -65,17 +78,17 @@ must be measured for the full solve and observation operator.
 
 $$\mathcal{L}(\kappa) = \|F\kappa - \gamma_{\mathrm{obs}}\|^2 + \lambda\,\phi(\kappa), \qquad \phi_{\mathrm{Wiener}}(\kappa) = \kappa^\top R\kappa, \quad R = M + \ell^2 K \text{ (Matérn-}\tfrac{1}{2}\text{ prior, default)}.$$
 
-**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov selection can also be evaluated for custom penalties, but its target and optimizer convergence must be checked. `examples/prior_comparison.py` and `examples/diagnostics/prior_bakeoff.py` (λ-tuned) compare them.
+**Pluggable priors** (`femmi/priors.py`). The penalty $\phi$ is a swappable `Prior` object returning $(\phi, \nabla\phi)$; the Gaussian/Matérn **Wiener** prior is the default. Non-Gaussian options capture structure the 2-point prior cannot: **total variation** (edge-preserving, sharp cluster cores), **sparsity** (smoothed-$L_1$, compact peaks à la GLIMPSE / Jeffrey et al. 2018), **maximum entropy** (positive maps, Marshall et al. 2002), and a **`ScorePrior`** hook that accepts any callable score $\nabla\log p(\kappa)$. Morozov selection can also be evaluated for custom penalties, but its target and optimizer convergence must be checked. `examples/diagnostics/prior_bakeoff.py` (λ-tuned) compare them.
 
 **Learned neural prior** (`femmi/neural_prior/`, one flag away). For experimental score sampling (`inverse.method: sample`), `prior='neural'` plugs in a score network $r_\theta(\kappa,\sigma)\approx\nabla\log p_\sigma(\kappa)$ trained by Denoising Score Matching (Remy et al. 2020) — it models the *non-Gaussian residual* on top of the Gaussian score FEMMI already has. It is self-contained: first use trains a small default model (Flax) on synthetic non-Gaussian (shifted-log-normal) maps and caches it — no external data, no extra steps. Because the forward is differentiable, the learned score drives approximate sampling. It supplies no consistent MAP energy and is rejected by L-BFGS MAP.
 
 **Posterior UQ** (`femmi/sampling.py`). `sample_posterior` returns the posterior mean and a per-pixel uncertainty map, exploiting the differentiable forward: exact **perturb-and-MAP** (Randomize-Then-Optimize) for the Gaussian/Wiener posterior, and experimental **annealed HMC** (tempered, noise-conditional score + score-integral Metropolis) for non-Gaussian/neural priors, with single-temperature Langevin as a fallback. The prior weight is **auto-calibrated** by default (`inverse.lam: null`): the Wiener posterior reuses the MAP's Morozov selection (converted to the sampler's noise-normalised convention, `lam = lam_MAP / 2σ_n²`), while other priors default to coefficient 1.0, which still needs calibration — leaving `lam` uncalibrated makes the data term (weight `1/σ_n²`) swamp the prior and the posterior collapses to noise. `examples/uncertainty_demo.py`; `examples/paper_artifacts.py` reproduces the Remy et al. figure structure (truth · mask · KS · posterior mean · uncertainty · samples) on masked, noisy data.
 
-$\lambda$ is selected automatically by Brent's method on the discrepancy functional 
+In the experimental discrepancy-principle path, $\lambda$ is selected by Brent's method on the discrepancy functional
 
 $$D(\lambda) = \|F\kappa_\lambda - \gamma_{\mathrm{obs}}\|_{\mathrm{RMS}} - c\delta$$
 
-(Morozov 1966; C&L Thm 10.4), using 15-25 MAP solves. The gradient is computed via the adjoint: 
+(Morozov 1966; C&L Thm 10.4), using 15-25 MAP solves. The gradient is computed via the adjoint:
 
 $$\partial\mathcal{L} / \partial\kappa = -4M^T Q A_{\mathrm{coupled}}^{-T}(S_1^\top r_1 + S_2^\top r_2) + 2\lambda R\kappa .$$
 
@@ -149,7 +162,7 @@ femmi/
 ├── priors.py            # Pluggable priors: Wiener (default), TV, sparsity, max-entropy, ScorePrior hook
 ├── sampling.py          # Posterior UQ: perturb-and-MAP (RTO) + score-based Langevin
 ├── neural_prior/        # Learned score prior (Flax): denoiser, DSM training, NeuralScorePrior
-├── catalog.py           # reconstruct_catalog, kaiser_squires_binned, synthetic catalog
+├── catalog.py           # weighted binning, independent synthetic catalogues
 ├── io.py                # FITS shear catalog -> tangent plane (ShearCatalog/FlatCatalog)
 ├── regularization.py    # MorozovSelector, estimate_noise_level
 ├── config.py            # layered YAML config loader (whole-pipeline schema)
@@ -180,8 +193,6 @@ tests/
 
 examples/                        # teaching set -- walks the public API (see examples/README.md)
 ├── quickstart.py               # Minimal: reconstruct a mass map from a catalog (start here)
-├── catalog_comparison.py       # Catalog-native FEMMI vs Fourier-grid KS head-to-head
-├── prior_comparison.py         # Wiener vs TV vs sparsity vs max-entropy on one catalog
 ├── uncertainty_demo.py         # Posterior mean + per-pixel uncertainty map (RTO / neural)
 ├── plot_npz.py                 # Plot the .npz a `femmi run` writes (truth / kappa / std)
 ├── paper_artifacts.py          # Remy et al. 2020 figure structure: masked/noisy probabilistic map
@@ -193,9 +204,6 @@ examples/                        # teaching set -- walks the public API (see exa
     ├── bem_scaling_diagnostic.py   # BEM coupling scale-invariance: diagnosis + resolution
     ├── bem_dtn_diagnostic.py       # Exterior-DtN test: scalar fix vs symmetric Steklov-Poincare
     ├── prior_bakeoff.py            # Prior bake-off with per-prior lambda tuning (+ --neural)
-    ├── galsim_nfw_benchmark.py     # GalSim NFW benchmark (independent truth): L2(kappa/gamma/psi)
-    ├── bmode_dipole_diagnostic.py  # Off-centre B-mode: under-regularisation, not gauge (verdict)
-    ├── smpy_comparison.py          # Full Monte Carlo benchmark vs SMPy KS
     ├── pme_talk_plots.py           # Perturb-and-MAP talk plots
     └── visualize_results.py        # SVD modes, Picard, convergence diagnostics
 ```
@@ -275,26 +283,14 @@ kappa_map, result = rec.reconstruct(g1_obs, g2_obs)
 ```
 
 ```python
-# Catalog-native reconstruction, straight from a galaxy shear catalog
-# (FEM nodes placed AT galaxy positions; data term restricted to those nodes).
-from femmi.io      import read_fits_catalog
-from femmi.catalog import reconstruct_catalog, kaiser_squires_binned
+from femmi import read_fits_catalog, MapperConfig, map_mass
 
 flat = read_fits_catalog("shear_catalog.fits").to_tangent_plane(units="arcmin")
-rec  = reconstruct_catalog(flat.x, flat.y, flat.g1, flat.g2, weight=flat.weight,
-                           center=(0., 0.))
-kappa_at_galaxies = rec.kappa_gal          # kappa per input galaxy
-
-# Optional: take the Morozov noise level from the B-mode floor instead of MAD
-# (MAD on the raw shear is biased high by the signal, over-smoothing the map).
-rec = reconstruct_catalog(flat.x, flat.y, flat.g1, flat.g2, center=(0., 0.),
-                          noise_source="bmode")
-
-# Apples-to-apples: same catalog, Fourier-grid Kaiser-Squires (SMPy-style)
-eval_pts = np.column_stack([flat.x, flat.y])
-kappa_ks = kaiser_squires_binned(flat.x, flat.y, flat.g1, flat.g2,
-                                 weight=flat.weight, eval_pts=eval_pts)
-# full head-to-head + figure: examples/catalog_comparison.py
+# Explicit example settings; select/tune for your catalogue before science use.
+config = MapperConfig(method="hct", lam=0.3, length=0.6, radius=3.)
+result = map_mass(flat, config)
+result.save("mass-map.npz")
+kappa_at_galaxies = result.kappa
 ```
 
 ```python
@@ -304,16 +300,14 @@ kappa_ks = kaiser_squires_binned(flat.x, flat.y, flat.g1, flat.g2,
 from femmi.catalog import load_frontier_model, field_to_catalog
 field = load_frontier_model("data/abell2744/cats_v4.1", source="psi", downsample=6)
 cat   = field_to_catalog(field, n_gal=3000, shape_noise=0.05, kappa_max=1.0)
-# examples/catalog_comparison.py --frontier data/abell2744/cats_v4.1
 ```
 
 Notes for the cluster maps: (1) use `source="psi"` -- `source="kappa"` synthesises
 shear by FFT and imposes *periodic* boundaries, KS's own assumption, which
 unfairly favours KS; (2) `kappa_max` drops the strong-lensing core (kappa >~ 1),
 where weak-shear reconstruction is invalid and both methods are out of scope;
-(3) prefer `--noise-source bmode` -- MAD on the raw shear is biased high by the
-huge cluster signal and pushes Morozov to over-smooth (lambda saturates), which
-crushes the recovered amplitude.
+(3) select regularization using held-out shear or an independently calibrated
+configuration and check the reported solver residual.
 
 ```python
 # Locally refined mesh near a circular mask (e.g. bright cluster core)

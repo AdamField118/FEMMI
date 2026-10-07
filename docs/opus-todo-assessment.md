@@ -1,5 +1,8 @@
 # Opus TODO: item-by-item disposition
 
+This records the completed calibration patch. The subsequent production-mapper
+cleanup removes the compatibility defaults mentioned below; see [Catalogue mapper](mapper.md).
+
 Base: `8cb095ccd6333b057a7c931935b52bf42d035450` (main, rechecked during the task).
 Source: the recovered `Pasted text.txt`, containing 17 numbered items.
 Author for the delivered patch: **AdamField118 <adfield@wpi.edu>**.

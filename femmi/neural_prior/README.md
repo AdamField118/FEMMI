@@ -78,8 +78,9 @@ prior = make_prior('neural', ops, ckpt='path/to/score_unet_p64_b32.msgpack')
 ## Usage
 
 ```python
-from femmi.catalog import reconstruct_catalog
-rec = reconstruct_catalog(x, y, g1, g2, prior='neural')      # one flag; trains+caches on first use
+# Score-only neural priors are supported by the experimental sampling pipeline.
+# Configure prior.kind: neural and inverse.method: sample in YAML.
+# Run: femmi run --config configs/default.yaml --set prior.kind=neural --set inverse.method=sample
 
 # or explicitly, with the sampler for uncertainty quantification
 from femmi.priors import make_prior

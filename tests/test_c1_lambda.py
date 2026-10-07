@@ -3,7 +3,7 @@ tests/test_c1_lambda.py
 Per-catalog lambda selection on the C^1 path (femmi.c1_lambda).
 
 The reason this module exists is a FAIRNESS bug, not a feature request:
-`catalog.reconstruct_catalog` has run with `use_morozov=True` all along, so the
+For the experimental C1 discrepancy-principle selector, the
 P3 arm of every density sweep tuned its own lambda per catalog while the Argyris
 arm was pinned at 0.3. These tests cover the pieces that decide the number, and
 in particular the two failure modes the P3 selector already hit once each:

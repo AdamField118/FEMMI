@@ -22,7 +22,6 @@ from femmi.elements import (C1Space, catalog_triangulation, equilibrated_inverse
 from femmi.c1_inverse import (shear_operators, shear_selection_operators,
                               shear_evaluation_operators)
 from femmi.density import (sample_catalog, mesh_quality, _truth_at,
-                           ks_params_for_density, KS_CALIBRATION,
                            paired_comparison, paired_table, average_over_seeds)
 
 
@@ -210,28 +209,8 @@ def test_mesh_quality_handles_an_element_with_no_condition_number():
 
 # --------------------------------------------------------- KS calibration ---
 
-def test_ks_params_rise_with_density_and_are_interpolated():
-    """Grid resolution must increase with source density -- more galaxies support
-    finer pixels before shot noise dominates. A flat rule would be the untuned
-    default this replaced."""
-    gs = [ks_params_for_density(n)[0] for n in (5.0, 10.0, 20.0, 30.0)]
-    assert gs == [KS_CALIBRATION[n][0] for n in (5.0, 10.0, 20.0, 30.0)]
-    assert gs[-1] > gs[0]
-    assert gs[1] <= ks_params_for_density(15.0)[0] <= gs[2]
-    assert ks_params_for_density(1.0)[0] >= 4        # clamped, still usable
-    assert ks_params_for_density(500.0)[0] >= gs[-1]
 
 
-def test_ks_default_is_the_calibration_not_the_old_pin():
-    """Regression for the fairness bug: KS ran at a hardcoded (32, 1.0) that was
-    never measured, costing it 15-38% and flattering every comparison against
-    it."""
-    pytest.importorskip("galsim")
-    from femmi.density import ks_catalog_run
-    r = ks_catalog_run(20.0, seed=0)
-    assert r["ks_grid_size"] == 16 and r["ks_smoothing_px"] == 1.0
-    old = ks_catalog_run(20.0, seed=0, grid_size=32, smoothing_px=1.0)
-    assert r["shape_l2"] < old["shape_l2"]
 
 
 # ------------------------------------------------------ paired statistics ---

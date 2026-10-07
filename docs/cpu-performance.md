@@ -1,5 +1,9 @@
 # CPU acceleration: correctness and performance
 
+These are historical measurements of the earlier inverse path. For the current
+quadratic catalogue mapper and executable profiling commands, see
+[Production performance](production-performance.md).
+
 Base: `e55e1412035ba2b215d2dbb9633f5536da7beea8` (main, 7 October 2026).
 Measurements started at `fa079a9468a19cb1713f814304270723f2025e44`.
 The intervening commits only removed an accidentally tracked patch and added

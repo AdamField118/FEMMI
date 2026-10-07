@@ -1,6 +1,8 @@
 # Configuration & CLI
 
-FEMMI is driven by a single YAML config that describes the whole pipeline. The
+The production `femmi map` command uses an explicit [MapperConfig](mapper.md).
+
+The experimental prior/sampling workflow uses a separate YAML config. The
 `femmi run` command loads it, builds the forward operator, gets the data, builds
 the prior, runs the inverse (MAP or posterior sampling), and saves the outputs.
 

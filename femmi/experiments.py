@@ -61,7 +61,7 @@ def femmi_map(ops, g1, g2, noise_std, wiener_length=0.5, lam=None, weight=None,
     prior: None for the default Wiener/Matern prior, or a kind string accepted by
     priors.make_prior ('tv', 'sparse', 'maxent', ...), or a Prior instance. Note
     that Morozov lambda-selection applies to the Wiener prior only; custom priors
-    run at the fixed lam_reg, matching catalog.reconstruct_catalog.
+    run at the fixed lam_reg, with the explicitly supplied prior.
     """
     fwd = DifferentiableForward(ops, lam_reg=(1e-2 if lam is None else lam))
     prior_obj = prior
