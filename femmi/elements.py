@@ -218,8 +218,7 @@ class C1Element:
                          self.basis(pts, 0, 1) @ c], axis=-1)
 
     def hessian(self, coeffs, pts):
-        """(n_pts, 2, 2) Hessian -- the quantity that is CONTINUOUS for these
-        elements and discontinuous for P3."""
+        """(n_pts, 2, 2) elementwise Hessian; C1 does not imply C2 continuity."""
         c = np.asarray(coeffs, float)
         uxx = self.basis(pts, 2, 0) @ c
         uxy = self.basis(pts, 1, 1) @ c
@@ -231,7 +230,7 @@ class C1Element:
 
     def shear(self, coeffs, pts):
         """(gamma1, gamma2) = (1/2(u_xx - u_yy), u_xy) -- FEMMI's convention.
-        Continuous across elements, which is the entire point of this module."""
+        Values are elementwise; Argyris shares Hessians at vertices only."""
         H = self.hessian(coeffs, pts)
         return 0.5 * (H[:, 0, 0] - H[:, 1, 1]), H[:, 0, 1]
 
@@ -393,6 +392,10 @@ class HCTElement(C1Element):
         sol, *_ = np.linalg.lstsq(A, rhs, rcond=None)  # (30, 12)
         self._C = sol
         self._which_sub = which_sub
+        self._sub_origins = np.array([self._sub_verts(k)[0] for k in range(3)])
+        self._sub_inverse = np.array([
+            np.linalg.inv((self._sub_verts(k)[1:]-self._sub_verts(k)[0]).T)
+            for k in range(3)])
 
     def basis_on_subtriangle(self, pts, sub, dx=0, dy=0):
         """One-sided polynomial trace, including at shared subtriangle edges."""
@@ -406,10 +409,20 @@ class HCTElement(C1Element):
         L = self._to_local(p)
         npow = len(self.powers)
         out = np.zeros((len(p), self.n_dofs))
-        for i in range(len(p)):
-            k = self._which_sub(p[i])
-            M = _mono(self.powers, L[i, 0], L[i, 1], dx, dy)[0]
-            out[i] = M @ self._C[k * npow:(k + 1) * npow, :]
+        # Preserve the scalar classifier's first matching piece and its
+        # outside-element fallback (piece zero), including the 1e-9 tolerance.
+        pieces = np.zeros(len(p), dtype=int)
+        assigned = np.zeros(len(p), dtype=bool)
+        for k in range(3):
+            bary = (p-self._sub_origins[k]) @ self._sub_inverse[k].T
+            inside = ((bary[:,0]>=-1e-9) & (bary[:,1]>=-1e-9)
+                      & (bary.sum(axis=1)<=1.+1e-9) & ~assigned)
+            pieces[inside] = k
+            assigned |= inside
+        M = _mono(self.powers, L[:,0], L[:,1], dx, dy)
+        for k in range(3):
+            selected = pieces == k
+            out[selected] = M[selected] @ self._C[k*npow:(k+1)*npow]
         return out / self.h ** (dx + dy)
 
 
@@ -432,8 +445,13 @@ class C1Space:
     """
 
     def __init__(self, vertices, triangles, kind="argyris"):
-        self.vertices = np.asarray(vertices, float)
-        self.triangles = np.asarray(triangles, int)
+        # The DOF numbering and cached element coefficients describe one fixed
+        # mesh. Own immutable copies so caller mutation cannot stale the cache.
+        # Construct a new C1Space to change geometry or connectivity.
+        self.vertices = np.array(vertices, dtype=float, copy=True)
+        self.triangles = np.array(triangles, dtype=int, copy=True)
+        self.vertices.setflags(write=False)
+        self.triangles.setflags(write=False)
         self.kind = kind
         self.cls = ELEMENTS[kind]
         self.n_vert_dofs = 6 if kind == "argyris" else 3
@@ -446,10 +464,23 @@ class C1Space:
         self.edges = edges
         self.n_vertices = len(self.vertices)
         self.n_dofs = self.n_vertices * self.n_vert_dofs + len(edges)
+        self._elements = [None] * len(self.triangles)
 
     def element(self, t):
-        tri = self.triangles[t]
-        return self.cls(self.vertices[tri], gverts=tuple(int(i) for i in tri))
+        """Lazily cached element; treat its geometry and coefficients as read-only."""
+        el = self._elements[t]
+        if el is None:
+            tri = self.triangles[t]
+            el = self.cls(self.vertices[tri], gverts=tuple(int(i) for i in tri))
+            for value in vars(el).values():
+                if isinstance(value, np.ndarray):
+                    value.setflags(write=False)
+            self._elements[t] = el
+        return el
+
+    def clear_element_cache(self):
+        """Release cached bases without changing this space's fixed mesh."""
+        self._elements = [None] * len(self.triangles)
 
     def local_dofs(self, t):
         """Global DOF indices for element t, in the element's local DOF order."""

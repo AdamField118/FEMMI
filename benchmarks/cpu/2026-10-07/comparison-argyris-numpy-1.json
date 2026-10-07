@@ -1,0 +1,44 @@
+{
+  "before": "numba-results/final-argyris-baseline-1.json",
+  "after": "numba-results/final-argyris-numpy-1.json",
+  "parity": {
+    "forward_probe_relative": 4.09161993363381e-12,
+    "gradient_probe_relative": 1.4825363062656348e-12,
+    "prediction_0_relative": 6.109736937944178e-05,
+    "kappa_0_relative": 0.0008769098435758918,
+    "kappa_values_0_relative": 0.0002068046306310415,
+    "prediction_1_relative": 6.109736937944178e-05,
+    "kappa_1_relative": 0.0008769098435758918,
+    "kappa_values_1_relative": 0.0002068046306310415,
+    "prediction_2_relative": 6.109736937944178e-05,
+    "kappa_2_relative": 0.0008769098435758918,
+    "kappa_values_2_relative": 0.0002068046306310415
+  },
+  "timings": {
+    "setup_s": {
+      "before": 4.563873335999233,
+      "after": 0.3406406770009198,
+      "speedup": 13.397910596528403
+    },
+    "single_layer_s": {
+      "before": 4.185299931999907,
+      "after": 0.030284622000181116,
+      "speedup": 138.19884996335358
+    },
+    "sparse_factorization_s": {
+      "before": 0.009295801999542164,
+      "after": 0.010101280000526458,
+      "speedup": 0.920259808564626
+    },
+    "reconstruction_s": {
+      "before": 19.883344349000254,
+      "after": 21.619929434998994,
+      "speedup": 0.9196766533757735
+    },
+    "total_s": {
+      "before": 24.447946357000546,
+      "after": 21.96091710700057,
+      "speedup": 1.1132479685562484
+    }
+  }
+}

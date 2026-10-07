@@ -1,0 +1,44 @@
+{
+  "before": "numba-results/final-p3-baseline-2.json",
+  "after": "numba-results/final-p3-numba-2.json",
+  "parity": {
+    "forward_probe_relative": 7.62444876340005e-15,
+    "gradient_probe_relative": 5.554279693428445e-15,
+    "prediction_0_relative": 1.3179890315221318e-13,
+    "kappa_0_relative": 1.209117732532877e-13,
+    "kappa_values_0_relative": 1.209117732532877e-13,
+    "prediction_1_relative": 1.3179890315221318e-13,
+    "kappa_1_relative": 1.209117732532877e-13,
+    "kappa_values_1_relative": 1.209117732532877e-13,
+    "prediction_2_relative": 1.3179890315221318e-13,
+    "kappa_2_relative": 1.209117732532877e-13,
+    "kappa_values_2_relative": 1.209117732532877e-13
+  },
+  "timings": {
+    "setup_s": {
+      "before": 5.805153481000161,
+      "after": 2.330462076999538,
+      "speedup": 2.4909881771061797
+    },
+    "single_layer_s": {
+      "before": 2.913104545999886,
+      "after": 0.06546375600009924,
+      "speedup": 44.49950207555261
+    },
+    "sparse_factorization_s": {
+      "before": 0.05259624700011045,
+      "after": 0.07881464400088589,
+      "speedup": 0.6673410464116194
+    },
+    "reconstruction_s": {
+      "before": 0.5224511079995864,
+      "after": 0.6080907000014122,
+      "speedup": 0.8591664171124029
+    },
+    "total_s": {
+      "before": 6.328637692000484,
+      "after": 2.939423394000187,
+      "speedup": 2.1530201143932524
+    }
+  }
+}

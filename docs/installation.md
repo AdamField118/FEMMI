@@ -21,10 +21,15 @@ pip install -e ".[galsim]"   # independent-truth NFW benchmark
 pip install -e ".[paper]"    # exact Remy 2020 reproduction: GalSim + astropy (MassiveNuS maps)
 pip install -e ".[mesh]"     # Triangle-based adaptive meshing
 pip install -e ".[dev]"      # test suite (pytest)
+pip install -e ".[speed]"    # serial float64 CPU BEM kernels (Numba)
 pip install -e ".[docs]"     # build this documentation site (mkdocs-material)
 ```
 
 Extras compose, e.g. `pip install -e ".[neural,io]"`.
+
+The optional speed backend is selected automatically when Numba is installed.
+Use `FEMMI_BEM_BACKEND=numpy` or `FEMMI_BEM_BACKEND=numba` to select it explicitly.
+See [CPU performance](cpu-performance.md) for compilation costs and benchmarks.
 
 ## Verifying the install
 

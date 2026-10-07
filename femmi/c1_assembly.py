@@ -19,6 +19,7 @@ DOFs and are not a substitute for that catalogue reconstruction path.
 """
 
 from __future__ import annotations
+from functools import lru_cache
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
@@ -26,6 +27,7 @@ import scipy.sparse.linalg as spla
 from .elements import C1Space, structured_triangulation
 
 
+@lru_cache(maxsize=16)
 def _quad(n=7):
     """Conical-product Gauss rule on the reference triangle, exact to degree
     2n-1 in each variable.
@@ -46,6 +48,8 @@ def _quad(n=7):
     # (u, v) -> (xi, eta) = (u, v(1-u)), Jacobian (1-u); x2 normalises sum -> 1
     pts = np.stack([U.ravel(), (V * (1.0 - U)).ravel()], axis=1)
     wts = (2.0 * WU * WV * (1.0 - U)).ravel()
+    pts.setflags(write=False)
+    wts.setflags(write=False)
     return pts, wts
 
 

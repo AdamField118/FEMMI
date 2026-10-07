@@ -1,0 +1,70 @@
+{
+  "kind": "p3",
+  "size": 20,
+  "dofs": 3721,
+  "boundary_dofs": 240,
+  "maxiter": 20000,
+  "repeats": 3,
+  "phases": {
+    "numba_import_s": 0.2521599369993055,
+    "jit_compile_or_cache_load_s": 0.1531775529983861,
+    "jit_first_execution_s": 0.0001440879987057997,
+    "p3_reference_s": 0.4028617750009289,
+    "single_layer_s": 0.05442395200043393,
+    "double_layer_s": 0.003562910000255215,
+    "sparse_factorization_s": 0.11499469299997145,
+    "setup_s": 2.170954735000123,
+    "catalogue_s": 0.0007156720002967631,
+    "reconstruction_s": 0.5636605809995672,
+    "total_s": 2.735330987999987,
+    "total_including_jit_s": 3.1408125659963844,
+    "peak_rss_mib": 453.8671875
+  },
+  "fits": [
+    {
+      "seconds": 0.1861493150008755,
+      "objective": 0.7955481329376352,
+      "iterations": 48,
+      "gradient_inf": 9.58132653088072e-07,
+      "converged": true,
+      "value_rmse": 0.02376807857119271
+    },
+    {
+      "seconds": 0.2226894329996867,
+      "objective": 0.7955481329376352,
+      "iterations": 48,
+      "gradient_inf": 9.58132653088072e-07,
+      "converged": true,
+      "value_rmse": 0.02376807857119271
+    },
+    {
+      "seconds": 0.15482183299900498,
+      "objective": 0.7955481329376352,
+      "iterations": 48,
+      "gradient_inf": 9.58132653088072e-07,
+      "converged": true,
+      "value_rmse": 0.02376807857119271
+    }
+  ],
+  "gtol": 1e-06,
+  "lam": 1.0,
+  "wiener_length": 0.5,
+  "source_root": "/workspace/scratch/e82cbce0490f/FEMMI-numba",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "versions": {
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "jax": "0.11.2",
+    "numba": "0.68.0"
+  },
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "processor": "x86_64",
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "1"
+  },
+  "backend": "numba",
+  "profiled": false,
+  "numba_warmed_before_setup": true
+}

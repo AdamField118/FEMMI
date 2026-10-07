@@ -1,0 +1,71 @@
+{
+  "kind": "argyris",
+  "size": 24,
+  "dofs": 522,
+  "boundary_dofs": 120,
+  "maxiter": 20000,
+  "repeats": 3,
+  "phases": {
+    "numba_import_s": 0.24390350000066974,
+    "jit_compile_or_cache_load_s": 0.17042062199834618,
+    "jit_first_execution_s": 0.00013415300054475665,
+    "volume_assembly_s": 0.2535148910010321,
+    "single_layer_s": 0.019420380000156,
+    "double_layer_s": 0.0011128829992230749,
+    "trace_s": 0.015565764000712079,
+    "sparse_factorization_s": 0.015618579000147292,
+    "setup_s": 0.32596876800016616,
+    "catalogue_s": 0.00032794600156194065,
+    "reconstruction_s": 18.756989340001383,
+    "total_s": 19.08328605400311,
+    "total_including_jit_s": 19.49774432900267,
+    "peak_rss_mib": 346.5078125
+  },
+  "fits": [
+    {
+      "seconds": 5.997835627000313,
+      "objective": 0.03684545466312433,
+      "iterations": 8287,
+      "gradient_inf": 7.375547142335348e-07,
+      "converged": true,
+      "value_rmse": 0.038983517165559825
+    },
+    {
+      "seconds": 6.384420856000361,
+      "objective": 0.03684545466312433,
+      "iterations": 8287,
+      "gradient_inf": 7.375547142335348e-07,
+      "converged": true,
+      "value_rmse": 0.038983517165559825
+    },
+    {
+      "seconds": 6.3747328570007085,
+      "objective": 0.03684545466312433,
+      "iterations": 8287,
+      "gradient_inf": 7.375547142335348e-07,
+      "converged": true,
+      "value_rmse": 0.038983517165559825
+    }
+  ],
+  "gtol": 1e-06,
+  "lam": 1.0,
+  "wiener_length": 0.5,
+  "source_root": "/workspace/scratch/e82cbce0490f/FEMMI-numba",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "versions": {
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "jax": "0.11.2",
+    "numba": "0.68.0"
+  },
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "processor": "x86_64",
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "1"
+  },
+  "backend": "numba",
+  "profiled": false,
+  "numba_warmed_before_setup": true
+}

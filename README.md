@@ -199,6 +199,14 @@ cd FEMMI
 pip install -e ".[dev]"
 ```
 
+For CPU acceleration, install `pip install -e ".[speed]"`. Straight-edge BEM
+then uses serial float64 Numba kernels; without Numba it uses NumPy with the
+same precomputed quadrature. Set `FEMMI_BEM_BACKEND=numpy` to force the fallback
+or `FEMMI_BEM_BACKEND=numba` to require acceleration. The first compiled call
+has a startup cost; subsequent processes can reuse Numba's disk cache.
+See [CPU performance](docs/cpu-performance.md) for reproducible profiles,
+matched-quality timings, and limitations.
+
 **Requirements:** Python 3.10+, JAX >= 0.4, SciPy >= 1.11, NumPy >= 1.25, matplotlib.
 
 **64-bit arithmetic is mandatory.** FEMMI enforces this at import time via `jax.config.update("jax_enable_x64", True)`. For a $20\times20$ mesh, $\kappa(A_{\mathrm{coupled}}) = O(1600)$; in 32-bit the solve error $O(\kappa\varepsilon_{32}) \approx 2\times10^{-5}$ dominates the P3 discretisation error $h^4 \approx 6\times10^{-6}$. (The learned score network is the exception — it runs JIT-compiled in float32, since a prior does not need 64-bit precision and float64 convolutions are needlessly slow on a GPU.)

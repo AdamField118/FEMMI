@@ -185,90 +185,20 @@ def build_boundary_mesh(points, degree, closed=True):
     )
 
 
-def assemble_single_layer_hp(bnd, degree, n_quad=25):
-    """V_h[i,j] = int int G(x,y) phi_i(x) phi_j(y) ds ds, G = (1/2pi) log|x-y|.
+def assemble_single_layer_hp(bnd, degree, n_quad=25, *, backend=None):
+    """Straight-edge single layer, retaining the original singular rule.
 
-    Off-diagonal blocks by Gauss-Legendre; the self block by Duffy decomposition
-    with log-Gauss-Jacobi, exactly as in bem.assemble_single_layer.
+    ``backend`` is auto, numpy or numba; None follows FEMMI_BEM_BACKEND.
+    Curved assembly is separate and unaffected by this backend.
     """
-    nd = degree + 1
-    N_b = bnd.n_boundary_dofs
-    xi_gl, w_gl = _gauss_legendre(n_quad)
-    xi_lj, w_lj = log_gauss_jacobi_points(n_quad)
-    phi_gl = boundary_basis(degree, xi_gl)
-
-    elems = bnd.elements
-    p0 = bnd.nodes[elems[:, 0]]
-    p1 = bnd.nodes[elems[:, -1]]
-    L = bnd.element_lengths
-    x_pts = p0[:, None, :] + xi_gl[None, :, None] * (p1 - p0)[:, None, :]
-
-    V = np.zeros((N_b, N_b))
-    for s in range(bnd.n_elements):
-        L_s = L[s]
-        xs = p0[s][None, :] + xi_gl[:, None] * (p1[s] - p0[s])[None, :]
-        diff = xs[None, :, None, :] - x_pts[:, None, :, :]
-        r2 = np.sum(diff**2, axis=-1)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            G = np.where(r2 > 1e-30, np.log(np.maximum(r2, 1e-300)) / (4.0 * np.pi), 0.0)
-        kernel = (L_s * L[:, None, None] * G
-                  * w_gl[None, :, None] * w_gl[None, None, :])
-        kernel[s] = 0.0
-        V_elem = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)
-
-        V_diag = np.zeros((nd, nd))
-        for q, (sigma, wq) in enumerate(zip(xi_gl, w_gl)):
-            phi_s = phi_gl[q]
-            log_Lsig = np.log(L_s * sigma)
-            for v, wv in zip(xi_gl, w_gl):
-                phi_t = boundary_basis(degree, np.array([sigma * (1.0 - v)]))[0]
-                pre = L_s**2 / (2.0 * np.pi) * sigma * log_Lsig * wq * wv
-                V_diag += pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
-            for v, wv_lj in zip(xi_lj, w_lj):
-                phi_t = boundary_basis(degree, np.array([sigma * (1.0 - v)]))[0]
-                pre = L_s**2 / (2.0 * np.pi) * sigma * wq * wv_lj
-                V_diag -= pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
-        V_elem[s] = V_diag
-
-        for a in range(nd):
-            for b in range(nd):
-                np.add.at(V, (elems[s][a], elems[:, b]), V_elem[:, a, b])
-
-    return 0.5 * (V + V.T)
+    from ._bem_assembly import assemble_straight
+    return assemble_straight(bnd, degree, n_quad, single=True, backend=backend)
 
 
-def assemble_double_layer_hp(bnd, degree, n_quad=8):
-    """K_h[i,j] = int int dG/dn(y) phi_i(x) phi_j(y) ds ds.
-
-    The self block vanishes for straight segments (the normal is orthogonal to
-    the separation), so it is simply zeroed."""
-    nd = degree + 1
-    N_b = bnd.n_boundary_dofs
-    xi_gl, w_gl = _gauss_legendre(n_quad)
-    phi_gl = boundary_basis(degree, xi_gl)
-
-    elems = bnd.elements
-    p0 = bnd.nodes[elems[:, 0]]
-    p1 = bnd.nodes[elems[:, -1]]
-    L = bnd.element_lengths
-    nrm = bnd.element_normals
-    x_pts = p0[:, None, :] + xi_gl[None, :, None] * (p1 - p0)[:, None, :]
-
-    K = np.zeros((N_b, N_b))
-    for s in range(bnd.n_elements):
-        xs = p0[s][None, :] + xi_gl[:, None] * (p1[s] - p0[s])[None, :]
-        diff = xs[None, :, None, :] - x_pts[:, None, :, :]
-        r2 = np.sum(diff**2, axis=-1)
-        r2 = np.where(r2 < 1e-28, np.inf, r2)
-        dGdn = np.sum(diff * nrm[:, None, None, :], axis=-1) / (2.0 * np.pi * r2)
-        kernel = (L[s] * L[:, None, None] * dGdn
-                  * w_gl[None, :, None] * w_gl[None, None, :])
-        kernel[s] = 0.0
-        K_elem = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)
-        for a in range(nd):
-            for b in range(nd):
-                np.add.at(K, (elems[s][a], elems[:, b]), K_elem[:, a, b])
-    return K
+def assemble_double_layer_hp(bnd, degree, n_quad=8, *, backend=None):
+    """Straight-edge double layer, with zero diagonal element blocks."""
+    from ._bem_assembly import assemble_straight
+    return assemble_straight(bnd, degree, n_quad, single=False, backend=backend)
 
 
 def assemble_boundary_mass_hp(bnd, degree, n_quad=None):

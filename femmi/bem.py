@@ -154,131 +154,20 @@ def _gauss_legendre(n):
     return 0.5 * (xi + 1.0), 0.5 * wi
 
 
-def assemble_single_layer(bnd, n_quad=25):
+def assemble_single_layer(bnd, n_quad=25, *, backend=None):
+    """Single layer with unchanged GL/Duffy/log-Laguerre quadrature.
+
+    ``backend`` is auto, numpy or numba; None follows FEMMI_BEM_BACKEND.
+    Both paths preserve float64 and share precomputed reference basis data.
     """
-    Assemble the single-layer BEM matrix V_h.
-
-    V_h[i,j] = integral G(x,y) phi_i(x) phi_j(y) ds(x) ds(y)
-    where G(x,y) = (1/2pi) ln|x-y|.
-
-    Off-diagonal blocks use Gauss-Legendre; diagonal blocks use
-    Duffy decomposition with log-Gauss-Laguerre for the log singularity.
-    """
-    N_b    = bnd.n_boundary_dofs
-    N_elem = bnd.n_elements
-    xi_gl, w_gl = _gauss_legendre(n_quad)
-    xi_lj, w_lj = log_gauss_jacobi_points(n_quad)
-
-    phi_gl = _p3_boundary_basis(xi_gl)
-
-    elems  = bnd.elements
-    p0_all = bnd.nodes[elems[:, 0]]
-    p3_all = bnd.nodes[elems[:, 3]]
-    L_all  = bnd.element_lengths
-
-    x_pts = (p0_all[:, None, :]
-             + xi_gl[None, :, None] * (p3_all - p0_all)[:, None, :])
-
-    V = np.zeros((N_b, N_b))
-
-    for s in range(N_elem):
-        L_s     = L_all[s]
-        p0_s    = p0_all[s]
-        p3_s    = p3_all[s]
-        s_nodes = elems[s]
-
-        xs = p0_s[None, :] + xi_gl[:, None] * (p3_s - p0_s)[None, :]
-
-        diff = xs[None, :, None, :] - x_pts[:, None, :, :]
-        r2   = np.sum(diff**2, axis=-1)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            G_val = np.where(r2 > 1e-30,
-                             np.log(np.maximum(r2, 1e-300)) / (4.0 * np.pi),
-                             0.0)
-
-        kernel      = (L_s * L_all[:, None, None] * G_val
-                       * w_gl[None, :, None] * w_gl[None, None, :])
-        kernel[s]   = 0.0
-
-        V_elem = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)
-
-        # Diagonal self-interaction via Duffy decomposition
-        V_diag = np.zeros((4, 4))
-        for q, (sigma, wq) in enumerate(zip(xi_gl, w_gl)):
-            phi_s    = phi_gl[q]
-            log_Lsig = np.log(L_s * sigma)
-
-            for r, (v, wv) in enumerate(zip(xi_gl, w_gl)):
-                tau   = sigma * (1.0 - v)
-                phi_t = _p3_boundary_basis(np.array([tau]))[0]
-                pre   = L_s**2 / (2.0 * np.pi) * sigma * log_Lsig * wq * wv
-                V_diag += pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
-
-            for v, wv_lj in zip(xi_lj, w_lj):
-                tau   = sigma * (1.0 - v)
-                phi_t = _p3_boundary_basis(np.array([tau]))[0]
-                pre   = L_s**2 / (2.0 * np.pi) * sigma * wq * wv_lj
-                V_diag -= pre * (np.outer(phi_s, phi_t) + np.outer(phi_t, phi_s))
-
-        V_elem[s] = V_diag
-
-        t_nodes = elems
-        for a in range(4):
-            for b in range(4):
-                np.add.at(V, (s_nodes[a], t_nodes[:, b]), V_elem[:, a, b])
-
-    return 0.5 * (V + V.T)
+    from ._bem_assembly import assemble_straight
+    return assemble_straight(bnd, 3, n_quad, single=True, p3=True, backend=backend)
 
 
-def assemble_double_layer(bnd, n_quad=8):
-    """
-    Assemble the double-layer BEM matrix K_h.
-
-    K_h[i,j] = integral (dG/dn(y))(x,y) phi_i(x) phi_j(y) ds(x) ds(y)
-    where dG/dn = (1/2pi) (x-y).n(y) / |x-y|^2.
-
-    Diagonal blocks are zero for straight boundary segments.
-    """
-    N_b    = bnd.n_boundary_dofs
-    N_elem = bnd.n_elements
-    xi_gl, w_gl = _gauss_legendre(n_quad)
-
-    phi_gl = _p3_boundary_basis(xi_gl)
-
-    elems  = bnd.elements
-    p0_all = bnd.nodes[elems[:, 0]]
-    p3_all = bnd.nodes[elems[:, 3]]
-    L_all  = bnd.element_lengths
-    n_all  = bnd.element_normals
-
-    x_pts = (p0_all[:, None, :]
-             + xi_gl[None, :, None] * (p3_all - p0_all)[:, None, :])
-
-    K = np.zeros((N_b, N_b))
-
-    for s in range(N_elem):
-        L_s     = L_all[s]
-        p0_s    = p0_all[s]; p3_s = p3_all[s]
-        s_nodes = elems[s]
-
-        xs   = p0_s[None, :] + xi_gl[:, None] * (p3_s - p0_s)[None, :]
-        diff = xs[None, :, None, :] - x_pts[:, None, :, :]
-        r2   = np.sum(diff**2, axis=-1)
-        r2   = np.where(r2 < 1e-28, np.inf, r2)
-
-        dGdn   = (np.sum(diff * n_all[:, None, None, :], axis=-1)
-                  / (2.0 * np.pi * r2))
-        kernel = (L_s * L_all[:, None, None] * dGdn
-                  * w_gl[None, :, None] * w_gl[None, None, :])
-        kernel[s] = 0.0
-
-        K_elem  = np.einsum('tqr,qa,rb->tab', kernel, phi_gl, phi_gl)
-        t_nodes = elems
-        for a in range(4):
-            for b in range(4):
-                np.add.at(K, (s_nodes[a], t_nodes[:, b]), K_elem[:, a, b])
-
-    return K
+def assemble_double_layer(bnd, n_quad=8, *, backend=None):
+    """Double layer on straight edges (zero self blocks), in float64."""
+    from ._bem_assembly import assemble_straight
+    return assemble_straight(bnd, 3, n_quad, single=False, p3=True, backend=backend)
 
 
 def assemble_boundary_mass(bnd):
