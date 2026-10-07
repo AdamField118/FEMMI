@@ -47,10 +47,16 @@ def shear_selection_operators(space):
 
     Argyris only. The Hessian components are DOFs 3, 4, 5 of each vertex block,
     so this is a selection: gamma1 = 1/2(u_xx - u_yy), gamma2 = u_xy.
+
+    For HCT, whose vertex block is only {u, u_x, u_y}, use
+    `shear_evaluation_operators` -- the Hessian is not a DOF there and has to be
+    evaluated. Both return the same shape, so the rest of the inverse path is
+    unchanged; `shear_operators` picks between them.
     """
     if space.n_vert_dofs != 6:
         raise ValueError("shear selection needs Hessian vertex DOFs (Argyris); "
-                         f"got n_vert_dofs={space.n_vert_dofs}")
+                         f"got n_vert_dofs={space.n_vert_dofs}. Use "
+                         "shear_evaluation_operators (or shear_operators) for HCT.")
     nv = space.n_vertices
     rows1 = np.repeat(np.arange(nv), 2)
     cols1 = np.stack([np.arange(nv) * 6 + 3, np.arange(nv) * 6 + 5], 1).ravel()
@@ -59,6 +65,62 @@ def shear_selection_operators(space):
     S2 = sp.coo_matrix((np.ones(nv), (np.arange(nv), np.arange(nv) * 6 + 4)),
                        shape=(nv, space.n_dofs)).tocsr()
     return S1, S2
+
+
+def shear_evaluation_operators(space):
+    """(S1, S2) for a C^1 space whose vertices do NOT carry the Hessian (HCT).
+
+    THE POINT OF THE COMPARISON. Argyris gets its shear for free -- the Hessian
+    is literally three of its DOFs, so S is a selection with one or two entries
+    per row and no quadrature. HCT is C^1 too, so its Hessian is still CONTINUOUS
+    at a vertex and can be evaluated unambiguously from any element meeting
+    there; it just is not a degree of freedom, so the operator has to be built.
+
+    That difference is the whole reason HCT is worth testing: it costs 12 DOF per
+    element against Argyris's 21 and inverts a 12x12 Vandermonde instead of a
+    21x21, which is the direct answer to the sliver-conditioning caveat. If the
+    accuracy survives at ~half the DOFs, HCT is the cheaper claim to defend.
+
+    Unlike the P3 case there is no averaging over adjacent elements and no
+    boundary special case: C^1 continuity means every element meeting a vertex
+    gives the SAME Hessian there, so picking one is exact rather than a choice.
+    """
+    nv = space.n_vertices
+    verts = space.vertices
+    owner = {}
+    for t, tri in enumerate(space.triangles):
+        for v in tri:
+            owner.setdefault(int(v), t)          # any element will do -- C^1
+    r1 = []; c1 = []; v1 = []
+    r2 = []; c2 = []; v2 = []
+    for v in range(nv):
+        t = owner.get(v)
+        if t is None:                            # isolated vertex, no element
+            continue
+        el = space.element(t)
+        p = verts[v][None, :]
+        bxx = el.basis(p, 2, 0)[0]
+        bxy = el.basis(p, 1, 1)[0]
+        byy = el.basis(p, 0, 2)[0]
+        idx = space.local_dofs(t)
+        g1 = 0.5 * (bxx - byy)
+        nz = np.abs(g1) > 1e-14
+        r1.extend([v] * int(nz.sum())); c1.extend(idx[nz].tolist())
+        v1.extend(g1[nz].tolist())
+        nz = np.abs(bxy) > 1e-14
+        r2.extend([v] * int(nz.sum())); c2.extend(idx[nz].tolist())
+        v2.extend(bxy[nz].tolist())
+    shape = (nv, space.n_dofs)
+    return (sp.coo_matrix((v1, (r1, c1)), shape=shape).tocsr(),
+            sp.coo_matrix((v2, (r2, c2)), shape=shape).tocsr())
+
+
+def shear_operators(space):
+    """(S1, S2) for any supported C^1 space -- selection if possible, else
+    evaluation. This is what the reconstructor should call."""
+    if space.n_vert_dofs == 6:
+        return shear_selection_operators(space)
+    return shear_evaluation_operators(space)
 
 
 def c1_gradient_operator(space, quad_order=7):
@@ -154,7 +216,7 @@ class C1MAPReconstructor:
         self.space = space
         self.ops = coupled or C1CoupledOperators(space, degree=degree,
                                                  quad_order=quad_order)
-        self.S1, self.S2 = shear_selection_operators(space)
+        self.S1, self.S2 = shear_operators(space)
         self.lam = float(lam)
         self.maxiter = int(maxiter)
         self.w = (np.ones(space.n_vertices) if data_weight is None

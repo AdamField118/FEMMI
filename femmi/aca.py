@@ -246,7 +246,7 @@ def build_hmatrix(points, entry_block, min_size=32, eta=1.0, tol=1e-6,
 # --------------------------------------------------------------------------- #
 # single-layer entries at DOF level (the thing ACA needs)
 # --------------------------------------------------------------------------- #
-def single_layer_entry_fn(bnd, n_quad=12):
+def single_layer_entry_fn(bnd, n_quad=12, degree=3, clustering="uniform"):
     """Return (points, entry_block) for the Galerkin single-layer operator.
 
     entry_block(rows, cols) computes V[rows, cols] directly:
@@ -257,18 +257,37 @@ def single_layer_entry_fn(bnd, n_quad=12):
     summing over the boundary elements that carry DOF i (local index a) and DOF j
     (local index b). No singular treatment is applied, so this is valid for
     ADMISSIBLE blocks -- exactly where ACA uses it. Near-field and self blocks
-    keep the tuned Duffy/log-Gauss handling in bem.assemble_single_layer.
+    keep the tuned Duffy/log-Gauss handling in `near_field_entry_fn`.
+
+    DEGREE MATTERS HERE. This was hardcoded to P3 (`_p3_boundary_basis`, four
+    nodes per element) while the C^1 coupling runs its boundary at degree 5, so
+    ACA could not serve the one place in the project that would actually use it.
+    It now takes `degree` like the rest of `bem_hp`, and `clustering` so the DOF
+    positions match the mesh the operator was assembled on.
+
+    WHETHER ACA PAYS AT ALL (measured, MATH.md 18.3l): not at these sizes, and
+    not on any geometry tried. Against dense assembly it runs at 0.52-0.78x on a
+    uniform circular mesh (N_b = 144 and 240, degrees 3 and 5) and a flat 0.65x
+    on catalog guard rings, across ACA tolerances 1e-6..1e-9 and admissibility
+    eta 1..2. Flat in N_b means no crossover is coming below the sizes this
+    project runs. The compression and the 1e-9 accuracy are real; the speed is
+    not. `bem_hp.ACA_MIN_NB` keeps it off by default.
     """
-    from .bem import _p3_boundary_basis, _gauss_legendre
+    from .bem import _gauss_legendre
+    from .bem_hp import boundary_basis, node_positions
 
     elems = np.asarray(bnd.elements)
     nodes = np.asarray(bnd.nodes)
     L = np.asarray(bnd.element_lengths)
     N_b = bnd.n_boundary_dofs
+    nd = degree + 1
+    if elems.shape[1] != nd:
+        raise ValueError(f"boundary mesh has {elems.shape[1]} nodes per element, "
+                         f"which is degree {elems.shape[1] - 1}, not {degree}")
 
     xi, w = _gauss_legendre(n_quad)
-    phi = _p3_boundary_basis(xi)                       # (nq, 4)
-    p0 = nodes[elems[:, 0]]; p3 = nodes[elems[:, 3]]
+    phi = boundary_basis(degree, xi)                   # (nq, degree+1)
+    p0 = nodes[elems[:, 0]]; p3 = nodes[elems[:, -1]]
     xq = p0[:, None, :] + xi[None, :, None] * (p3 - p0)[:, None, :]   # (ne,nq,2)
 
     # DOF -> list of (element, local index)
@@ -278,7 +297,7 @@ def single_layer_entry_fn(bnd, n_quad=12):
             owner[int(d)].append((e, a))
 
     # geometric location of each DOF, for clustering
-    tnodes = np.array([0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0])
+    tnodes = np.asarray(node_positions(degree, clustering), float)
     pts = np.zeros((N_b, 2))
     for d in range(N_b):
         e, a = owner[d][0]

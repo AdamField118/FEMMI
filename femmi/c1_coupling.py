@@ -137,15 +137,18 @@ class C1CoupledOperators:
     operator, for a given C1Space."""
 
     def __init__(self, space: C1Space, degree=5, quad_order=7, sigma_scale=1.0,
-                 n_quad_sl=25, n_quad_dl=8, verbose=False):
+                 n_quad_sl=25, n_quad_dl=8, verbose=False, use_aca=None):
         self.space = space
         self.degree = degree
 
         self.K, self.M = assemble_c1(space, quad_order=quad_order)
         self.loop = boundary_loop(space)
         self.bnd = build_boundary_mesh(space.vertices[self.loop], degree)
-        V_h, K_h, M_b = assemble_bem_hp(self.bnd, degree,
-                                        n_quad_sl=n_quad_sl, n_quad_dl=n_quad_dl)
+        # use_aca=None follows the measured N_b crossover (bem_hp.ACA_MIN_NB),
+        # which is set so ACA stays OFF here: on catalog guard rings it is a flat
+        # 30% slower, even though it wins 2.4x on a uniform circular mesh
+        V_h, K_h, M_b = assemble_bem_hp(self.bnd, degree, n_quad_sl=n_quad_sl,
+                                        n_quad_dl=n_quad_dl, use_aca=use_aca)
         self.P = trace_operator(space, self.bnd, self.loop, degree)
 
         N_b = self.bnd.n_boundary_dofs

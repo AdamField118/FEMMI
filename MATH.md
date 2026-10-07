@@ -1121,10 +1121,10 @@ claim.** On a structured mesh P3 is handed a shear observation at *every* node �
 edge and interior nodes included — which no real catalog provides. The honest
 version of the comparison puts both methods' vertices at galaxy positions
 (§18.3i) and measures the axis a survey is actually specified on — effective
-source density $n_{\rm eff}$ in gal/arcmin². There the factor against P3 falls to
-about **1.4–2.0x**, and is only resolved above the catalog-to-catalog scatter at
-one of four densities; the factor that *is* solid is against Kaiser–Squires
-(**1.4–4.1x**, largest at DES density).
+source density $n_{\rm eff}$ in gal/arcmin². There the factor against P3 is
+**$\ge 3\times$ for $n_{\rm eff}\ge 10$** and unresolved at the sparsest density,
+and against Kaiser–Squires it is $3.95\times$ at DES density and $\ge 3\times$
+above that.
 
 The reason is structural rather than incidental: a P3 node contributes a shear
 estimate only through an average over the elements meeting there, while an
@@ -1193,12 +1193,18 @@ that brackets **DES Y3** (5.6), **KiDS-1000** (6.2), **CFHTLenS** (11), **HSC Y3
 field, shape noise 0.05, **averaged over six catalog realisations** with the
 standard error of the mean:
 
+Both FEM arms choose their regularisation weight the same way: P3 by its
+per-catalog Morozov selection, Argyris by the held-out-calibrated constant
+$\lambda_{\rm cal}=1.2111$ (§18.3j — an earlier version of this table pinned
+Argyris at $\lambda=0.3$ while P3 tuned itself, which understated the element by
+about a fifth).
+
 | $n_{\rm eff}$ [/arcmin²] | galaxies | Argyris (catalog) | P3 (catalog) | Kaiser–Squires |
 |---|---|---|---|---|
-| 5 | 141 | **0.6214** ± 0.0363 | 0.7082 ± 0.0334 | 0.8781 ± 0.0106 |
-| 10 | 283 | **0.5159** ± 0.0241 | 0.6179 ± 0.0071 | 0.7592 ± 0.0062 |
-| 20 | 565 | **0.5224** ± 0.0230 | 0.5559 ± 0.0293 | 0.6262 ± 0.0114 |
-| 30 | 848 | **0.4837** ± 0.0177 | 0.5182 ± 0.0073 | 0.5047 ± 0.0137 |
+| 5 | 141 | **0.6288** ± 0.0445 | 0.7082 ± 0.0334 | 0.8781 ± 0.0106 |
+| 10 | 283 | **0.4814** ± 0.0118 | 0.6179 ± 0.0071 | 0.7592 ± 0.0062 |
+| 20 | 565 | **0.4117** ± 0.0242 | 0.5559 ± 0.0293 | 0.6262 ± 0.0114 |
+| 30 | 848 | **0.3798** ± 0.0171 | 0.5182 ± 0.0073 | 0.5047 ± 0.0137 |
 
 **The seed average is not a formality — it is the main methodological finding
 here.** On any single realisation the numbers look decisive and are not: across
@@ -1215,37 +1221,46 @@ standard error):
 
 | $n_{\rm eff}$ | Argyris vs P3 | Argyris vs KS |
 |---|---|---|
-| 5 | $1.8\sigma$ | $6.8\sigma$ |
-| 10 | $4.1\sigma$ | $9.8\sigma$ |
-| 20 | $0.9\sigma$ | $4.0\sigma$ |
-| 30 | $1.8\sigma$ | $0.9\sigma$ |
+| 5 | $1.4\sigma$ | $5.5\sigma$ |
+| 10 | $9.9\sigma$ | $20.9\sigma$ |
+| 20 | $3.8\sigma$ | $8.0\sigma$ |
+| 30 | $7.4\sigma$ | $5.7\sigma$ |
 
-**What is actually defensible, then:**
+**What is defensible:**
 
-* **Against Kaiser–Squires the advantage is solid and survey-relevant.** Argyris
-  is better at every density and the separation is $4$–$10\sigma$ for
-  $n_{\rm eff}\le 20$, i.e. across the whole DES-through-HSC range. Converted to
-  density, KS needs roughly $4.1\times$ the sources at DES-like density,
-  $2.9\times$ at $n_{\rm eff}=10$, and $1.4\times$ at HSC density. The advantage
-  **shrinks monotonically with density and is gone by Euclid** ($0.9\sigma$ at
-  $n_{\rm eff}=30$) — which makes sense, since KS's problem is estimator noise and
-  boundary truncation, both of which density buys down.
-* **Against catalog-native P3 the advantage is real in the mean at every density
-  but only resolved above the seed scatter at one of the four** ($4.1\sigma$ at
-  $n_{\rm eff}=10$; $0.9$–$1.8\sigma$ elsewhere). The mean equivalence factor
-  where it is measurable at all is $1.4$–$2.0\times$. This should be quoted as
-  **suggestive, not established** — six realisations do not settle it, and saying
-  so is part of the result.
+* **Against Kaiser–Squires, at every density.** $5.5$–$21\sigma$ across the whole
+  DES-through-Euclid range. Unlike the earlier pinned-$\lambda$ version of this
+  table, the advantage no longer vanishes at Euclid density.
+* **Against catalog-native P3, for $n_{\rm eff}\ge 10$** — $9.9\sigma$,
+  $3.8\sigma$, $7.4\sigma$. At the sparsest density ($1.4\sigma$) it is not
+  resolved, and should not be claimed. This is the statement that the earlier
+  table could only call *suggestive*; fixing the regularisation weight (§18.3j)
+  is what moved it, not more realisations.
 
-Either way the $8.5\times$ from the structured-mesh comparison (§18.3h) does not
-survive contact with catalog geometry. The element still helps; it helps by a
-factor of order two against the FEM baseline, not of order ten.
+Converted to the survey axis, only the sparsest density yields a finite
+equivalence factor at all:
 
-Two entries in the run's factor table are dashes rather than numbers on purpose:
-where Argyris's error is below everything the other method achieves anywhere in
-the swept range, the honest report is a bound, not an extrapolation.
-(`_equivalent_density` returns `nan` outside the measured range for exactly this
-reason — `np.interp` would clamp and print a spurious `1.00x`.)
+| Argyris at | its error | P3 needs | factor | KS needs | factor |
+|---|---|---|---|---|---|
+| 5 | 0.6288 | 9.2 | **1.84x** | 19.7 | **3.95x** |
+| 10 | 0.4814 | > 30 | **> 3x** | > 30 | **> 3x** |
+| 20 | 0.4117 | > 30 | — | > 30 | — |
+| 30 | 0.3798 | > 30 | — | > 30 | — |
+
+The dashes are the point rather than a gap. From $n_{\rm eff}=10$ upward
+Argyris's error is below anything P3 or KS reach *anywhere in the swept range*,
+so the honest report is a bound: **at CFHTLenS-like density (10 gal/arcmin²)
+catalog-native Argyris already beats what both baselines achieve at Euclid
+density (30)** — a factor of more than three, quoted as an inequality because the
+sweep stops there. (`_equivalent_density` returns `nan` outside the measured
+range for exactly this reason; `np.interp` would clamp and print a spurious
+`1.00x`.)
+
+The $8.5\times$ from the structured-mesh comparison (§18.3h) still does not
+survive contact with catalog geometry — that figure came from handing P3 an
+observation at every node. But the honest catalog-native factor is $\ge 3\times$
+at survey densities rather than the $1.4$–$2.0\times$ the pinned-$\lambda$ table
+suggested.
 
 **Two further caveats that belong with the claim.**
 
@@ -1256,24 +1271,489 @@ reason — `np.interp` would clamp and print a spurious `1.00x`.)
    with density (seed-mean $1.2/304$, $1.7/597$, $5.5/1176$, $10.2/1751$ at
    $n_{\rm eff} = 5/10/20/30$), as it must: more points means more chances to draw
    a near-degenerate triple. `density.mesh_quality` reports this. Catalog-native
-   C^1 needs mesh conditioning; it is not free, and it is a plausible contributor
-   to the next point.
+   C^1 needs mesh conditioning; it is not free, and it remains the most likely
+   explanation for the sparsest density still sitting short of its oracle
+   (§18.3j).
 2. *Cost.* Argyris is also the cheaper of the two FEM methods here in wall-clock
-   (6.0/10.7/20.0/28.0 s against P3's 16.6/23.4/38.8/54.0 s), for slightly fewer
+   (5.4/8.9/17.7/24.7 s against P3's 12.0/16.3/25.0/37.3 s), for slightly fewer
    DOFs. But the efficiency being *claimed* is in source density, not time; the
    timings are single-machine and are reported only so nobody assumes C^1 costs
    extra.
+3. *One truth field.* Everything above is a single centred analytic NFW halo,
+   which is the case a C^1 element should suit best. Task #50 runs the same sweep
+   on the lognormal and MassiveNuS truths; until then the scope of the claim is a
+   smooth peaked field.
 
-**The open lead this exposed.** Argyris's error barely improves between
-$n_{\rm eff}=10$ and $20$ ($0.5159 \to 0.5224$, i.e. flat within the scatter)
-while P3 and KS keep improving. Something other than source density is limiting
-it in that range — the regularisation weight is held fixed at $\lambda=0.3$
-across the whole sweep, so the most likely explanation is that $\lambda$ should
-scale with density (more sources means less smoothing needed) and a fixed value
-over-regularises the denser catalogs. If that is right, the P3 comparison above
-is a *lower bound* on the element's advantage. Testing it means re-running the
-sweep with $\lambda$ chosen per catalog by the Morozov/L-curve machinery already
-in `femmi.lambda_selection` (§14) rather than pinned.
+**How this table came to be right**, and what it looked like when it was not:
+with Argyris pinned at $\lambda = 0.3$ its error was flat between
+$n_{\rm eff}=10$ and $20$ ($0.5159 \to 0.5224$) while both baselines kept
+improving, and the P3 comparison was resolved at only one of four densities. The
+cause was that the comparison was **tuned against untuned** —
+`catalog.reconstruct_catalog` has always run with `use_morozov=True`, so the P3
+arm chose its own $\lambda$ per catalog while the Argyris arm did not. §18.3j is
+that investigation; it is worth reading before quoting anything above, because
+the conclusion it reaches about $\lambda$ selection is itself a result.
+
+### 18.3j The regularisation weight: what the pinned $\lambda$ cost
+
+An **oracle sweep** — scoring against the truth at each $\lambda$ on a 9-point
+log grid, three seeds, four densities — settles both questions. Best $\lambda$
+and the resulting error, against the pinned $\lambda = 0.3$:
+
+| $n_{\rm eff}$ | best $\lambda$ (3 seeds) | error at best | error at $\lambda=0.3$ | cost of pinning |
+|---|---|---|---|---|
+| 5 | 0.32, 1.0, 0.32 | 0.5586 | 0.5682 | 1.7% |
+| 10 | 1.0, 1.0, 1.0 | 0.4733 | 0.5596 | **15%** |
+| 20 | 1.0, 1.0, 1.0 | 0.4471 | 0.5716 | **22%** |
+| 30 | 1.0, 1.0, 1.0 | 0.3924 | 0.4845 | **19%** |
+
+Three things follow, and the first one corrects the guess in §18.3i.
+
+**1. $\lambda$ must grow with density, not shrink.** The lead predicted the
+opposite — "more sources means less smoothing needed". The data term is an
+unnormalised *sum* over observations, so doubling the source count doubles it
+while the prior term is unchanged; holding the balance fixed therefore requires
+$\lambda \propto n_{\rm obs}$. The optimum moves $0.3 \to 1.0$ over the swept
+range for that reason, which is a scaling property of the functional and not a
+statement about how much smoothing the physics wants.
+
+**2. The flat spot was the artifact it looked like.** At the oracle $\lambda$ the
+Argyris curve is monotone again — $0.5586, 0.4733, 0.4471, 0.3924$ — and the
+$10 \to 20$ plateau disappears. Pinning cost nothing at the sparsest density
+(where $0.3$ happens to be near-optimal) and 15–22% everywhere else, i.e. it hurt
+exactly where the comparison against P3 was weakest.
+
+**3. Neither standard selector finds it.** On the same curves,
+
+* **Morozov ($c=1$)** returns $\lambda = 1.9$–$4.6$, consistently $3$–$4\times$
+  too large, and measurably *worse* than the pinned value (at $n_{\rm eff}=5$,
+  seed 0: $0.84$ against $0.67$);
+* **the L-curve corner** returns $0.03$–$0.32$, consistently too small.
+
+The Morozov failure is *systematic* rather than noisy, which is what suggested it
+was fixable. The best $\lambda$ sits where the residual is a fixed fraction of
+$\delta$ rather than equal to it, and the mechanism is standard: the discrepancy
+principle targets a residual equal to the noise, but here roughly $6\times$ more
+unknowns than observations are being fitted (an Argyris vertex carries six DOFs
+and supplies two shear components), so the model can drive the residual below
+$\delta$ legitimately. The degrees-of-freedom-corrected target is
+$\delta\sqrt{1-p/n}$.
+
+Calibrating that single constant against the oracle optimum on **held-out
+catalogs — seeds 100–102, disjoint from every seed reported anywhere in this
+document** — over the four densities gives
+
+$$c = 0.9119 \pm 0.0157 \quad (n=12,\ \text{spread } 0.791\text{–}0.980),$$
+
+i.e. $p/n \approx 0.17$, and stable across density ($0.87, 0.92, 0.94, 0.92$ at
+$n_{\rm eff}=5,10,20,30$). `femmi.c1_lambda.MOROZOV_C` freezes that value;
+calibrating on the reported seeds instead would be tuning on the test set.
+
+**And it still does not work.** Run blind on the 24 reported catalogs (seeds
+0–5, disjoint from the calibration seeds), the calibrated per-catalog rule is a
+coin flip against the pinned value — it wins in **10 of 24** — and it *adds*
+variance:
+
+| $n_{\rm eff}$ | pinned $\lambda=0.3$ | Morozov, $c$ calibrated | oracle |
+|---|---|---|---|
+| 5 | 0.6214 ± 0.0363 | 0.6591 ± 0.0486 | **0.5903** ± 0.0434 |
+| 10 | 0.5159 ± 0.0241 | 0.5099 ± 0.0119 | **0.4605** ± 0.0108 |
+| 20 | 0.5224 ± 0.0230 | 0.5209 ± 0.0572 | **0.4101** ± 0.0235 |
+| 30 | 0.4837 ± 0.0177 | 0.4872 ± 0.0329 | **0.3766** ± 0.0168 |
+| all | 0.5358 | 0.5443 | **0.4594** |
+
+**Why it fails, quantitatively.** The residual is nearly flat in $\lambda$ near
+the optimum: between $\lambda=1$ and $\lambda=3.16$ it moves only $0.0421 \to
+0.0493$. The sensitivity is therefore
+
+$$\frac{d\log\lambda}{d\log \mathrm{resid}} \;\approx\; 7,$$
+
+so the $\pm 10\%$ catalog-to-catalog spread in the *correct* $c$ maps to a factor
+$\sim 2$ spread in the selected $\lambda$ — which is exactly the range observed
+($0.91$ to $1.79$). **The discrepancy signal does not contain enough information
+to locate $\lambda$ on this problem**, and no amount of recalibrating $c$ fixes
+that; the map being inverted is ill-conditioned. That is a property of the
+selection problem, not of the constant.
+
+**The fix is the constant, not the adaptation.** If the per-catalog *signal* is
+useless but the per-catalog *optimum* is stable, then the transferable quantity
+is the typical optimum. Its geometric mean over the same held-out catalogs is
+
+$$\lambda_{\rm cal} = 1.2111,$$
+
+and freezing that single number and applying it blind to the 24 reported
+catalogs gives:
+
+| $n_{\rm eff}$ | pinned $\lambda=0.3$ | $\lambda_{\rm cal}=1.21$ | oracle (ceiling) |
+|---|---|---|---|
+| 5 | 0.6214 ± 0.0363 | 0.6325 ± 0.0426 | 0.5903 ± 0.0434 |
+| 10 | 0.5159 ± 0.0241 | **0.4804** ± 0.0115 | 0.4605 ± 0.0108 |
+| 20 | 0.5224 ± 0.0230 | **0.4102** ± 0.0240 | 0.4101 ± 0.0235 |
+| 30 | 0.4837 ± 0.0177 | **0.3825** ± 0.0189 | 0.3766 ± 0.0168 |
+| all | 0.5358 | **0.4764** | 0.4594 |
+
+It beats the pinned value in **19 of 24** catalogs, by 11% overall and 21% at
+$n_{\rm eff} \ge 20$ — and for $n_{\rm eff}\ge 20$ it **matches the per-catalog
+oracle to within noise** ($0.4102$ against $0.4101$; $0.3825$ against $0.3766$).
+The curve is monotone again ($0.6325, 0.4804, 0.4102, 0.3825$), so the flat spot
+is gone.
+
+The conclusion is sharper than the lead expected. Per-catalog adaptation is worth
+essentially **nothing** on this problem; getting the *constant* right is worth a
+fifth of the error at survey densities. `femmi.c1_lambda.CALIBRATED_LAM` is that
+constant and is now the default in `density.argyris_catalog_run`; `lam="auto"`
+remains available and is documented as the negative result it is.
+
+The remaining gap is at the sparsest density ($0.6325$ against the oracle's
+$0.5903$), where the per-catalog optimum genuinely does vary. Closing it needs a
+different *signal*, not a better constant: **cross-validation on held-out
+galaxies** measures predictive error directly rather than inferring it from the
+flat residual curve (task #52).
+
+### 18.3ja Robustness of the density claim — where it holds and where it stops
+
+§18.3i is measured in one setting: a single centred analytic NFW halo, uniform
+galaxies, a clean disk. Each block below changes exactly one of those, three
+seeds, otherwise identical. One of them limits the claim materially.
+
+**A non-Gaussian truth field removes the advantage over P3.** Shape $L^2$ on the
+shifted-lognormal field (`truth.lognormal_truth`, peaked and non-Gaussian):
+
+| $n_{\rm eff}$ | Argyris | P3 | KS | A vs P3 | A vs KS |
+|---|---|---|---|---|---|
+| 5 | 0.6223 ± 0.0772 | **0.5854** ± 0.0731 | 0.8688 ± 0.0279 | $0.35\sigma$ (P3 ahead) | $3.0\sigma$ |
+| 10 | 0.5977 ± 0.0232 | **0.5695** ± 0.0390 | 0.7905 ± 0.0162 | $0.62\sigma$ (P3 ahead) | $6.8\sigma$ |
+| 20 | 0.4908 ± 0.0404 | **0.4798** ± 0.0473 | 0.6524 ± 0.0292 | $0.18\sigma$ (P3 ahead) | $3.2\sigma$ |
+
+P3 is nominally ahead at all three densities, every gap well inside $1\sigma$ —
+so against P3 this is a **tie**, not a reversal, but it is emphatically not the
+$3.8$–$9.9\sigma$ Argyris advantage the NFW field shows. **The
+Argyris-over-P3 result in §18.3i is specific to a smooth, peaked, analytic
+field**, which is the case a C¹ element is most suited to and the sympathetic
+case a referee would ask about first. That scope limit is measured, not
+suspected.
+
+The advantage over **Kaiser–Squires survives the change of field** at
+$3.0$–$6.8\sigma$, which makes it the more robust of the two comparisons — the
+same conclusion §18.3i reached, now on independent grounds.
+
+**Masking does not hurt, and slightly helps.** Three circular holes (bright
+stars / bad CCDs), NFW truth, galaxy count held fixed so masking is not also a
+density change:
+
+| $n_{\rm eff}$ | Argyris | P3 | KS | A vs P3 |
+|---|---|---|---|---|
+| 20 | **0.4127** ± 0.0380 | 0.5942 ± 0.0157 | 0.6239 ± 0.0125 | $4.4\sigma$ |
+
+Against the unmasked $3.8\sigma$ at the same density. Argyris is essentially
+unchanged by the holes ($0.4127$ against $0.4117$) while P3 degrades
+($0.5559 \to 0.5942$). This is the predicted mechanism: a hole is an **interior
+boundary**, and exact BEM far-field handling is worth more there than a
+truncation. It is the one perturbation that made the advantage larger.
+
+**Clustered positions hurt everyone, Argyris least.** 40% of galaxies drawn in
+tight groups — the pessimistic mesh case, since clusters make slivers:
+
+| $n_{\rm eff}$ | Argyris | P3 | KS |
+|---|---|---|---|
+| 5 | **0.6748** ± 0.0724 | 0.7717 ± 0.0651 | 0.9347 ± 0.0259 |
+| 10 | **0.5587** ± 0.0352 | 0.6995 ± 0.0305 | 0.8426 ± 0.0065 |
+| 20 | **0.5159** ± 0.0418 | 0.6335 ± 0.0485 | 0.7490 ± 0.0190 |
+
+Every method degrades against its uniform-catalog baseline; Argyris stays ahead
+of both, though the P3 margin thins to $1.8\sigma$ at $n_{\rm eff}=20$ from
+$3.8\sigma$.
+
+**Net.** The KS comparison is robust to all three perturbations. The P3
+comparison is robust to masking, weakened by clustering, and **absent on a
+non-Gaussian field** — so it should be stated as a result about smooth peaked
+fields, not about catalog-native reconstruction in general.
+
+*(All $\sigma$ in this section are marginal, not paired; see §18.3o — they
+understate the significances, and the qualitative conclusions are unchanged.)*
+
+### 18.3jb HCT: the cheap C¹ element is not the cheap route to the C¹ result
+
+HCT is the obvious economy: a C¹ macro-element at **12 DOF per triangle against
+Argyris's 21**, inverting a 12×12 system instead of a 21×21, which is the direct
+answer to the sliver caveat. If the accuracy survived, it would be the cheaper
+claim to defend.
+
+Taking it through the inverse path needed one new piece. Argyris gets shear for
+free — the Hessian *is* three of its DOFs, so $S$ is a selection with one or two
+entries per row. HCT's vertex block is only $\{u, u_x, u_y\}$, so the Hessian has
+to be **evaluated**. It is still unambiguous: HCT is C¹, so every element meeting
+a vertex returns the same Hessian there, and picking one is exact rather than an
+average (`c1_inverse.shear_evaluation_operators`). Both operators are exact to
+machine precision on a quadratic, which validates the evaluation path against the
+selection path on a case with a known answer.
+
+Three seeds, NFW truth, everything else as §18.3i:
+
+| $n_{\rm eff}$ | Argyris | HCT | P3 | KS | DOFs (A / H / P3) |
+|---|---|---|---|---|---|
+| 5 | **0.6131** ± 0.0548 | 0.6930 ± 0.0415 | 0.7266 ± 0.0505 | 0.8763 ± 0.0168 | 1458 / 963 / 2668 |
+| 10 | **0.4789** ± 0.0182 | 0.6332 ± 0.0219 | 0.6245 ± 0.0054 | 0.7531 ± 0.0109 | 2816 / 1865 / 3946 |
+| 20 | **0.4437** ± 0.0317 | 0.6659 ± 0.0109 | 0.5713 ± 0.0373 | 0.6422 ± 0.0048 | 5466 / 3627 / 6412 |
+
+Argyris beats HCT by $1.2\sigma$, $5.4\sigma$, $6.6\sigma$ — and the gap **grows
+with density**. HCT lands roughly level with P3 at low density and falls behind
+it by $2.4\sigma$ at $n_{\rm eff}=20$. It is not cheaper per DOF either: Argyris
+at 2816 DOFs (0.4789) beats HCT at 3627 (0.6659), so it loses on both axes.
+
+**The honest qualifier, and it is the same bug as before.** HCT ran with
+`CALIBRATED_LAM = 1.2111`, which was calibrated *for Argyris* (§18.3j). HCT has a
+different DOF count and a differently scaled prior matrix $R$, so its optimal
+weight is not the same number — **HCT is the untuned arm here**, exactly the
+asymmetry that made the Argyris-vs-P3 comparison misleading before it was fixed.
+
+The supporting evidence is the shape of its curve: HCT goes
+$0.6930 \to 0.6332 \to 0.6659$, flat and non-monotone, which is precisely the
+fixed-$\lambda$ signature that a pinned weight produced for Argyris. So the
+result to quote is *"HCT does not beat Argyris at Argyris's $\lambda$"*, and a
+per-element recalibration is what would settle whether the element or the tuning
+is responsible. What can already be said is that HCT is not a free lunch: the DOF
+saving is real and does not buy accuracy on its own.
+
+### 18.3k Vandermonde equilibration — a null result worth keeping
+
+The sliver caveat in §18.3i is real as stated: the worst catalog element's raw
+Vandermonde reaches $10^{11}$–$10^{14}$. The obvious repair is to stop inverting
+it in bad units. `elements.equilibrated_inverse` applies Ruiz-style two-sided
+scaling and inverts $D_r V D_c$ instead, using
+
+$$V^{-1} \;=\; D_c\,(D_r V D_c)^{-1} D_r,$$
+
+an algebraic identity — the returned inverse is the inverse of the original $V$,
+so nothing is approximated. What changes is that the rounding committed during
+the inversion is governed by the *scaled* condition number.
+
+It works, on its own terms:
+
+| $n_{\rm eff}$ | median raw | median scaled | worst raw | worst scaled | ill-conditioned |
+|---|---|---|---|---|---|
+| 5 | $1.3\times10^{4}$ | $1.8\times10^{3}$ | $8.3\times10^{11}$ | $4.6\times10^{10}$ | 2/304 → 2/304 |
+| 30 | $1.1\times10^{5}$ | $5.4\times10^{3}$ | $8.7\times10^{11}$ | $2.7\times10^{10}$ | 6/1752 → 1/1752 |
+
+**And it buys no accuracy at all.** A/B over six catalogs, everything else held
+fixed:
+
+$$\text{mean change in shape } L^2 = -0.15\% \pm 0.34\%.$$
+
+Zero, to the precision the seeds allow. The explanation is arithmetic rather than
+subtle: double precision carries ~16 digits, so losing three to a $10^{13}$
+condition number still leaves ten — orders of magnitude below the shape-noise
+floor that actually limits the reconstruction. **Conditioning was never the
+binding constraint**, and the caveat in §18.3i, while true, was not costing
+anything.
+
+The scaling is kept because it is free, strictly safer, and makes `mesh_quality`
+report both numbers so the distinction stays visible. It is *not* an accuracy
+improvement and must not be quoted as one.
+
+### 18.3l The fast solvers: measured, and both stay off
+
+`femmi.aca` (H-matrix BEM) and `femmi.iterative` (matrix-free coupled solve) were
+both built, tested, and then used by nothing. Switching them on and reporting a
+speedup would have been wrong.
+
+**Making ACA usable at all required a fix first.** `single_layer_entry_fn` was
+hardcoded to P3 (`_p3_boundary_basis`, four nodes per element) while the C¹
+coupling runs its boundary at degree 5 — so ACA could not serve the one path in
+the project that would have used it. It now takes `degree` and `clustering` like
+the rest of `bem_hp`, and reproduces the dense single layer to $10^{-9}$.
+
+**And then it loses.** Against dense assembly:
+
+| geometry | $N_b$ | dense / ACA |
+|---|---|---|
+| uniform circle (deg 3) | 144 | $0.52$–$0.78\times$ |
+| uniform circle (deg 5) | 240 | $0.56$–$0.68\times$ |
+| catalog guard ring | 120 | $0.65\times$ |
+| catalog guard ring | 240 | $0.65\times$ |
+
+ranging over ACA tolerance $10^{-6}$–$10^{-9}$ and admissibility $\eta \in [1,2]$.
+Slower everywhere, and **flat in $N_b$** — so this is a per-entry cost
+difference, not an overhead that amortises, and no crossover is approaching below
+the sizes this project runs ($N_b = 120$–$580$).
+
+The reasoning that predicted a win is worth recording because it is the tempting
+one. Dense assembly's cost is the $O(N^2)$ Galerkin **quadrature** in Python, not
+linear algebra, so ACA's skipping of most entries ought to pay even at small $N$.
+It does not: the cluster tree, the per-block pivoting, and the near-field blocks —
+which still need the tuned Duffy/log-Gauss treatment, and are most of a boundary
+this size — cost more than the quadrature saved. `bem_hp.ACA_MIN_NB` is therefore
+set beyond any reachable size rather than at a crossover, because none was found.
+The compression and the accuracy are real; only the speed is not.
+
+**The iterative solver is a separate question and the answer is also no, here.**
+The coupled operator's cost is not the boundary at all. Measured build times:
+
+| $n_{\rm eff}$ | $n_{\rm dofs}$ | $N_b$ | FEM asm | BEM asm | trace | total |
+|---|---|---|---|---|---|---|
+| 5 | 1458 | 120 | 0.60 s | 2.58 s | 0.05 s | 3.72 s |
+| 30 | 8093 | 290 | 3.50 s | 6.83 s | 0.10 s | 11.86 s |
+
+At 8k DOFs a sparse `splu` plus its triangular solves beats a matrix-free
+iteration; that crossover is in $n_{\rm dofs}$, not $N_b$, and lies above
+anything this project runs. `femmi.iterative` stays available and unused by
+default, which is the honest state of it.
+
+### 18.3m Buffa–Christiansen dual bases: the mesh independence, delivered
+
+§18.3g left this open explicitly: pairing $V$ and $W$ on the same mesh gives a
+flat $2.26\times$ while $\mathrm{cond}$ still grows linearly in $N_b$, and the
+textbook fix is a genuinely **dual** basis on a barycentrically refined mesh.
+`femmi.calderon` builds it.
+
+The construction is the standard one — split every element at its midpoint, and
+associate with each coarse **node** a piecewise constant supported on the two
+fine half-elements touching it, normalised to unit integral.
+
+**The pairing must cross spaces, and this is the whole trap.** The first
+implementation paired those node-indexed duals against the element-indexed coarse
+*constants*. That gives a bidiagonal circulant whose rows sum to 1, with
+eigenvalues $(1+\omega^k)/2$ over the $n$-th roots of unity — which **vanishes at
+$\omega=-1$**, so the matrix is exactly singular for every even $n$. Measured:
+$\mathrm{cond}\sim10^{16}$, which reads as "dual bases do not help".
+
+The correct partner is the space on the other side of the Calderón identity:
+$V$ acts on densities in $H^{-1/2}$ (element-indexed constants) while $W$ acts on
+traces in $H^{+1/2}$ (node-indexed continuous linears). The duals are
+node-indexed, so they pair with the **hats**, and that pairing is available in
+closed form. On a fine half-element running from a node to a midpoint the hat at
+that node goes $1 \to \tfrac12$ (mean $\tfrac34$) and its neighbour $0 \to
+\tfrac12$ (mean $\tfrac14$), so
+
+$$G_{ii} = \tfrac34 \ \text{ exactly, for any mesh}, \qquad
+G_{i,i\pm1} = \tfrac14\,\frac{L_{\rm half}}{L_{\rm total}}.$$
+
+The diagonal carries **no mesh dependence whatsoever**. On a uniform mesh the
+eigenvalues are $\tfrac34 + \tfrac14\cos\theta \in [\tfrac12, 1]$, so
+
+| $n$ | 16 | 32 | 64 | 128 | 256 | 512 | 1024 |
+|---|---|---|---|---|---|---|---|
+| $\mathrm{cond}(G_{\rm BC})$ | 2.0000 | 2.0000 | 2.0000 | 2.0000 | 2.0000 | 2.0000 | 2.0000 |
+
+Exactly 2, independent of $N$ — the growth §18.3g reported is gone. And on
+*irregular* meshes, where a same-mesh Gram matrix of piecewise constants is
+$\mathrm{diag}(L_e)$ and its conditioning is just the element-length ratio:
+
+| $n$ | $\mathrm{cond}(G_{\rm BC})$ | $\mathrm{cond}(\mathrm{diag}\,L)$ |
+|---|---|---|
+| 32 | 2.06 | $7.3\times10^{2}$ |
+| 128 | 2.11 | $7.5\times10^{2}$ |
+| 512 | 2.14 | $1.2\times10^{5}$ |
+
+**Scope.** What is delivered and verified is the load-bearing ingredient — a dual
+pairing whose conditioning does not grow with the mesh. Assembling $V$ and $W$
+*against* the dual basis to obtain the fully preconditioned operator is the
+remaining step; the pairing was the part §18.3g identified as missing.
+
+### 18.3n Cross-validated $\lambda$: the signal Morozov did not have
+
+§18.3j ended with a diagnosis rather than a fix. The discrepancy principle cannot
+locate $\lambda$ on this problem because the fitting residual is nearly flat near
+the optimum — $d\log\lambda / d\log\mathrm{resid} \approx 7$, so the $\pm10\%$
+catalog-to-catalog spread in the correct constant $c$ becomes a factor $\sim2$ in
+the selected $\lambda$. That is an ill-conditioned inversion, and no
+recalibration of $c$ repairs it. The way out had to be a **different signal**.
+
+**K-fold cross-validation does not go through that curve at all.** It measures
+how well the reconstruction predicts shear at galaxies it never saw, which is
+directly the quantity being optimised and is steep in $\lambda$ on both sides of
+the optimum. The fold structure is the natural one: a fold is a subset of the
+*data-carrying vertices*, dropped from the data weight rather than from the mesh
+— removing them from the mesh would change the discretisation between folds and
+compare different function spaces, which is not a cross-validation of $\lambda$.
+
+Five folds, seven-point grid, warm-started along $\lambda$ within each fold. Run
+blind on the same 24 catalogs (seeds 0–5):
+
+| $n_{\rm eff}$ | $\lambda_{\rm cal}=1.21$ | 5-fold CV | oracle |
+|---|---|---|---|
+| 5 | 0.6326 ± 0.0437 | **0.5991** ± 0.0460 | 0.5893 ± 0.0419 |
+| 10 | 0.4818 ± 0.0119 | **0.4736** ± 0.0084 | 0.4588 ± 0.0101 |
+| 20 | 0.4099 ± 0.0243 | 0.4068 ± 0.0233 | 0.4100 ± 0.0223 |
+| 30 | 0.3807 ± 0.0176 | 0.3801 ± 0.0178 | 0.3760 ± 0.0167 |
+| all | 0.4763 | **0.4649** | 0.4585 |
+
+**It works, and exactly where it was predicted to.** CV wins in **20 of 24**
+catalogs — the comparison is paired, same catalogs and same noise, so the win
+count is the meaningful statistic rather than the marginal error bars. Set
+against Morozov's 10 of 24, the contrast is the point: same problem, same grid,
+same solver, different signal.
+
+Where it pays is the sparsest density, which is precisely where §18.3j left the
+gap. At $n_{\rm eff}=5$ CV recovers **77% of the remaining oracle gap**
+($0.6326 \to 0.5991$ against the oracle's $0.5893$). At $n_{\rm eff}\ge20$ it
+adds nothing measurable, for the good reason that the fixed constant is *already
+at the oracle* there.
+
+**Why it is not the default.** Cost. CV is $5\times7 = 35$ MAP solves per catalog
+against one, and buys 2.4% overall. The recommendation the numbers support: keep
+`CALIBRATED_LAM` as the default, and use `lam="cv"` on sparse catalogs, where it
+buys 5% and the extra solves are cheapest anyway.
+
+**What this settles about $\lambda$ selection generally.** Four rules were
+measured on identical data: Morozov with the textbook $c=1$ (worse than a pinned
+value), Morozov with a held-out-calibrated $c$ (a coin flip), a single held-out
+constant (near-oracle for $n_{\rm eff}\ge20$), and cross-validation (best
+everywhere, 20/24). The ordering is not about sophistication — it is about
+whether the estimator's signal is *sensitive to what is being estimated*. The
+residual is not; predictive error is.
+
+### 18.3o Kaiser–Squires was the untuned arm, and the significances were unpaired
+
+Two defects in how §18.3i was measured, both found after the fact, both fixed in
+`femmi.density`.
+
+**KS was running at an uncalibrated grid.** After §18.3j the Argyris arm chose a
+calibrated $\lambda$ and the P3 arm ran its own per-catalog Morozov, while
+Kaiser–Squires stayed pinned at `grid_size=32, smoothing_px=1.0` — numbers that
+were never measured. Grid resolution **is** the KS regularisation knob, since a
+coarser pixel averages more galaxies, so the comparison had become
+tuned-against-untuned in the direction that flatters the claim. This is the same
+class of bug as §18.3j, one arm later.
+
+Calibrated on the same held-out catalogs as everything else (seeds 100–102),
+sweeping `grid_size` over 6–48 and `smoothing_px` over 0–2:
+
+| $n_{\rm eff}$ | best (grid, smooth) | error | at (32, 1.0) | gain |
+|---|---|---|---|---|
+| 5 | (12, 1.0) | 0.5943 | 0.8671 | **+31.5%** |
+| 10 | (12, 1.0) | 0.4932 | 0.7768 | **+36.5%** |
+| 20 | (16, 1.0) | 0.3617 | 0.5875 | **+38.4%** |
+| 30 | (24, 1.0) | 0.4032 | 0.4730 | **+14.8%** |
+
+**15–38% of KS's error was the untuned grid.** The optima are interior only after
+extending the search down to `grid_size=6`; the first sweep bottomed out at its
+own lower edge and would have reported a boundary value as the optimum — the same
+mistake the equivalence-factor interpolation makes when it clamps. Resolution
+rises with density, as it should, and `smoothing_px = 1.0` was right all along.
+`ks_params_for_density` interpolates between the anchors.
+
+This **will move the headline**: the KS comparison is the one §18.3ja identified
+as robust, and it was measured against a handicapped baseline. The tables in
+§18.3i are not yet regenerated against calibrated KS.
+
+**The significances were computed unpaired.** Every $\sigma$ in §18.3i, §18.3ja
+and §18.3jb was $\Delta / \sqrt{\mathrm{se}_A^2 + \mathrm{se}_B^2}$, treating the
+two arms as independent samples. They are not: every arm sees the same catalogs,
+the same galaxy positions, the same noise realisation and the same truth, so the
+catalog-to-catalog scatter is **shared and cancels** under pairing.
+
+The size of the error is easy to show. With a true gap of $0.02$ under shared
+scatter of $0.10$, the paired $t$ is $9$–$11$ while the marginal $\sigma$ is
+$0.3$ — the same data, and one test sees nothing. `density.paired_comparison`
+reports the mean paired difference, its standard error, the paired $t$, and a
+distribution-free win count (which matters at $n=6$); rows without a `seed` are
+refused rather than silently aggregated. The win-count statistics already used
+for $\lambda$ selection (20/24 against 10/24, §18.3n) were paired all along, and
+were decisive precisely where marginal bars overlapped.
+
+Both fixes point the same way: **regenerate §18.3i once, with calibrated KS and
+paired statistics**, rather than quoting the current table.
 
 ### 18.4 Why $O(h^2)$ is the wrong expectation for catalog-native data
 

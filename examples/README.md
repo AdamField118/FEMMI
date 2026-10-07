@@ -40,8 +40,8 @@ each is a standalone figure backed by `femmi.experiments`.
 | `paper/injectivity.py` | the DC mode at the operator level: FEMMI's forward observes a uniform sheet (`‖F·1‖>0`); the KS/FFT forward annihilates it. Operator-level fact, and it holds — but see the caveat below. |
 | `paper/forward_convergence.py` | the potential ψ converges at the P3 theory rate `O(h⁴)` — the forward operator's validation. |
 | `paper/shear_recovery.py` | shear extraction reaches `O(h²)`; variational recovery beats nodal sampling by ~1.8× in constant; and noise amplified by `h⁻²` makes that rate unreachable catalog-native. |
-| `paper/argyris_vs_p3.py` | **the inverse problem, head to head**: Argyris (C¹, circular) vs P3 (C⁰, square) vs KS on independent NFW truth. Per DOF they tie; per observation Argyris needs 8.5× fewer shear measurements — but that figure is inflated by the structured setup; see the catalog-native version (MATH.md §18.3i), which measures the survey-relevant axis (source density, gal/arcmin²) and where the honest factor against P3 is ~1.4–2.0× and barely resolved above catalog-to-catalog scatter. |
-| `paper/galaxy_density.py` | **[candidate new claim]** accuracy vs EFFECTIVE SOURCE DENSITY `n_eff` [gal/arcmin²] — the number surveys are specified by — catalog-native (vertices at galaxy positions for both FEM methods), averaged over 6 catalog realisations, with DES Y3 → Euclid marked for scale. **Solid:** Argyris matches KS at **1.4–4.1× lower density** (4–10σ for `n_eff ≤ 20`, gone by Euclid). **Suggestive only:** ~1.4–2.0× against catalog-native P3, resolved above the seed scatter at just one of four densities. Sliver-conditioning caveat reported alongside. |
+| `paper/argyris_vs_p3.py` | **the inverse problem, head to head**: Argyris (C¹, circular) vs P3 (C⁰, square) vs KS on independent NFW truth. Per DOF they tie; per observation Argyris needs 8.5× fewer shear measurements — but that figure is inflated by the structured setup; see the catalog-native version (MATH.md §18.3i), which measures the survey-relevant axis (source density, gal/arcmin²) and where the honest factor against P3 is **>3× at `n_eff ≥ 10`** and unresolved at the sparsest density. |
+| `paper/galaxy_density.py` | **[the new claim]** accuracy vs EFFECTIVE SOURCE DENSITY `n_eff` [gal/arcmin²], catalog-native, 6 realisations, DES Y3 → Euclid marked. Argyris beats **KS at every density** and **P3 for `n_eff ≥ 10`**, by **>3×** in density at `n_eff = 10`. **Scope (§18.3ja):** the P3 advantage is specific to the smooth NFW field — on a lognormal truth it is a tie; the KS advantage survives. Masking *helps* (interior boundaries); clustering thins it. **Caveats (§18.3o):** KS was recalibrated after these numbers were taken, and the σ quoted are marginal rather than paired — the table needs one regeneration. |
 | `paper/element_comparison.py` | **element choice for shear**: P3 nodal / P3 recovered / HCT / Argyris on one plot. Argyris reaches `O(h⁴)` — 42× more accurate at `h=0.156` for `1.04×` the DOFs. |
 | — | **C¹ + BEM far-field** (`femmi.c1_coupling`): on a field whose ψ does not vanish at the boundary, the coupled Argyris solve beats a Dirichlet pin by 5–9×, and on a compact field it holds the full `O(h⁴)` on both square and circular domains. The circular domain wins on constant, not rate: 2× the accuracy for 25% fewer DOFs. |
 
@@ -68,3 +68,10 @@ benchmarks (`galsim_nfw_benchmark`, `smpy_comparison`), and figure/plot generato
 for the README and talks (`generate_figures`, `generate_presentation_figures`,
 `pme_talk_plots`, `visualize_results`). These are heavier, some need optional extras
 (`galsim`, `astropy`), and they encode research decisions rather than API usage.
+
+`solver_crossovers.py` is worth singling out: it measures dense vs ACA
+single-layer assembly across `N_b` on two geometries, and it is the reason both
+fast solvers are OFF by default. ACA is *slower everywhere measured*
+(0.52–0.78×), flat in `N_b`, so no crossover is approaching at the sizes this
+project runs — the compression and the 1e-9 accuracy are real, the speed is not
+(MATH.md §18.3l).

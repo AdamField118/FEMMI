@@ -115,6 +115,58 @@ def _edge_normal(pa, pb, ga, gb):
     return np.array([t[1], -t[0]])
 
 
+def equilibrated_inverse(V, n_iter=3):
+    """Invert a DOF-functional Vandermonde after two-sided equilibration.
+
+    WHY. Building a C^1 basis in physical coordinates means inverting a matrix
+    whose rows are DOF functionals of mixed order -- values are O(1), gradients
+    O(1/h), Hessians O(1/h^2) -- and whose columns are monomials of mixed degree.
+    A single scalar `h` cannot balance both, and on a catalog mesh the sliver
+    triangles push the worst element's condition number to 1e11-1e14: three
+    surviving digits or fewer (MATH.md 18.3i).
+
+    The fix costs nothing and loses nothing. Row scaling D_r and column scaling
+    D_c give
+
+        V^{-1} = D_c (D_r V D_c)^{-1} D_r,
+
+    which is an ALGEBRAIC IDENTITY, not an approximation -- the returned inverse
+    is the inverse of the original V. What changes is that the matrix actually
+    handed to the LU is equilibrated, so the rounding error committed during the
+    inversion is governed by cond(D_r V D_c) instead of cond(V). Scaling cannot
+    move a genuinely singular element, only stop a well-posed one from being
+    destroyed by units.
+
+    MEASURED, AND IT IS A NULL RESULT (MATH.md 18.3k). Conditioning improves
+    7-20x on the median and 20-30x on the worst element, and the ill-conditioned
+    count at n_eff = 30 drops from 6/1752 to 1/1752. Accuracy changes by
+    -0.15% +/- 0.34%, i.e. not at all: double precision carries ~16 digits, so
+    losing three to a 1e13 condition number still leaves ten, orders of magnitude
+    below the shape-noise floor that actually limits the reconstruction.
+    Conditioning was never the binding constraint. Kept because it is free and
+    strictly safer; it is NOT an accuracy improvement and must not be quoted as
+    one.
+
+    Returns (Vinv, cond_raw, cond_equilibrated).
+    """
+    V = np.asarray(V, float)
+    n = V.shape[0]
+    dr = np.ones(n)
+    dc = np.ones(n)
+    # Ruiz-style symmetric equilibration: a few sweeps of sqrt(inf-norm) scaling
+    # converge fast and, unlike a single pass, handle the case where the row and
+    # column imbalances are entangled (which is exactly the sliver case).
+    for _ in range(int(n_iter)):
+        A = (dr[:, None] * V) * dc[None, :]
+        r = np.sqrt(np.maximum(np.abs(A).max(axis=1), 1e-300))
+        c = np.sqrt(np.maximum(np.abs(A).max(axis=0), 1e-300))
+        dr /= r
+        dc /= c
+    A = (dr[:, None] * V) * dc[None, :]
+    Vinv = dc[:, None] * np.linalg.inv(A) * dr[None, :]
+    return Vinv, float(np.linalg.cond(V)), float(np.linalg.cond(A))
+
+
 # --------------------------------------------------------------------------- #
 # base
 # --------------------------------------------------------------------------- #
@@ -227,7 +279,11 @@ class ArgyrisElement(C1Element):
 
         V = np.array(rows)                             # (21, 21) DOF x monomial
         self._V = V
-        self._C = np.linalg.inv(V)                     # monomial x DOF
+        # equilibrated inversion: exact, but the rounding is governed by the
+        # scaled condition number rather than the raw one (see
+        # equilibrated_inverse). _cond_raw / _cond_eq are what mesh_quality
+        # reports, so the improvement is visible rather than assumed.
+        self._C, self._cond_raw, self._cond_eq = equilibrated_inverse(V)
 
     def basis(self, pts, dx=0, dy=0):
         L = self._to_local(pts)

@@ -367,8 +367,66 @@ def assemble_hypersingular_hp(bnd, degree, n_quad=25):
     return 0.5 * (W + W.T)
 
 
-def assemble_bem_hp(bnd, degree, n_quad_sl=25, n_quad_dl=8):
-    """(V_h, K_h, M_b) at the given boundary-element degree."""
-    return (assemble_single_layer_hp(bnd, degree, n_quad=n_quad_sl),
+# ACA is OFF by default, and the measurement is unambiguous: it is SLOWER than
+# dense assembly everywhere this project has measured it.
+#
+#   geometry              N_b    dense/ACA
+#   uniform circle (d=3)  144    0.52-0.78x   (tol 1e-6..1e-9, eta 1..2)
+#   uniform circle (d=5)  240    0.56-0.68x
+#   catalog guard ring    120    0.65x
+#   catalog guard ring    240    0.65x
+#
+# Flat in N_b, and flat across ACA tolerance and admissibility eta -- so this is
+# a per-entry cost difference, not an overhead that amortises, and no crossover
+# is approaching at the sizes this project runs (N_b = 120-580).
+#
+# The reasoning that predicted a win is worth recording because it is the
+# tempting one and it is wrong in BOTH directions. Dense assembly's cost is the
+# O(N^2) Galerkin quadrature in Python, not linear algebra, so ACA's skipping of
+# most entries ought to pay even at small N. It does not: the per-block ACA
+# bookkeeping, the cluster tree, and the near-field blocks (which still need the
+# tuned Duffy/log-Gauss treatment) cost more than the quadrature saved.
+#
+# ACA_MIN_NB is therefore set beyond any size reachable here rather than at a
+# crossover, because none was found. `use_aca=True` remains available, and the
+# implementation is correct to 1e-9 -- it is simply not faster.
+#
+# See examples/diagnostics/solver_crossovers.py and MATH.md 18.3l.
+ACA_MIN_NB = 10**9
+
+
+def assemble_single_layer_auto(bnd, degree, n_quad=25, use_aca=None, tol=1e-9,
+                               eta=2.0, clustering="uniform"):
+    """Single layer, via ACA above ACA_MIN_NB and dense below.
+
+    Returns a DENSE array either way: the coupled operator needs V_eff for a
+    direct solve, so the H-matrix is expanded once it is built. That still keeps
+    the whole saving, because the saving was never in the linear algebra.
+
+    use_aca : None follows the measured threshold; True/False force it. Forcing
+    True on a catalog boundary is slower, not wrong.
+    """
+    n_b = bnd.n_boundary_dofs
+    if use_aca is None:
+        use_aca = n_b >= ACA_MIN_NB
+    if not use_aca:
+        return assemble_single_layer_hp(bnd, degree, n_quad=n_quad)
+
+    from .aca import build_hmatrix, single_layer_entry_fn, near_field_entry_fn
+    pts, entry = single_layer_entry_fn(bnd, degree=degree, clustering=clustering)
+    _, near = near_field_entry_fn(bnd, degree, n_quad=n_quad)
+    H = build_hmatrix(pts, entry, tol=tol, eta=eta, near_block=near)
+    return H.to_dense()
+
+
+def assemble_bem_hp(bnd, degree, n_quad_sl=25, n_quad_dl=8, use_aca=None):
+    """(V_h, K_h, M_b) at the given boundary-element degree.
+
+    use_aca is passed to assemble_single_layer_auto; None means "follow the
+    measured crossover". Only the single layer is ACA-accelerated -- the double
+    layer and the mass matrix have nothing to compress.
+    """
+    return (assemble_single_layer_auto(bnd, degree, n_quad=n_quad_sl,
+                                       use_aca=use_aca),
             assemble_double_layer_hp(bnd, degree, n_quad=n_quad_dl),
             assemble_boundary_mass_hp(bnd, degree))

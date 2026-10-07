@@ -78,11 +78,26 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
                     help="catalog realisations to average over")
     ap.add_argument("-o", "--out", default="galaxy_density.png")
+    ap.add_argument("--cache", default=None, metavar="FILE.json",
+                    help="reuse results from FILE if it exists, else write them "
+                         "there. The sweep is ~35 min at 6 seeds, so redrawing "
+                         "the figure should not re-run the physics.")
     args = ap.parse_args()
     use_paper_style()
 
-    raw = density_sweep(n_effs=tuple(args.n_eff), noise_std=args.noise,
-                        seeds=tuple(args.seeds), radius=args.radius)
+    if args.cache and os.path.exists(args.cache):
+        import json
+        with open(args.cache) as fh:
+            raw = json.load(fh)
+        print(f"loaded {len(raw)} results from {args.cache}")
+    else:
+        raw = density_sweep(n_effs=tuple(args.n_eff), noise_std=args.noise,
+                            seeds=tuple(args.seeds), radius=args.radius)
+        if args.cache:
+            import json
+            with open(args.cache, "w") as fh:
+                json.dump(raw, fh, indent=1)
+            print(f"wrote {len(raw)} results to {args.cache}")
     rows = average_over_seeds(raw)
     print("\nper realisation:")
     print(to_table(raw))
@@ -137,18 +152,35 @@ def main():
     ax1.set_title(f"accuracy vs source density ({len(args.seeds)} realisations)")
     ax1.legend(frameon=False, fontsize=9)
 
+    # Most of these are LOWER BOUNDS, not missing data: once Argyris's error
+    # drops below anything the baseline reaches anywhere in the sweep, all we
+    # know is that the baseline needs more than the densest catalog measured.
+    # Plotting only the finite points would leave the panel nearly empty and
+    # read as a failed measurement, when it is actually the strongest part of
+    # the result -- so the bounds are drawn as up-arrows at n_max / n.
     fp = np.array([_equivalent_density(e, np_, ep) / n for n, e in zip(na, ea)])
     fk = np.array([_equivalent_density(e, nk, ek) / n for n, e in zip(na, ea)])
-    mp, mk = np.isfinite(fp), np.isfinite(fk)
-    ax2.semilogx(na[mp], fp[mp], color=PALETTE[1], lw=2, marker="s", ms=6,
-                 label="vs P3")
-    ax2.semilogx(na[mk], fk[mk], color=PALETTE[3], lw=2, marker="^", ms=6,
-                 label="vs KS")
+    for f, nb, eb, c, m, lab, jit in ((fp, np_, ep, PALETTE[1], "s", "vs P3", 0.97),
+                                      (fk, nk, ek, PALETTE[3], "^", "vs KS", 1.03)):
+        ok = np.isfinite(f)
+        ax2.semilogx(na[ok], f[ok], color=c, lw=2, marker=m, ms=7, ls="none",
+                     label=lab)
+        # A bound applies where Argyris's error is below the baseline's best.
+        # Require it to be worth stating: at the densest Argyris point the bound
+        # is n_max/n_max = 1x, which is true and says nothing.
+        lo = nb.max() / na
+        bound = ~ok & (ea < eb.min()) & (lo > 1.05)
+        if bound.any():
+            ax2.errorbar(na[bound] * jit, lo[bound], yerr=0.30, lolims=True,
+                         color=c, marker=m, ms=7, ls="none", capsize=4,
+                         elinewidth=1.6)
     ax2.axhline(1.0, color="#777777", lw=1.0, ls="--")
     ax2.set_xlabel("Argyris $n_{\\mathrm{eff}}$ [gal arcmin$^{-2}$]")
     ax2.set_ylabel("density the other method needs $\\div$ Argyris")
-    ax2.set_title("source-density equivalence factor")
-    ax2.legend(frameon=False, fontsize=9)
+    ax2.set_title("source-density equivalence factor\n(arrows: lower bounds, "
+                  "sweep ran out of density)", fontsize=10)
+    ax2.legend(frameon=False, fontsize=9, loc="lower left")
+    ax2.set_ylim(bottom=0.9)
 
     fig.tight_layout(); fig.savefig(args.out)
     print(f"\nwrote {args.out}")
