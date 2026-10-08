@@ -1,0 +1,2532 @@
+{
+  "attempted": 15,
+  "failures": 0,
+  "paired": [
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.028818855895965927,
+          "se_diff": 0.013239479936254649,
+          "ci95": [
+            -0.08578374038415522,
+            0.028146028592223368
+          ],
+          "t": -2.1767362490613484,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.00866829719154305,
+            -0.053770886401308005,
+            -0.024017384095046723
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.03466684998553071,
+          "se_diff": 0.01288353173403216,
+          "ci95": [
+            -0.09010021296977799,
+            0.020766512998716576
+          ],
+          "t": -2.690787798035021,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.009178581807116282,
+            -0.044137253973712376,
+            -0.05068471417576348
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0016651558073508845,
+          "se_diff": 0.0013129545429160514,
+          "ci95": [
+            -0.007314343255465591,
+            0.003984031640763821
+          ],
+          "t": -1.268250920288984,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.0008317752063786016,
+            -0.002209667814473938,
+            -0.0036175748139573166
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.003090421169440948,
+          "se_diff": 0.0011404681256994911,
+          "ci95": [
+            -0.007997459463674117,
+            0.00181661712479222
+          ],
+          "t": -2.70978302663696,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.004912612456088407,
+            -0.003367482427944199,
+            -0.0009911686242902382
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.005441684192355282,
+          "se_diff": 0.00286487534205662,
+          "ci95": [
+            -0.01776824790324712,
+            0.006884879518536557
+          ],
+          "t": -1.8994488564548984,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0005706726582692945,
+            -0.005264247718805681,
+            -0.01049013219999087
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "hct",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.06314091200025966,
+          "se_diff": 0.004771170955425357,
+          "ci95": [
+            0.0426122202647974,
+            0.08366960373572192
+          ],
+          "t": 13.233839782760532,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.06979728799888107,
+            0.06573401700006798,
+            0.053891431001829915
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.017539858639473643,
+          "se_diff": 0.016410332614479044,
+          "ci95": [
+            -0.08814782105925853,
+            0.05306810378031124
+          ],
+          "t": -1.068830172521793,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.03622439674140032,
+            0.015170402975930086,
+            -0.03156558215295069
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.04138217244963379,
+          "se_diff": 0.013011272963368774,
+          "ci95": [
+            -0.09736516158298782,
+            0.014600816683720236
+          ],
+          "t": -3.1804860728184625,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.017763182699906843,
+            -0.04373190174687358,
+            -0.06265143290212094
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0018930367418229256,
+          "se_diff": 0.0011748260481837165,
+          "ci95": [
+            -0.006947905245021367,
+            0.003161831761375515
+          ],
+          "t": -1.6113336478617957,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.0003799786918099943,
+            -0.0025140841213458012,
+            -0.0035450047959329697
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.004013985952995822,
+          "se_diff": 0.0009033231833515992,
+          "ci95": [
+            -0.007900671913689554,
+            -0.0001272999923020903
+          ],
+          "t": -4.443576813895923,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.005620397506690581,
+            -0.0024948473854073047,
+            -0.003926712966889581
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.006077145586760813,
+          "se_diff": 0.002113429529199101,
+          "ci95": [
+            -0.015170498919702445,
+            0.00301620774618082
+          ],
+          "t": -2.8754900519743325,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0018509525733734628,
+            -0.008125260674039639,
+            -0.008255223512869336
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "p3",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.13138324966651757,
+          "se_diff": 0.00265413923876716,
+          "ci95": [
+            -0.14280308910733425,
+            -0.1199634102257009
+          ],
+          "t": -49.50126494778198,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.12934766400212538,
+            -0.12815537899950868,
+            -0.13664670599791862
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.06962283016570629,
+          "se_diff": 0.0572793082834303,
+          "ci95": [
+            -0.31607580230956867,
+            0.17683014197815605
+          ],
+          "t": -1.2154970486235204,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.09003123684248437,
+            -0.1570422928871983,
+            0.0382050392325638
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.022707463256814792,
+          "se_diff": 0.03485301147937495,
+          "ci95": [
+            -0.17266786823853678,
+            0.12725294172490717
+          ],
+          "t": -0.6515208383141422,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.0313966491544696,
+            -0.0878220468704557,
+            -0.011696992054458288
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -1.4059916746115656e-05,
+          "se_diff": 0.0017776554482151856,
+          "ci95": [
+            -0.007662693983563187,
+            0.0076345741500709555
+          ],
+          "t": -0.007909247408001474,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.0032816314094128024,
+            -0.002816890726794162,
+            -0.0005069204328569873
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.005173639672855646,
+          "se_diff": 0.0032530448843155167,
+          "ci95": [
+            -0.019170362124353326,
+            0.008823082778642036
+          ],
+          "t": -1.5903991050969615,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0027190236343796227,
+            -0.011618997915678733,
+            -0.0011828974685085814
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.010069249549718768,
+          "se_diff": 0.004388096526346515,
+          "ci95": [
+            -0.008811205947770196,
+            0.02894970504720773
+          ],
+          "t": 2.29467366755998,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.012086084863150534,
+            0.016457821474073958,
+            0.0016638423119318124
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.1419577369997569,
+          "se_diff": 0.002863231079678585,
+          "ci95": [
+            -0.15427722602063945,
+            -0.12963824797887433
+          ],
+          "t": -49.57955996191984,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.139230018001399,
+            -0.1389610989990615,
+            -0.14768209399881016
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.023360811478049987,
+          "se_diff": 0.08566254642711421,
+          "ci95": [
+            -0.345215377743863,
+            0.39193700069996296
+          ],
+          "t": 0.272707413594417,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.05901353515100882,
+            -0.06554838657960471,
+            0.1946443561647635
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.06536817008871225,
+          "se_diff": 0.0447869011917335,
+          "ci95": [
+            -0.12733431258091932,
+            0.25807065275834384
+          ],
+          "t": 1.4595376851117692,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.13123913909339935,
+            -0.020134995900091823,
+            0.08500036707282921
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.005298573772157339,
+          "se_diff": 0.0023908534494246803,
+          "ci95": [
+            -0.004988438348440679,
+            0.015585585892755357
+          ],
+          "t": 2.216185092161276,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.009080466706976605,
+            0.0008735584378755448,
+            0.005941696171619867
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0005107161162073171,
+          "se_diff": 0.0031609993966258895,
+          "ci95": [
+            -0.014111398798836104,
+            0.013089966566421469
+          ],
+          "t": -0.16156792587574206,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.003287980432242949,
+            -0.0067864990073325734,
+            0.001966370226467673
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.02674085569509319,
+          "se_diff": 0.0028651256028083406,
+          "ci95": [
+            0.01441321519909481,
+            0.03906849619109157
+          ],
+          "t": 9.333222832842763,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.030006405857669713,
+            0.029185944118310186,
+            0.02103021710929967
+          ]
+        }
+      ]
+    },
+    {
+      "a": "argyris",
+      "b": "smpy_ks_plus",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0867365636665151,
+          "se_diff": 0.002792831837947404,
+          "ci95": [
+            -0.0987531491977907,
+            -0.07471997813523949
+          ],
+          "t": -31.056851503906607,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.08337329600180965,
+            -0.08455606700044882,
+            -0.0922803279972868
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.011278997256492285,
+          "se_diff": 0.029403990545454853,
+          "ci95": [
+            -0.11523616292943642,
+            0.137794157442421
+          ],
+          "t": 0.3835872970730412,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.02755609954985727,
+            0.06894128937723809,
+            -0.007548198057903965
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0067153224641030755,
+          "se_diff": 0.0036917785370874164,
+          "ci95": [
+            -0.022599763464332723,
+            0.009169118536126574
+          ],
+          "t": -1.818993852594703,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.008584600892790561,
+            0.00040535222683879546,
+            -0.011966718726357461
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.00022788093447204116,
+          "se_diff": 0.00015613382352667215,
+          "ci95": [
+            -0.0008996705564752979,
+            0.0004439086875312156
+          ],
+          "t": -1.4595231790574354,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0004517965145686073,
+            -0.00030441630687186305,
+            7.257001802434687e-05
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0009235647835548743,
+          "se_diff": 0.0011046082604569227,
+          "ci95": [
+            -0.005676310530713657,
+            0.0038291809636039086
+          ],
+          "t": -0.8361016449151307,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0007077850506021742,
+            0.0008726350425368942,
+            -0.002935544342599343
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0006354613944055306,
+          "se_diff": 0.0015059822420083796,
+          "ci95": [
+            -0.0071151799989371,
+            0.005844257210126039
+          ],
+          "t": -0.42195809265192835,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0012802799151041683,
+            -0.0028610129552339575,
+            0.002234908687121534
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "p3",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.19452416166677722,
+          "se_diff": 0.0025047629099818375,
+          "ci95": [
+            -0.20530128663878577,
+            -0.18374703669476866
+          ],
+          "t": -77.66170638010117,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.19914495200100646,
+            -0.19388939599957666,
+            -0.19053813699974853
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.04080397426974036,
+          "se_diff": 0.05189998131399819,
+          "ci95": [
+            -0.26411157054436074,
+            0.18250362200488002
+          ],
+          "t": -0.786204026218694,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.08136293965094132,
+            -0.10327140648589028,
+            0.06222242332761052
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.011959386728715918,
+          "se_diff": 0.02782586381242142,
+          "ci95": [
+            -0.10776564216143587,
+            0.1316844156188677
+          ],
+          "t": 0.4297939071841956,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.040575230961585884,
+            -0.04368479289674332,
+            0.03898772212130519
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.0016510958906047687,
+          "se_diff": 0.0011451588564863405,
+          "ci95": [
+            -0.0032761249892529565,
+            0.006578316770462494
+          ],
+          "t": 1.4418051096166526,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.002449856203034201,
+            -0.0006072229123202239,
+            0.0031106543811003293
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.002083218503414698,
+          "se_diff": 0.0031600817951925922,
+          "ci95": [
+            -0.015679953065731684,
+            0.011513516058902289
+          ],
+          "t": -0.659229297983325,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.002193588821708784,
+            -0.008251515487734534,
+            -0.00019172884421834319
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.01551093374207405,
+          "se_diff": 0.0031089575090829736,
+          "ci95": [
+            0.0021341692289431075,
+            0.028887698255204992
+          ],
+          "t": 4.98911088258945,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.012656757521419829,
+            0.02172206919287964,
+            0.012153974511922683
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.20509864900001654,
+          "se_diff": 0.0021611603333820677,
+          "ci95": [
+            -0.21439737140786916,
+            -0.19579992659216391
+          ],
+          "t": -94.90209765189019,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.20902730600028008,
+            -0.20469511599912948,
+            -0.20157352500064007
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.052179667374015914,
+          "se_diff": 0.08398229583996152,
+          "ci95": [
+            -0.30916698707242135,
+            0.4135263218204532
+          ],
+          "t": 0.6213174675940107,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.05034523795946577,
+            -0.011777500178296707,
+            0.21866174025981022
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.10003502007424296,
+          "se_diff": 0.038040921574015556,
+          "ci95": [
+            -0.06364185497838028,
+            0.2637118951268662
+          ],
+          "t": 2.629668681385822,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.14041772090051563,
+            0.024002258073620553,
+            0.1356850812485927
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.006963729579508224,
+          "se_diff": 0.0019767932112961482,
+          "ci95": [
+            -0.0015417251272253534,
+            0.015469184286241802
+          ],
+          "t": 3.522740537409186,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.008248691500598003,
+            0.003083226252349483,
+            0.009559270985577184
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.002579705053233631,
+          "se_diff": 0.0033596081036084266,
+          "ci95": [
+            -0.011875521924645579,
+            0.01703493203111284
+          ],
+          "t": 0.7678589209446388,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.008200592888331356,
+            -0.0034190165793883745,
+            0.002957538850757911
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.03218253988744847,
+          "se_diff": 0.0011660651741391165,
+          "ci95": [
+            0.02716536638287302,
+            0.03719971339202392
+          ],
+          "t": 27.599263404130237,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.030577078515939007,
+            0.03445019183711587,
+            0.03152034930929054
+          ]
+        }
+      ]
+    },
+    {
+      "a": "hct",
+      "b": "smpy_ks_plus",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.14987747566677476,
+          "se_diff": 0.0020308924211184754,
+          "ci95": [
+            -0.15861570048632767,
+            -0.14113925084722184
+          ],
+          "t": -73.79882563362592,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.15317058400069072,
+            -0.1502900840005168,
+            -0.14617175899911672
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.052082971526232646,
+          "se_diff": 0.06985988417017751,
+          "ci95": [
+            -0.3526657928510281,
+            0.24849984979856282
+          ],
+          "t": -0.7455347535269226,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.05380684010108405,
+            -0.17221269586312837,
+            0.06977062138551449
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.018674709192818995,
+          "se_diff": 0.031386702908391996,
+          "ci95": [
+            -0.11637137375380921,
+            0.1537207921394472
+          ],
+          "t": 0.5949879236224541,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.049159831854376446,
+            -0.044090145123582114,
+            0.05095444084766265
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.00187897682507681,
+          "se_diff": 0.0010916024309483845,
+          "ci95": [
+            -0.0028178093542444048,
+            0.006575763004398025
+          ],
+          "t": 1.7213014297195677,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.002901652717602808,
+            -0.0003028066054483608,
+            0.0030380843630759824
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.0011596537198598235,
+          "se_diff": 0.003982508139459828,
+          "ci95": [
+            -0.018295003237356104,
+            0.015975695797636455
+          ],
+          "t": -0.29118677959993183,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.0029013738723109583,
+            -0.009124150530271428,
+            0.002743815498381
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.016146395136479582,
+          "se_diff": 0.0043749015138384644,
+          "ci95": [
+            -0.00267728680442254,
+            0.0349700770773817
+          ],
+          "t": 3.690687684146976,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.013937037436523997,
+            0.024583082148113597,
+            0.009919065824801149
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": -0.010574487333239327,
+          "se_diff": 0.000352360261522019,
+          "ci95": [
+            -0.012090571174332276,
+            -0.009058403492146379
+          ],
+          "t": -30.01044240222454,
+          "wins": 0,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.009882353999273619,
+            -0.01080571999955282,
+            -0.011035388000891544
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.04090067011752363,
+          "se_diff": 0.09415165918371594,
+          "ci95": [
+            -0.36420122327973276,
+            0.44600256351478
+          ],
+          "t": 0.43441263247114004,
+          "wins": 1,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            -0.0227891384096085,
+            -0.0807187895555348,
+            0.2262099383177142
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.10675034253834603,
+          "se_diff": 0.041578546160686264,
+          "ci95": [
+            -0.07214770259894474,
+            0.28564838767563683
+          ],
+          "t": 2.5674380755352533,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.1490023217933062,
+            0.023596905846781757,
+            0.14765179997495015
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.007191610513980265,
+          "se_diff": 0.0019154774733078548,
+          "ci95": [
+            -0.0010500238653213785,
+            0.015433244893281909
+          ],
+          "t": 3.7544740745820464,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.00870048801516661,
+            0.003387642559221346,
+            0.009486700967552837
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.003503269836788505,
+          "se_diff": 0.003993478058506241,
+          "ci95": [
+            -0.013679279432837954,
+            0.020685819106414965
+          ],
+          "t": 0.8772477989021185,
+          "wins": 2,
+          "ties": 0,
+          "sign_p": 1.0,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.00890837793893353,
+            -0.004291651621925269,
+            0.005893083193357254
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.032818001281854005,
+          "se_diff": 0.0023661042977821877,
+          "ci95": [
+            0.02263747616612954,
+            0.042998526397578465
+          ],
+          "t": 13.870056917023982,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.031857358431043176,
+            0.037311204792349825,
+            0.029285440622169007
+          ]
+        }
+      ]
+    },
+    {
+      "a": "p3",
+      "b": "smpy_ks_plus",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.04464668600000247,
+          "se_diff": 0.0006997981097332687,
+          "ci95": [
+            0.04163569775288511,
+            0.04765767424711983
+          ],
+          "t": 63.79938067712095,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.045974368000315735,
+            0.043599311999059864,
+            0.04436637800063181
+          ]
+        }
+      ]
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.09298364164375628,
+          "se_diff": 0.03621376292666883,
+          "ci95": [
+            -0.06283160426717521,
+            0.24879888755468776
+          ],
+          "t": 2.5676326934608755,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.031017701691475552,
+            0.09149390630759358,
+            0.1564393169321997
+          ]
+        }
+      ]
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "field_shape_l2",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.08807563334552704,
+          "se_diff": 0.010234641833941495,
+          "ci95": [
+            0.04403952372071063,
+            0.13211174297034345
+          ],
+          "t": 8.605639041850862,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.09984248993892975,
+            0.06768705097036387,
+            0.0966973591272875
+          ]
+        }
+      ]
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "interior_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.005312633688903455,
+          "se_diff": 0.0008324994313713798,
+          "ci95": [
+            0.001730677737998513,
+            0.008894589639808397
+          ],
+          "t": 6.381546327487492,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.005798835297563802,
+            0.003690449164669707,
+            0.006448616604476855
+          ]
+        }
+      ]
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "boundary_rmse",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.004662923556648328,
+          "se_diff": 0.000829303149715701,
+          "ci95": [
+            0.0010947200957342408,
+            0.008231127017562416
+          ],
+          "t": 5.622700888386661,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.006007004066622572,
+            0.00483249890834616,
+            0.0031492676949762544
+          ]
+        }
+      ]
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "mask_rmse",
+      "statistics": []
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "aperture_contrast_abs_error",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.016671606145374423,
+          "se_diff": 0.00201544573175887,
+          "ci95": [
+            0.00799984306596022,
+            0.025343369224788626
+          ],
+          "t": 8.27192014285852,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.01792032099451918,
+            0.012728122644236228,
+            0.019366374797367858
+          ]
+        }
+      ]
+    },
+    {
+      "a": "smpy_ks",
+      "b": "smpy_ks_plus",
+      "metric": "seconds",
+      "statistics": [
+        {
+          "scenario": "nfw-integration",
+          "n_eff_nominal": 2.0,
+          "n_pairs": 3,
+          "n_unpaired": 0,
+          "mean_diff": 0.0552211733332418,
+          "se_diff": 0.00042868451826943776,
+          "ci95": [
+            0.05337669272050847,
+            0.05706565394597513
+          ],
+          "t": 128.8154131531619,
+          "wins": 3,
+          "ties": 0,
+          "sign_p": 0.25,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "differences": [
+            0.055856721999589354,
+            0.054405031998612685,
+            0.055401766001523356
+          ]
+        }
+      ]
+    }
+  ],
+  "aperture": {
+    "attempted": 18,
+    "failures": 0,
+    "paired": [
+      {
+        "a": "argyris",
+        "b": "hct",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -0.0001016105345638055,
+            "se_diff": 0.0001675508725278275,
+            "ci95": [
+              -0.0008225237536175666,
+              0.0006193026844899557
+            ],
+            "t": -0.6064458694294751,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              0.00012408411596988994,
+              5.6307987847045715e-08,
+              -0.0004289720276491535
+            ]
+          }
+        ]
+      },
+      {
+        "a": "argyris",
+        "b": "p3",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -6.179155915671831e-05,
+            "se_diff": 0.00011469219729012854,
+            "ci95": [
+              -0.0005552722549080536,
+              0.00043168913659461704
+            ],
+            "t": -0.5387599210468406,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              9.474203812172809e-05,
+              5.1512322799731475e-06,
+              -0.00028526794787185616
+            ]
+          }
+        ]
+      },
+      {
+        "a": "argyris",
+        "b": "smpy_aperture",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 0.0014538407800676605,
+            "se_diff": 0.00013638632747425434,
+            "ci95": [
+              0.000867017775860056,
+              0.0020406637842752652
+            ],
+            "t": 10.659725259792644,
+            "wins": 3,
+            "ties": 0,
+            "sign_p": 0.25,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              0.0011894272713331502,
+              0.0016440803980965722,
+              0.0015280146707732593
+            ]
+          }
+        ]
+      },
+      {
+        "a": "argyris",
+        "b": "smpy_ks",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -0.00016150837530386265,
+            "se_diff": 8.701937514267886e-05,
+            "ci95": [
+              -0.0005359225273026023,
+              0.000212905776694877
+            ],
+            "t": -1.8560047695016197,
+            "wins": 1,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.0002082045261140083,
+              7.0351445039321114e-06,
+              -0.0002833557443015118
+            ]
+          }
+        ]
+      },
+      {
+        "a": "argyris",
+        "b": "smpy_ks_plus",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -6.068956488812562e-05,
+            "se_diff": 9.202274201655997e-05,
+            "ci95": [
+              -0.0004566314670247079,
+              0.0003352523372484566
+            ],
+            "t": -0.6595061563934296,
+            "wins": 1,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.00012523253331368084,
+              0.00012084748489438538,
+              -0.00017768364624508141
+            ]
+          }
+        ]
+      },
+      {
+        "a": "hct",
+        "b": "p3",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 3.981897540708719e-05,
+            "se_diff": 5.288529399120844e-05,
+            "ci95": [
+              -0.0001877280791477886,
+              0.000267366029961963
+            ],
+            "t": 0.7529309643944994,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -2.9342077848161854e-05,
+              5.094924292126102e-06,
+              0.00014370407977729732
+            ]
+          }
+        ]
+      },
+      {
+        "a": "hct",
+        "b": "smpy_aperture",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 0.001555451314631466,
+            "se_diff": 0.00026117740100461626,
+            "ci95": [
+              0.00043169565725008417,
+              0.0026792069720128478
+            ],
+            "t": 5.95553561927042,
+            "wins": 3,
+            "ties": 0,
+            "sign_p": 0.25,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              0.0010653431553632603,
+              0.0016440240901087252,
+              0.0019569866984224128
+            ]
+          }
+        ]
+      },
+      {
+        "a": "hct",
+        "b": "smpy_ks",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -5.989784074005716e-05,
+            "se_diff": 0.00014195380341100187,
+            "ci95": [
+              -0.0006706757604847229,
+              0.0005508800790046085
+            ],
+            "t": -0.42195305304102115,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.00033228864208389823,
+              6.978836516085066e-06,
+              0.00014561628334764168
+            ]
+          }
+        ]
+      },
+      {
+        "a": "hct",
+        "b": "smpy_ks_plus",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 4.0920969675679875e-05,
+            "se_diff": 0.0001499286349009301,
+            "ci95": [
+              -0.0006041698805484175,
+              0.0006860118198997772
+            ],
+            "t": 0.2729363186873518,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.0002493166492835708,
+              0.00012079117690653833,
+              0.00025128838140407207
+            ]
+          }
+        ]
+      },
+      {
+        "a": "p3",
+        "b": "smpy_aperture",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 0.0015156323392243789,
+            "se_diff": 0.00021640789509151388,
+            "ci95": [
+              0.0005845043186695415,
+              0.002446760359779216
+            ],
+            "t": 7.003590782043571,
+            "wins": 3,
+            "ties": 0,
+            "sign_p": 0.25,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              0.0010946852332114222,
+              0.001638929165816599,
+              0.0018132826186451154
+            ]
+          }
+        ]
+      },
+      {
+        "a": "p3",
+        "b": "smpy_ks",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -9.971681614714435e-05,
+            "se_diff": 0.00010161487437249613,
+            "ci95": [
+              -0.0005369303327491134,
+              0.00033749670045482474
+            ],
+            "t": -0.9813210591749202,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.0003029465642357364,
+              1.883912223958964e-06,
+              1.9122035703443563e-06
+            ]
+          }
+        ]
+      },
+      {
+        "a": "p3",
+        "b": "smpy_ks_plus",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 1.1019942685926848e-06,
+            "se_diff": 0.00011056308435280025,
+            "ci95": [
+              -0.00047461256243150335,
+              0.0004768165509686887
+            ],
+            "t": 0.009967108597262775,
+            "wins": 2,
+            "ties": 0,
+            "sign_p": 1.0,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.00021997457143540892,
+              0.00011569625261441223,
+              0.00010758430162677475
+            ]
+          }
+        ]
+      },
+      {
+        "a": "smpy_aperture",
+        "b": "smpy_ks",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -0.0016153491553715232,
+            "se_diff": 0.00011992768854274537,
+            "ci95": [
+              -0.00213135635185251,
+              -0.0010993419588905366
+            ],
+            "t": -13.469359536565824,
+            "wins": 0,
+            "ties": 0,
+            "sign_p": 0.25,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.0013976317974471585,
+              -0.0016370452535926401,
+              -0.001811370415074771
+            ]
+          }
+        ]
+      },
+      {
+        "a": "smpy_aperture",
+        "b": "smpy_ks_plus",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": -0.0015145303449557862,
+            "se_diff": 0.00011296692813974846,
+            "ci95": [
+              -0.002000587806687686,
+              -0.0010284728832238863
+            ],
+            "t": -13.40684720648684,
+            "wins": 0,
+            "ties": 0,
+            "sign_p": 0.25,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              -0.001314659804646831,
+              -0.0015232329132021868,
+              -0.0017056983170183407
+            ]
+          }
+        ]
+      },
+      {
+        "a": "smpy_ks",
+        "b": "smpy_ks_plus",
+        "statistics": [
+          {
+            "scenario": "nfw-integration",
+            "n_eff_nominal": 2.0,
+            "n_pairs": 3,
+            "n_unpaired": 0,
+            "mean_diff": 0.00010081881041573704,
+            "se_diff": 9.22763170342974e-06,
+            "ci95": [
+              6.111551567785239e-05,
+              0.00014052210515362167
+            ],
+            "t": 10.92575144478995,
+            "wins": 3,
+            "ties": 0,
+            "sign_p": 0.25,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "differences": [
+              8.297199280032745e-05,
+              0.00011381234039045326,
+              0.0001056720980564304
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

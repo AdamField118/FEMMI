@@ -1,0 +1,1275 @@
+{
+  "arguments": {
+    "sources": [
+      64,
+      180
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct"
+    ],
+    "padding": [
+      1.12,
+      1.5
+    ],
+    "lengths": [
+      0.3
+    ],
+    "lam": 0.03,
+    "seed": 5,
+    "truth": "nfw",
+    "strict": true,
+    "output": "/workspace/scratch/e82cbce0490f/science-investigation/nfw"
+  },
+  "rows": [
+    {
+      "sources": 64,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.2757807514322577e-08,
+      "strict_relative_change": 1.0217897982688822e-08,
+      "checks": {
+        "adjoint_relative": 1.1168397296789047e-14,
+        "cross_skew_relative": 6.028042185394076e-15,
+        "cross_response_norm": 4.367115808094062
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11954067127620113,
+        "raw_b_l2": 0.1750595777988469,
+        "predicted_leakage_l2": 0.1740265392923067,
+        "residual_b_l2": 0.0016811663269703104,
+        "closure_relative": 3.1184649326631e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11815287604362568,
+        "raw_b_l2": 0.1740265392923067,
+        "predicted_leakage_l2": 0.17299572149526007,
+        "residual_b_l2": 0.0015703630062940505,
+        "closure_relative": 3.266740520777333e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.011563057551080754,
+      "boundary_shape_rmse": 0.005220067016081858,
+      "solver": {
+        "converged": true,
+        "iterations": 51,
+        "relative_residual": 7.3452106513871835e-09,
+        "objective": 0.0009923778876660262,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 1.5131300879993432,
+        "solve_seconds": 0.01778500599994004,
+        "weighted_shear_residual": 2.4291089963794655e-05
+      }
+    },
+    {
+      "sources": 64,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.2757807514322577e-08,
+      "strict_relative_change": 1.7594481154980665e-08,
+      "checks": {
+        "adjoint_relative": 1.1168397296789047e-14,
+        "cross_skew_relative": 6.028042185394076e-15,
+        "cross_response_norm": 4.367115808094062
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.16966507105146092,
+        "raw_b_l2": 0.2550285545304899,
+        "predicted_leakage_l2": 0.25326152803207114,
+        "residual_b_l2": 0.002849001012782544,
+        "closure_relative": 6.094747932204763e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.16764216591405257,
+        "raw_b_l2": 0.25326152803207114,
+        "predicted_leakage_l2": 0.25154021909598195,
+        "residual_b_l2": 0.002622488938048809,
+        "closure_relative": 7.432638169041245e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.015265135546787639,
+      "boundary_shape_rmse": 0.009454760038746299,
+      "solver": {
+        "converged": true,
+        "iterations": 53,
+        "relative_residual": 9.258710017097412e-09,
+        "objective": 0.0022066979651918046,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 1.5131300879993432,
+        "solve_seconds": 0.01597065100031614,
+        "weighted_shear_residual": 6.867974058698511e-05
+      }
+    },
+    {
+      "sources": 64,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.2898074270829141e-08,
+      "strict_relative_change": 1.3936816098978856e-08,
+      "checks": {
+        "adjoint_relative": 1.9348519046557466e-13,
+        "cross_skew_relative": 1.0190187945692269e-15,
+        "cross_response_norm": 6.285565803466583
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1225555035364206,
+        "raw_b_l2": 0.1882010885102866,
+        "predicted_leakage_l2": 0.1869024287515976,
+        "residual_b_l2": 0.0017943711291140954,
+        "closure_relative": 9.33964144266484e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.12116037878771498,
+        "raw_b_l2": 0.1869024287515976,
+        "predicted_leakage_l2": 0.18561083412277893,
+        "residual_b_l2": 0.001712517687562617,
+        "closure_relative": 2.617302095389745e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.011726536014133933,
+      "boundary_shape_rmse": 0.005415828717049609,
+      "solver": {
+        "converged": true,
+        "iterations": 55,
+        "relative_residual": 6.81735506959009e-09,
+        "objective": 0.0009951488410288977,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.0188455649995376,
+        "solve_seconds": 0.01772598899970035,
+        "weighted_shear_residual": 2.1151397237685543e-05
+      }
+    },
+    {
+      "sources": 64,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.2898074270829141e-08,
+      "strict_relative_change": 1.5172917739589554e-08,
+      "checks": {
+        "adjoint_relative": 1.9348519046557466e-13,
+        "cross_skew_relative": 1.0190187945692269e-15,
+        "cross_response_norm": 6.285565803466583
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.17740382281517725,
+        "raw_b_l2": 0.28062293884153294,
+        "predicted_leakage_l2": 0.2783228327504119,
+        "residual_b_l2": 0.0031733542824196573,
+        "closure_relative": 1.1645698967033809e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.17533450325544914,
+        "raw_b_l2": 0.2783228327504119,
+        "predicted_leakage_l2": 0.2760715358760479,
+        "residual_b_l2": 0.0029949337521497656,
+        "closure_relative": 1.3970320839190715e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.01585833083730489,
+      "boundary_shape_rmse": 0.008121918693301311,
+      "solver": {
+        "converged": true,
+        "iterations": 54,
+        "relative_residual": 7.1225276450094766e-09,
+        "objective": 0.0022697564329750976,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.0188455649995376,
+        "solve_seconds": 0.015289052999833075,
+        "weighted_shear_residual": 6.463088463332407e-05
+      }
+    },
+    {
+      "sources": 64,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.2358267377040507e-08,
+      "strict_relative_change": 1.0869193323798578e-08,
+      "checks": {
+        "adjoint_relative": 6.438252911697239e-14,
+        "cross_skew_relative": 1.24154943301494e-15,
+        "cross_response_norm": 5.313109571747761
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.08021126627710076,
+        "raw_b_l2": 0.05998150605649949,
+        "predicted_leakage_l2": 0.05971331202480156,
+        "residual_b_l2": 0.00029940301769795953,
+        "closure_relative": 2.2781267733116708e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.07978508334577347,
+        "raw_b_l2": 0.05971331202480156,
+        "predicted_leakage_l2": 0.059446830579104645,
+        "residual_b_l2": 0.00029723460834089183,
+        "closure_relative": 2.0713712615020307e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.019891860207662447,
+      "boundary_shape_rmse": 0.011590088963724411,
+      "solver": {
+        "converged": true,
+        "iterations": 23,
+        "relative_residual": 8.366441798430013e-09,
+        "objective": 0.0006219265165150241,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.2966520459995081,
+        "solve_seconds": 0.019255281000368996,
+        "weighted_shear_residual": 3.878691134736272e-06
+      }
+    },
+    {
+      "sources": 64,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.2358267377040507e-08,
+      "strict_relative_change": 1.2703238263446938e-08,
+      "checks": {
+        "adjoint_relative": 6.438252911697239e-14,
+        "cross_skew_relative": 1.24154943301494e-15,
+        "cross_response_norm": 5.313109571747761
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11220610139242868,
+        "raw_b_l2": 0.08444621965833236,
+        "predicted_leakage_l2": 0.08405459137320373,
+        "residual_b_l2": 0.00043989311726816074,
+        "closure_relative": 7.832372221946223e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11161699550191297,
+        "raw_b_l2": 0.08405459137320373,
+        "predicted_leakage_l2": 0.08366568455547667,
+        "residual_b_l2": 0.00043656351938378647,
+        "closure_relative": 7.816753256231418e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.023373855352159613,
+      "boundary_shape_rmse": 0.014569600791361307,
+      "solver": {
+        "converged": true,
+        "iterations": 23,
+        "relative_residual": 8.421953209285715e-09,
+        "objective": 0.0012648330915111968,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.2966520459995081,
+        "solve_seconds": 0.014486865999970178,
+        "weighted_shear_residual": 7.849765951884244e-06
+      }
+    },
+    {
+      "sources": 64,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.8720143462722397e-08,
+      "strict_relative_change": 7.158920581250769e-09,
+      "checks": {
+        "adjoint_relative": 2.0962761192104776e-13,
+        "cross_skew_relative": 4.043537156689976e-15,
+        "cross_response_norm": 5.224140855816846
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.08177423668451829,
+        "raw_b_l2": 0.06660536504804644,
+        "predicted_leakage_l2": 0.06630062422718705,
+        "residual_b_l2": 0.00034031343029534424,
+        "closure_relative": 6.794590999728191e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.08132540801355231,
+        "raw_b_l2": 0.06630062422718705,
+        "predicted_leakage_l2": 0.06599787064518337,
+        "residual_b_l2": 0.0003377683545799918,
+        "closure_relative": 6.853150455098592e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.019497602996043046,
+      "boundary_shape_rmse": 0.010970808950665338,
+      "solver": {
+        "converged": true,
+        "iterations": 27,
+        "relative_residual": 5.017623131964514e-09,
+        "objective": 0.0006267154942587901,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.3108814100005475,
+        "solve_seconds": 0.030241237000154797,
+        "weighted_shear_residual": 3.9612187783560135e-06
+      }
+    },
+    {
+      "sources": 64,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.8720143462722397e-08,
+      "strict_relative_change": 1.2232353108751258e-08,
+      "checks": {
+        "adjoint_relative": 2.0962761192104776e-13,
+        "cross_skew_relative": 4.043537156689976e-15,
+        "cross_response_norm": 5.224140855816846
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11449121039519361,
+        "raw_b_l2": 0.09938096139155209,
+        "predicted_leakage_l2": 0.09891564294010965,
+        "residual_b_l2": 0.0005181780076429185,
+        "closure_relative": 2.1793567580288407e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11388604118349509,
+        "raw_b_l2": 0.09891564294010965,
+        "predicted_leakage_l2": 0.09845359038880282,
+        "residual_b_l2": 0.0005141791144310776,
+        "closure_relative": 2.1406926232658677e-11,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.023112274399485586,
+      "boundary_shape_rmse": 0.014664148544107792,
+      "solver": {
+        "converged": true,
+        "iterations": 27,
+        "relative_residual": 6.500010615853593e-09,
+        "objective": 0.0012710192450856525,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.3108814100005475,
+        "solve_seconds": 0.015526583999417198,
+        "weighted_shear_residual": 7.885241807404546e-06
+      }
+    },
+    {
+      "sources": 64,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 3.909476882331081e-08,
+      "strict_relative_change": 4.4940117479895256e-08,
+      "checks": {
+        "adjoint_relative": 9.667793476552428e-15,
+        "cross_skew_relative": 9.056253942537985e-16,
+        "cross_response_norm": 5.340893768363518
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1188110947137598,
+        "raw_b_l2": 0.19529113070675166,
+        "predicted_leakage_l2": 0.1939911121471569,
+        "residual_b_l2": 0.002177662075769775,
+        "closure_relative": 5.731808958686973e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.11739477959255451,
+        "raw_b_l2": 0.1939911121471569,
+        "predicted_leakage_l2": 0.19269607146794543,
+        "residual_b_l2": 0.0019374732381362352,
+        "closure_relative": 1.299881658819618e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.01496427553896018,
+      "boundary_shape_rmse": 0.0058234643923554645,
+      "solver": {
+        "converged": true,
+        "iterations": 53,
+        "relative_residual": 7.522012696091238e-09,
+        "objective": 0.0010819658617873598,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.44756727000003593,
+        "solve_seconds": 0.020005802000014228,
+        "weighted_shear_residual": 4.1032046581698245e-05
+      }
+    },
+    {
+      "sources": 64,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 3.909476882331081e-08,
+      "strict_relative_change": 3.6819821756312265e-08,
+      "checks": {
+        "adjoint_relative": 9.667793476552428e-15,
+        "cross_skew_relative": 9.056253942537985e-16,
+        "cross_response_norm": 5.340893768363518
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.17234076310118393,
+        "raw_b_l2": 0.2738950477977503,
+        "predicted_leakage_l2": 0.27176182317218933,
+        "residual_b_l2": 0.003843502396313035,
+        "closure_relative": 4.567609706281536e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.16939293989067863,
+        "raw_b_l2": 0.27176182317218933,
+        "predicted_leakage_l2": 0.26971058712223384,
+        "residual_b_l2": 0.003294867016220085,
+        "closure_relative": 3.529262043632881e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.01943985858273014,
+      "boundary_shape_rmse": 0.008135183112066739,
+      "solver": {
+        "converged": true,
+        "iterations": 54,
+        "relative_residual": 9.094220911304723e-09,
+        "objective": 0.0024759912795008212,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.44756727000003593,
+        "solve_seconds": 0.017541004000122484,
+        "weighted_shear_residual": 0.00013863735023750398
+      }
+    },
+    {
+      "sources": 64,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 2.8232050141065615e-08,
+      "strict_relative_change": 4.938551598405263e-08,
+      "checks": {
+        "adjoint_relative": 1.0482011023976663e-14,
+        "cross_skew_relative": 1.1472612525457358e-15,
+        "cross_response_norm": 7.6360080499929515
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1241822420957642,
+        "raw_b_l2": 0.23024808345528494,
+        "predicted_leakage_l2": 0.22844289782440078,
+        "residual_b_l2": 0.002707163101423957,
+        "closure_relative": 6.909359850015491e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.12244682802186474,
+        "raw_b_l2": 0.22844289782440078,
+        "predicted_leakage_l2": 0.22663676774394978,
+        "residual_b_l2": 0.00243457007169156,
+        "closure_relative": 1.0351560067477897e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.015383916073067707,
+      "boundary_shape_rmse": 0.005388654705547559,
+      "solver": {
+        "converged": true,
+        "iterations": 56,
+        "relative_residual": 6.833585395950876e-09,
+        "objective": 0.0011179273185556913,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.4238793900003657,
+        "solve_seconds": 0.018604048000270268,
+        "weighted_shear_residual": 4.41417391122975e-05
+      }
+    },
+    {
+      "sources": 64,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 2.8232050141065615e-08,
+      "strict_relative_change": 6.32976940160562e-08,
+      "checks": {
+        "adjoint_relative": 1.0482011023976663e-14,
+        "cross_skew_relative": 1.1472612525457358e-15,
+        "cross_response_norm": 7.6360080499929515
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1811816411325041,
+        "raw_b_l2": 0.33366175457028024,
+        "predicted_leakage_l2": 0.330639362384022,
+        "residual_b_l2": 0.004808628609191605,
+        "closure_relative": 9.70331893691189e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.17810115901902912,
+        "raw_b_l2": 0.330639362384022,
+        "predicted_leakage_l2": 0.32769378340793837,
+        "residual_b_l2": 0.004191380943704156,
+        "closure_relative": 6.586963134585771e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.02024169259495661,
+      "boundary_shape_rmse": 0.00784876752236984,
+      "solver": {
+        "converged": true,
+        "iterations": 56,
+        "relative_residual": 8.512816082688366e-09,
+        "objective": 0.002605516923816062,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.4238793900003657,
+        "solve_seconds": 0.015083298999343242,
+        "weighted_shear_residual": 0.00015132806582158624
+      }
+    },
+    {
+      "sources": 180,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.4477982890691826e-08,
+      "strict_relative_change": 1.6573712465657154e-08,
+      "checks": {
+        "adjoint_relative": 1.6329145835284995e-12,
+        "cross_skew_relative": 2.4385595282202038e-14,
+        "cross_response_norm": 9.445916714778884
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.13410279109360854,
+        "raw_b_l2": 0.20619013295562336,
+        "predicted_leakage_l2": 0.20560274185182678,
+        "residual_b_l2": 0.0014625796906243581,
+        "closure_relative": 1.1607637918261745e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.13329211518649223,
+        "raw_b_l2": 0.20560274185182678,
+        "predicted_leakage_l2": 0.20502885749630076,
+        "residual_b_l2": 0.001287438326543888,
+        "closure_relative": 7.76906877609979e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.019688829745843038,
+      "boundary_shape_rmse": 0.004082515143293646,
+      "solver": {
+        "converged": true,
+        "iterations": 92,
+        "relative_residual": 8.855609135781646e-09,
+        "objective": 0.0016997315028106546,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.05238243900021189,
+        "solve_seconds": 0.07680728899958922,
+        "weighted_shear_residual": 5.722743966608707e-05
+      }
+    },
+    {
+      "sources": 180,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.4477982890691826e-08,
+      "strict_relative_change": 2.1473264285366572e-08,
+      "checks": {
+        "adjoint_relative": 1.6329145835284995e-12,
+        "cross_skew_relative": 2.4385595282202038e-14,
+        "cross_response_norm": 9.445916714778884
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.18865162211256747,
+        "raw_b_l2": 0.2820170746058829,
+        "predicted_leakage_l2": 0.28124497928100245,
+        "residual_b_l2": 0.0021007471219801096,
+        "closure_relative": 4.676698863488482e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.18734982597036046,
+        "raw_b_l2": 0.28124497928100245,
+        "predicted_leakage_l2": 0.2804705390337881,
+        "residual_b_l2": 0.0018399033138107356,
+        "closure_relative": 8.931889229865605e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.02029570559592282,
+      "boundary_shape_rmse": 0.006900432331875864,
+      "solver": {
+        "converged": true,
+        "iterations": 90,
+        "relative_residual": 9.709883344531275e-09,
+        "objective": 0.0030576018708094585,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.05238243900021189,
+        "solve_seconds": 0.07434785999976157,
+        "weighted_shear_residual": 0.00010635115706082971
+      }
+    },
+    {
+      "sources": 180,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.567625510278245e-08,
+      "strict_relative_change": 2.1310483541550682e-08,
+      "checks": {
+        "adjoint_relative": 7.121185754425752e-13,
+        "cross_skew_relative": 7.332909819198114e-14,
+        "cross_response_norm": 9.04831020188499
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1350747590490825,
+        "raw_b_l2": 0.2143982095122518,
+        "predicted_leakage_l2": 0.21374507866910777,
+        "residual_b_l2": 0.0016093979370177692,
+        "closure_relative": 1.7487297416477253e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1342205012229441,
+        "raw_b_l2": 0.21374507866910777,
+        "predicted_leakage_l2": 0.21310744304134888,
+        "residual_b_l2": 0.001427257089664105,
+        "closure_relative": 1.0870553520778586e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.01955194102472682,
+      "boundary_shape_rmse": 0.00386292805408718,
+      "solver": {
+        "converged": true,
+        "iterations": 83,
+        "relative_residual": 8.560637766182175e-09,
+        "objective": 0.001714331530619557,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.2017952599999262,
+        "solve_seconds": 0.08437378500002524,
+        "weighted_shear_residual": 5.833298968747215e-05
+      }
+    },
+    {
+      "sources": 180,
+      "method": "p3",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 1.567625510278245e-08,
+      "strict_relative_change": 2.85746874053015e-08,
+      "checks": {
+        "adjoint_relative": 7.121185754425752e-13,
+        "cross_skew_relative": 7.332909819198114e-14,
+        "cross_response_norm": 9.04831020188499
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.19484542268214194,
+        "raw_b_l2": 0.31830836695039594,
+        "predicted_leakage_l2": 0.3172848930091764,
+        "residual_b_l2": 0.00237827894439186,
+        "closure_relative": 4.545799983339999e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1934225708674054,
+        "raw_b_l2": 0.3172848930091764,
+        "predicted_leakage_l2": 0.3162529821883928,
+        "residual_b_l2": 0.0021356837621033997,
+        "closure_relative": 7.715639791685624e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.02020616207481253,
+      "boundary_shape_rmse": 0.005861216683237741,
+      "solver": {
+        "converged": true,
+        "iterations": 84,
+        "relative_residual": 9.25953847975738e-09,
+        "objective": 0.003150279624924914,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.2017952599999262,
+        "solve_seconds": 0.0628593710007408,
+        "weighted_shear_residual": 0.00010800367292657915
+      }
+    },
+    {
+      "sources": 180,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 7.17322141508783e-09,
+      "strict_relative_change": 6.757096499463033e-09,
+      "checks": {
+        "adjoint_relative": 5.048838916412851e-13,
+        "cross_skew_relative": 1.5268445914865543e-16,
+        "cross_response_norm": 7.739495016150098
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1055241350448317,
+        "raw_b_l2": 0.08643855142048702,
+        "predicted_leakage_l2": 0.08622915199675789,
+        "residual_b_l2": 0.00024360584756759262,
+        "closure_relative": 3.960111170300467e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.10522126823616199,
+        "raw_b_l2": 0.08622915199675789,
+        "predicted_leakage_l2": 0.08602066890064092,
+        "residual_b_l2": 0.0002422604678587379,
+        "closure_relative": 3.589946988774706e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.03218360853964932,
+      "boundary_shape_rmse": 0.008409017746458679,
+      "solver": {
+        "converged": true,
+        "iterations": 39,
+        "relative_residual": 6.4247542772115735e-09,
+        "objective": 0.001034322308801688,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.8641816529998323,
+        "solve_seconds": 0.11428046800028824,
+        "weighted_shear_residual": 4.756124448552685e-06
+      }
+    },
+    {
+      "sources": 180,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 7.17322141508783e-09,
+      "strict_relative_change": 1.055369726409739e-08,
+      "checks": {
+        "adjoint_relative": 5.048838916412851e-13,
+        "cross_skew_relative": 1.5268445914865543e-16,
+        "cross_response_norm": 7.739495016150098
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.14670389020093086,
+        "raw_b_l2": 0.11182686019859303,
+        "predicted_leakage_l2": 0.11155167827429575,
+        "residual_b_l2": 0.00032563673177909345,
+        "closure_relative": 1.7206835171384424e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.14626611255873556,
+        "raw_b_l2": 0.11155167827429575,
+        "predicted_leakage_l2": 0.11127773636857222,
+        "residual_b_l2": 0.00032376454473099093,
+        "closure_relative": 1.026172625467098e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.03171158087997047,
+      "boundary_shape_rmse": 0.012940112636824676,
+      "solver": {
+        "converged": true,
+        "iterations": 38,
+        "relative_residual": 9.341976880663892e-09,
+        "objective": 0.0018933574535985522,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.8641816529998323,
+        "solve_seconds": 0.07935239600010391,
+        "weighted_shear_residual": 8.169444786469812e-06
+      }
+    },
+    {
+      "sources": 180,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 2.790668797940657e-08,
+      "strict_relative_change": 1.0485653584014295e-08,
+      "checks": {
+        "adjoint_relative": 9.689582469718516e-12,
+        "cross_skew_relative": 2.278526665553867e-15,
+        "cross_response_norm": 14.541918849998233
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.10625340073509906,
+        "raw_b_l2": 0.08973195778790463,
+        "predicted_leakage_l2": 0.08950640260163427,
+        "residual_b_l2": 0.00026568727775315074,
+        "closure_relative": 1.689065005504974e-08,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.10593116368974148,
+        "raw_b_l2": 0.08950640260163427,
+        "predicted_leakage_l2": 0.08928202746748928,
+        "residual_b_l2": 0.00026391498963320364,
+        "closure_relative": 1.6124060959485225e-08,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.031955122372626314,
+      "boundary_shape_rmse": 0.007892648156984636,
+      "solver": {
+        "converged": true,
+        "iterations": 47,
+        "relative_residual": 6.06585252608014e-09,
+        "objective": 0.0010349031511919622,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.7545162960004745,
+        "solve_seconds": 0.16955588300061208,
+        "weighted_shear_residual": 4.872982260674638e-06
+      }
+    },
+    {
+      "sources": 180,
+      "method": "argyris",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 2.790668797940657e-08,
+      "strict_relative_change": 1.8140133953810845e-08,
+      "checks": {
+        "adjoint_relative": 9.689582469718516e-12,
+        "cross_skew_relative": 2.278526665553867e-15,
+        "cross_response_norm": 14.541918849998233
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.14853173239164463,
+        "raw_b_l2": 0.1264651935226988,
+        "predicted_leakage_l2": 0.1261276844356982,
+        "residual_b_l2": 0.000395751526914372,
+        "closure_relative": 2.6460546418807738e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.14806228741724717,
+        "raw_b_l2": 0.1261276844356982,
+        "predicted_leakage_l2": 0.12579209285984638,
+        "residual_b_l2": 0.0003930131296894751,
+        "closure_relative": 3.972676259082597e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.031591192384337594,
+      "boundary_shape_rmse": 0.01275650694295129,
+      "solver": {
+        "converged": true,
+        "iterations": 46,
+        "relative_residual": 9.998877296462769e-09,
+        "objective": 0.0019159007876338504,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 0.7545162960004745,
+        "solve_seconds": 0.08232300100007706,
+        "weighted_shear_residual": 8.491336698134855e-06
+      }
+    },
+    {
+      "sources": 180,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 3.195663685301119e-08,
+      "strict_relative_change": 4.210482982105503e-08,
+      "checks": {
+        "adjoint_relative": 8.4204865302695e-12,
+        "cross_skew_relative": 5.491227868193636e-15,
+        "cross_response_norm": 9.0376229500763
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.13339346935175278,
+        "raw_b_l2": 0.2511962095759018,
+        "predicted_leakage_l2": 0.25035837302415986,
+        "residual_b_l2": 0.0020628547498022956,
+        "closure_relative": 3.4973325627059776e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.13222108988671832,
+        "raw_b_l2": 0.25035837302415986,
+        "predicted_leakage_l2": 0.2495432850540539,
+        "residual_b_l2": 0.0017348508048824313,
+        "closure_relative": 2.818407194708927e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.02343306849950476,
+      "boundary_shape_rmse": 0.0036389405772911786,
+      "solver": {
+        "converged": true,
+        "iterations": 96,
+        "relative_residual": 7.757947466376105e-09,
+        "objective": 0.0018907136244944078,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 1.101813803999903,
+        "solve_seconds": 0.08802905399988958,
+        "weighted_shear_residual": 0.00010693560463039377
+      }
+    },
+    {
+      "sources": 180,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.12,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 3.195663685301119e-08,
+      "strict_relative_change": 6.51995822071107e-08,
+      "checks": {
+        "adjoint_relative": 8.4204865302695e-12,
+        "cross_skew_relative": 5.491227868193636e-15,
+        "cross_response_norm": 9.0376229500763
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.19140689563034702,
+        "raw_b_l2": 0.33916703000253,
+        "predicted_leakage_l2": 0.3381974900609532,
+        "residual_b_l2": 0.003024633176804871,
+        "closure_relative": 2.3520235123455575e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.18960819667672066,
+        "raw_b_l2": 0.3381974900609532,
+        "predicted_leakage_l2": 0.3372227900165193,
+        "residual_b_l2": 0.0024526312267137656,
+        "closure_relative": 2.1488930316021534e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.024937974484806932,
+      "boundary_shape_rmse": 0.005455366595536004,
+      "solver": {
+        "converged": true,
+        "iterations": 95,
+        "relative_residual": 9.002319560594965e-09,
+        "objective": 0.003404680484597067,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 1.101813803999903,
+        "solve_seconds": 0.07818375699935132,
+        "weighted_shear_residual": 0.00020092452540193792
+      }
+    },
+    {
+      "sources": 180,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "single",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 3.965674057269228e-08,
+      "strict_relative_change": 7.71460573789292e-08,
+      "checks": {
+        "adjoint_relative": 2.7129086489523477e-11,
+        "cross_skew_relative": 9.55210463091901e-14,
+        "cross_response_norm": 13.687859048608832
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.13598509700259315,
+        "raw_b_l2": 0.2815000898950532,
+        "predicted_leakage_l2": 0.280235797020416,
+        "residual_b_l2": 0.002612031576862968,
+        "closure_relative": 1.2197678492249762e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.13491545562174215,
+        "raw_b_l2": 0.280235797020416,
+        "predicted_leakage_l2": 0.27904180109559096,
+        "residual_b_l2": 0.002194625801384801,
+        "closure_relative": 4.36443209651917e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.023588215151533948,
+      "boundary_shape_rmse": 0.0038012152674907875,
+      "solver": {
+        "converged": true,
+        "iterations": 100,
+        "relative_residual": 9.151170175350066e-09,
+        "objective": 0.0019588950060150825,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 1.1596812409998165,
+        "solve_seconds": 0.09195215999989159,
+        "weighted_shear_residual": 0.0001207051071561702
+      }
+    },
+    {
+      "sources": 180,
+      "method": "hct",
+      "truth": "nfw",
+      "scenario": "two",
+      "padding": 1.5,
+      "length": 0.3,
+      "lam": 0.03,
+      "superposition_relative": 3.965674057269228e-08,
+      "strict_relative_change": 8.717374205826284e-08,
+      "checks": {
+        "adjoint_relative": 2.7129086489523477e-11,
+        "cross_skew_relative": 9.55210463091901e-14,
+        "cross_response_norm": 13.687859048608832
+      },
+      "b_response": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.1951102287655166,
+        "raw_b_l2": 0.389812346428719,
+        "predicted_leakage_l2": 0.3881129413668308,
+        "residual_b_l2": 0.003859862403342798,
+        "closure_relative": 4.312394121864441e-09,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "manufactured_b": {
+        "interpretation": "rotated-shear response conditional on the fitted E model; not pure B",
+        "e_l2": 0.19340526180216341,
+        "raw_b_l2": 0.3881129413668308,
+        "predicted_leakage_l2": 0.3864013508041196,
+        "residual_b_l2": 0.003201674195212338,
+        "closure_relative": 5.922187186012515e-10,
+        "lam": 0.03,
+        "length": 0.3
+      },
+      "inner_shape_rmse": 0.025173598116727723,
+      "boundary_shape_rmse": 0.005706559475242462,
+      "solver": {
+        "converged": true,
+        "iterations": 100,
+        "relative_residual": 9.989613739320258e-09,
+        "objective": 0.0035304823858579313,
+        "residual_tolerance": 1e-06,
+        "refinements": 0,
+        "solver": "prior-preconditioned-cg",
+        "lam_used": 0.03,
+        "wiener_length": 0.3,
+        "setup_seconds": 1.1596812409998165,
+        "solve_seconds": 0.08108528000047954,
+        "weighted_shear_residual": 0.0002219858237421885
+      }
+    }
+  ]
+}

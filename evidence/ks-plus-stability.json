@@ -1,0 +1,86 @@
+[
+  {
+    "scenario": "nfw-integration",
+    "report": {
+      "reference_iterations": 800,
+      "selected_iterations": 400,
+      "tolerance": 0.05,
+      "accepted": false,
+      "rows": [
+        {
+          "seed": 100,
+          "iterations": 200,
+          "relative_change": 0.7913084977561429
+        },
+        {
+          "seed": 100,
+          "iterations": 400,
+          "relative_change": 0.4395350883082125
+        },
+        {
+          "seed": 100,
+          "iterations": 800,
+          "relative_change": 0.0
+        },
+        {
+          "seed": 101,
+          "iterations": 200,
+          "relative_change": 0.3357409504034367
+        },
+        {
+          "seed": 101,
+          "iterations": 400,
+          "relative_change": 0.4439199862667344
+        },
+        {
+          "seed": 101,
+          "iterations": 800,
+          "relative_change": 0.0
+        }
+      ],
+      "interpretation": "map stability against a longer run, not a solver residual"
+    }
+  },
+  {
+    "scenario": "masked-integration",
+    "report": {
+      "reference_iterations": 800,
+      "selected_iterations": 400,
+      "tolerance": 0.05,
+      "accepted": false,
+      "rows": [
+        {
+          "seed": 100,
+          "iterations": 200,
+          "relative_change": 0.8520003507932878
+        },
+        {
+          "seed": 100,
+          "iterations": 400,
+          "relative_change": 0.3587164217556685
+        },
+        {
+          "seed": 100,
+          "iterations": 800,
+          "relative_change": 0.0
+        },
+        {
+          "seed": 101,
+          "iterations": 200,
+          "relative_change": 0.6250630756961402
+        },
+        {
+          "seed": 101,
+          "iterations": 400,
+          "relative_change": 0.8851705186618127
+        },
+        {
+          "seed": 101,
+          "iterations": 800,
+          "relative_change": 0.0
+        }
+      ],
+      "interpretation": "map stability against a longer run, not a solver residual"
+    }
+  }
+]

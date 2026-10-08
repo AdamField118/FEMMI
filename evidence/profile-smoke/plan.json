@@ -1,0 +1,15 @@
+{
+  "revision": "fce327f3b179abc7b15247d1427bac9c48bc979d",
+  "tracked_diff_sha256": "0b794eca554cc32c95882768b05bcd21f4cee6f40a86c498dc2e08bbbaefd7db",
+  "sources": [
+    24
+  ],
+  "methods": [
+    "p3",
+    "argyris",
+    "hct"
+  ],
+  "processes": 2,
+  "repeats": 2,
+  "note": "First Numba process per mesh case compiles into an empty cache; subsequent processes load it."
+}

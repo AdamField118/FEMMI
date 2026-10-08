@@ -1,0 +1,26 @@
+[
+  {
+    "seed": 0,
+    "rmse": 0.0012884863185228463,
+    "relative_l2": 0.15379539828209024,
+    "pixels": 256,
+    "radius_pixels": 3.0,
+    "interpretation": "dense noiseless Q-versus-U discretization control; not a fitted method"
+  },
+  {
+    "seed": 1,
+    "rmse": 0.0012884863185228463,
+    "relative_l2": 0.15379539828209024,
+    "pixels": 256,
+    "radius_pixels": 3.0,
+    "interpretation": "dense noiseless Q-versus-U discretization control; not a fitted method"
+  },
+  {
+    "seed": 2,
+    "rmse": 0.0012884863185228463,
+    "relative_l2": 0.15379539828209024,
+    "pixels": 256,
+    "radius_pixels": 3.0,
+    "interpretation": "dense noiseless Q-versus-U discretization control; not a fitted method"
+  }
+]
