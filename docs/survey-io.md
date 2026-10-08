@@ -1,12 +1,11 @@
 # Survey FITS workflow
 
-The production `femmi.map_mass` API and `femmi map` command now take FITS shear
+The production `femmi.map_mass` API and `femmi map` command take FITS shear
 catalogues and produce registered astronomical images. The public vocabulary,
 RA/Dec flattening and default shear sign follow
 [SMPy at 26d231f](https://github.com/GeorgeVassilakis/SMPy/tree/26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe).
-The inverse remains FEMMI's verified catalogue-native quadratic estimator.
-`map_catalogue(flat, MapperConfig(...))` is the separate low-level Python call;
-there is no old NPZ command alias.
+The inverse is FEMMI's catalogue-based quadratic estimator.
+`map_catalogue(flat, MapperConfig(...))` is the separate low-level Python call.
 
 ```python
 from femmi import map_mass
@@ -33,7 +32,7 @@ pip install -e '.[io,speed]'
 femmi map --config configs/survey.yaml --catalogue shapes.fits --output-dir results
 ```
 
-[`configs/survey.yaml`](../configs/survey.yaml) uses SMPy's `general`, `methods`,
+[`configs/survey.yaml`](https://github.com/AdamField118/FEMMI/blob/main/configs/survey.yaml) uses SMPy's `general`, `methods`,
 `snr` and `plotting` sections, plus a `catalogue` section for explicit selection
 and calibration. Set `general.method` to `p3`, `argyris`, or `hct`. Each has its
 own `lam` and `length`; the examples are not a recommendation to reuse tuning
@@ -152,21 +151,23 @@ source redshift uncertainty and prior uncertainty are not included.
 
 The B map is the same estimator applied to rotated shear. On a finite,
 irregularly sampled domain it is not an exact orthogonal E/B decomposition.
-In the noiseless off-centre Gaussian regression, substantial B structure can
-remain because of the boundary model and ambiguity; a zero-B scientific claim
-would be unsupported. Inspect it together with null maps and boundary/mask
-coverage. E morphology and sky-peak registration are tested independently.
+Set `b_diagnostics=True` to save the response to the rotated E prediction as
+`b_leakage.fits`, and the response to the rotated shear residual as
+`b_residual.fits`. Their sum reproduces the raw B map within solve error.
+The manifest records finite-element L2 norms and the closure error. Both maps
+are conditional on the fitted E model and prior; neither is a pure-B projector.
+See the [observation model](observation-model.md) for the defining equation.
 
-## Verified differences from SMPy
+## Compatibility with SMPy
 
-The intent is compatibility, with these explicit exceptions rather than a claim
-of bitwise identical maps between different inverse methods:
+The public vocabulary follows the pinned SMPy version. The following differences
+affect interpretation or file registration:
 
-1. **WCS defect:** upstream `utils.save_fits` writes negative RA scale for an
+1. **WCS registration:** upstream `utils.save_fits` writes negative RA scale for an
    array gridded in increasing RA, uses `CRPIX=(nx/2,ny/2)` rather than the centred
    FITS pixel `(nx+1)/2,(ny+1)/2`, and treats raw RA span as tangent angular span.
    FEMMI evaluates the field on the WCS grid instead.
-2. **Numeric orientation-seed defect:** upstream `generate_multiple_shear_dfs`
+2. **Orientation seeding:** upstream `generate_multiple_shear_dfs`
    ignores the numeric seed for orientation shuffles. FEMMI seeds a local RNG.
 3. **Grid-edge loss:** upstream `digitize` excludes the final upper bin edge.
    FEMMI includes both outer boundaries with a 1e-8 pixel roundoff tolerance.
@@ -187,63 +188,11 @@ SMPy plotting convenience. Peak annotations/cluster-centre markers, plot-only
 rather than being silently ignored. The supplied FEMMI config shows the supported
 vocabulary. Inactive method/coordinate sections may remain in a shared YAML.
 
-`tests/test_survey_io.py` tests input/projection parity against the pinned SMPy,
-reproduces the WCS/seed defects, tests boundary inclusion, and exercises both
-coordinate systems, unit/null handling, selection/response, all three FEM
-estimators, E/B products, seeded spatial/orientation noise, reference-image
-registration, astronomical overlays and the FITS command-line round trip.
 
-## I/O timing smoke benchmark
+## Geometry controls
 
-```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-PYTHONPATH=. FEMMI_BEM_BACKEND=numba \
-python examples/diagnostics/benchmark_survey_io.py \
-  --sources 128 --repeats 3 --shuffles 3 --output outputs/survey_io_timings.json
-```
-
-The checked-in raw repetitions include FITS read, complete E/B fits, three
-orientation nulls, map evaluation and all FITS/JSON products; plots are disabled.
-On this execution host, the median of repetitions 2–3 was:
-
-| Method | Assembly + factorization (s) | E/B solves (s) | Nulls (s) | Output (s) | Total (s) |
-|---|---:|---:|---:|---:|---:|
-| P3 | 0.043 | 0.061 | 0.225 | 0.050 | 0.420 |
-| Argyris | 0.585 | 0.103 | 0.379 | 0.050 | 1.173 |
-| HCT | 0.859 | 0.051 | 0.251 | 0.063 | 1.279 |
-
-Raw data: [`outputs/survey_io_timings.json`](../outputs/survey_io_timings.json).
-The table uses externally measured wall time including the final JSON write;
-internal `total_s`/`output_s` explicitly exclude serialization of their own timing manifest.
-Ingestion was a few milliseconds; these small workloads do not justify another I/O
-optimization layer. First repetitions are retained because lazy imports and
-Numba cache loading matter. The timing runner records cumulative process peak
-RSS, software/platform and thread settings. It does not isolate JIT compilation
-from assembly, establish survey-scale throughput, calibrate a three-shuffle SNR,
-or establish scientific superiority over SMPy. Use the existing
-[production profiling](production-performance.md) and
-[held-out SMPy benchmarks](smpy-benchmarks.md) for those separate questions.
-
-## Patch validation
-
-Base: FEMMI `0438c44a7c7e261dec26af6b8c92b5c987bfb241`, rechecked against
-`origin/main` after implementation. Pinned SMPy:
-`26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe`.
-
-- `FEMMI_REQUIRE_OPTIONAL=io,galsim python -m pytest -q -m 'not slow'`:
-  **324 passed, 1 skipped, 3 deselected** (Python 3.12, 132.61 seconds).
-  The neural suite was skipped because Flax/Optax were not installed; the three
-  marked slow tests were excluded. Existing convergence-fit and SMPy FFT divide
-  warnings remain. The survey tests themselves all passed, including SMPy checks.
-- `ruff check --select E9,F63,F7,F82 femmi tests examples`: passed.
-- WCSAxes PNG with count labels and a celestial DS9 contour was visually checked.
-- All three elements recovered the off-centre Gaussian's E morphology and sky
-  peak in the FITS workflow (inner-map correlation >0.98, peak error <0.2 arcmin).
-  This validates signs/registration, not survey calibration or an absence of B
-  leakage.
-- CI now installs the pinned SMPy for these compatibility checks. A pre-existing
-  lint complaint about deleting a closure-captured calibration model list was
-  resolved by explicitly clearing that list; its numerical behavior is unchanged.
-
-No real survey catalogue is bundled or claimed as validated. This patch provides
-the estimator I/O and diagnostics for that next stage of work.
+`boundary_padding` sets the unobserved mesh ring radius relative to the physical
+field (default 1.12). `boundary_nodes` optionally fixes its resolution. Vary them
+independently when assessing exterior sensitivity; changing padding is not a
+substitute for testing uncertain exterior mass. These options can be placed in
+the selected `methods` section of the YAML file.

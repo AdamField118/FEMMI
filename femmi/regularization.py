@@ -5,7 +5,7 @@ Automatic regularization parameter selection via Morozov's discrepancy principle
 Selects lambda such that ||F kappa_lambda - gamma_obs|| = c * delta,
 where delta is the noise level and c ~ 1.
 
-Reference: MATH.md section 13, C&K Thm 10.4.
+See docs/calibration.md for the noise and selection conventions.
 """
 
 import numpy as np
@@ -47,13 +47,8 @@ def discrepancy(lam, ops, gamma1_obs, gamma2_obs, delta, c=1.0,
     A root need not exist or be unique. Approximate/nonconvex optimization can
     also spoil monotonicity; the selector has a bracket fallback.
 
-    prior : optional non-Gaussian Prior (femmi.priors). NOTHING here needs the
-    prior to be quadratic -- the discrepancy is evaluated by actually solving the
-    MAP problem at each lambda and measuring the residual, which works for TV,
-    sparsity, max-entropy or a learned score prior just as well as for Wiener.
-    (Before this was threaded through, custom priors silently ran at a fixed
-    lam_reg and were badly mis-scaled: TV/sparse/maxent scored 2.7-3.8 in shape
-    L2 against Wiener's 0.31 in the benchmark grid.)
+    prior : optional energy-based Prior. Selection solves MAP at each lambda
+    using that same penalty. A score-only prior cannot supply this objective.
 
     data_weight : optional per-node weight; when given (e.g. a binary galaxy
     selection for a catalog-native mesh), the residual RMS is taken over the

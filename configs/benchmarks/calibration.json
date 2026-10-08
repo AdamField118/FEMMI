@@ -1,0 +1,882 @@
+[
+  {
+    "name": "density-5",
+    "n_eff": 5,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "density-10",
+    "n_eff": 10,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "density-20",
+    "n_eff": 20,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "density-30",
+    "n_eff": 30,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "noise-0.1",
+    "n_eff": 10,
+    "noise_std": 0.1,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "noise-0.2",
+    "n_eff": 10,
+    "noise_std": 0.2,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "noise-0.3",
+    "n_eff": 10,
+    "noise_std": 0.3,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "off-centre",
+    "n_eff": 10,
+    "halos": [
+      [
+        200000000000000.0,
+        4,
+        [
+          1.0,
+          0.5
+        ]
+      ]
+    ],
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "two-halos",
+    "n_eff": 10,
+    "halos": [
+      [
+        200000000000000.0,
+        4,
+        [
+          -0.8,
+          0
+        ]
+      ],
+      [
+        100000000000000.0,
+        5,
+        [
+          0.9,
+          0.3
+        ]
+      ]
+    ],
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "mass-concentration",
+    "n_eff": 10,
+    "halos": [
+      [
+        500000000000000.0,
+        6,
+        [
+          0,
+          0
+        ]
+      ]
+    ],
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "radius-1.5",
+    "n_eff": 5,
+    "radius": 1.5,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "radius-6.0",
+    "n_eff": 5,
+    "radius": 6.0,
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "weights",
+    "n_eff": 10,
+    "catalog_kw": {
+      "weight_scatter": 1.0
+    },
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "masked",
+    "n_eff": 10,
+    "catalog_kw": {
+      "masks": [
+        [
+          0.8,
+          0.3,
+          0.7
+        ],
+        [
+          -1.0,
+          -0.4,
+          0.5
+        ]
+      ]
+    },
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "clustered",
+    "n_eff": 10,
+    "catalog_kw": {
+      "clustering": 0.4
+    },
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 64,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  },
+  {
+    "name": "lognormal",
+    "n_eff": 10,
+    "truth": "lognormal",
+    "calibration_seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "methods": [
+      "p3",
+      "argyris",
+      "hct",
+      "smpy_ks",
+      "smpy_ks_plus"
+    ],
+    "evaluation_grid": 256,
+    "ks_plus_iterations": 100,
+    "ks_plus_iteration_check": [
+      50,
+      100,
+      200
+    ],
+    "ks_plus_stability_tolerance": 0.05,
+    "selection_metric": "source_shape_l2",
+    "aperture_comparison": true,
+    "aperture_quadrature_tolerance": 0.05
+  }
+]

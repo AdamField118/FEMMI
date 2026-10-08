@@ -1,31 +1,9 @@
-"""
-femmi/convergence.py
-Fitting convergence orders, and refusing to fit one that isn't there.
+"""Estimate mesh convergence orders while rejecting apparent error floors.
 
-WHY THIS EXISTS
----------------
-This project has twice reported a convergence order that was actually an error
-FLOOR:
-
-  * measuring the forward shear against the infinite-domain analytic shear of a
-    Gaussian, which floors near 2.4e-2 and reads as "order ~1";
-  * measuring the COUPLED C^1 solve the same way, which floored near 2.6e-2 and
-    was written up as the square's corner singularity capping the rate at
-    O(h^{5/3}). It wasn't. On a compactly supported field the same solver holds
-    O(h^4) (MATH.md 18.3.7).
-
-Both times the data said the same thing and it was easy to miss: the error stops
-improving while h keeps shrinking, so a least-squares slope through log h still
-returns a number, and the number is meaningless.
-
-`fit_order` returns that slope only when the curve is actually converging, and
-otherwise says the reference is floored. The test for it is cheap: a converging
-curve keeps a healthy LOCAL order at the fine end, while a floored one goes flat
-there no matter how good the coarse end looked.
-
-    h, err = ...                       # finest last
-    order = fit_order(h, err)          # raises FloorError if the curve plateaus
-    order = fit_order(h, err, on_floor="warn")
+fit_order checks the local slope at the fine end before accepting a global
+log-log fit. Use on_floor="warn" to retain the fit with a warning instead of
+raising FloorError. A detected plateau calls for checking reference and boundary
+error before interpreting a fitted order as an element approximation rate.
 """
 
 from __future__ import annotations

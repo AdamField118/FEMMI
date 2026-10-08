@@ -259,19 +259,9 @@ def single_layer_entry_fn(bnd, n_quad=12, degree=3, clustering="uniform"):
     ADMISSIBLE blocks -- exactly where ACA uses it. Near-field and self blocks
     keep the tuned Duffy/log-Gauss handling in `near_field_entry_fn`.
 
-    DEGREE MATTERS HERE. This was hardcoded to P3 (`_p3_boundary_basis`, four
-    nodes per element) while the C^1 coupling runs its boundary at degree 5, so
-    ACA could not serve the one place in the project that would actually use it.
-    It now takes `degree` like the rest of `bem_hp`, and `clustering` so the DOF
-    positions match the mesh the operator was assembled on.
-
-    WHETHER ACA PAYS AT ALL (measured, MATH.md 18.3.15): not at these sizes, and
-    not on any geometry tried. Against dense assembly it runs at 0.52-0.78x on a
-    uniform circular mesh (N_b = 144 and 240, degrees 3 and 5) and a flat 0.65x
-    on catalog guard rings, across ACA tolerances 1e-6..1e-9 and admissibility
-    eta 1..2. Flat in N_b means no crossover is coming below the sizes this
-    project runs. The compression and the 1e-9 accuracy are real; the speed is
-    not. `bem_hp.ACA_MIN_NB` keeps it off by default.
+    degree and clustering must match the assembled boundary space. ACA is
+    disabled by default; use measured complete assembly and solve costs before
+    enabling compression for a workload.
     """
     from .bem import _gauss_legendre
     from .bem_hp import boundary_basis, node_positions

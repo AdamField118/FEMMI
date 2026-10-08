@@ -47,6 +47,7 @@ Values are coerced (`8` → int, `0.3` → float, `true`/`false` → bool, `null
 further arguments are `--set` overrides:
 
 ```bash
+export PYTHON_BIN="$PWD/.venv/bin/python"
 sbatch scripts/femmi.sbatch configs/paper_artifacts.yaml
 sbatch scripts/femmi.sbatch configs/my_run.yaml inverse.method=sample prior.kind=neural
 ```
@@ -59,7 +60,7 @@ dying at the final save.
 ## Reusing a config in a script
 
 Purpose-built scripts (e.g. the paper-artifact recreation) load the *same* config
-and reuse `femmi.pipeline`, so a script and a `femmi run` share exactly one
+and reuse `femmi.pipeline`, so a script and a `femmi run` share one
 description of a run:
 
 ```python

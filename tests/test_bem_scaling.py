@@ -5,7 +5,7 @@ Steinbach BEM coupling:
 
   - the lensing forward map is scale-invariant, and Dirichlet respects it;
   - the Steinbach coupling is scale-invariant too (this is the property the
-    legacy coupling lacked -- see the investigation notes and MATH.md 6.5);
+    legacy coupling lacked -- see the investigation notes and MATH.md);
   - the boundary-only circular BEM mesh assembles consistent matrices.
 
 Run:

@@ -1,29 +1,7 @@
-"""
-tests/conftest.py
-Shared pytest configuration.
+"""Optional-dependency guards for scientific test environments.
 
-WHY THE OPTIONAL-DEPENDENCY GUARD EXISTS
-----------------------------------------
-Five test modules are gated on GalSim with `pytest.importorskip`, including the
-two that guard the project's headline results:
-
-    test_truth.py            the independent-truth generators every claim is scored against
-    test_density.py          the source-density comparison (MATH.md 18.3.10)
-    test_benchmark.py        the element x prior grid
-    test_lambda_selection.py per-catalog lambda
-    test_experiments.py      three GalSim-scored experiments
-
-CI installed only `[dev]` and `[dev,neural]`, so GalSim was never present and all
-of them SKIPPED on every push. The suite went green while proving nothing about
-the results the paper rests on -- and a skip looks identical to a pass in the
-summary line unless you read the counts.
-
-`importorskip` is right for a contributor without the extra installed and wrong
-for CI, so the behaviour is now switched by environment:
-
-    FEMMI_REQUIRE_OPTIONAL=1 pytest      # missing extra -> hard failure
-
-CI sets it. Locally it is unset and the skips behave as before.
+FEMMI_REQUIRE_OPTIONAL=1 requires every listed optional test dependency.
+A comma-separated list requires selected extras; unset permits pytest skips.
 """
 
 import importlib

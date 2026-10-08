@@ -1,116 +1,90 @@
-# Observation model and numerical checks
+# Observation model
 
-FEMMI currently reconstructs convergence from **linear shear** on a flat tangent
-plane. Inputs must already have a consistent component convention, calibration,
-angular unit and source-efficiency normalization. The estimator does not fit
-individual source redshifts or the nonlinear reduced shear `g = gamma/(1-kappa)`.
-Using measured galaxy shapes as shear is a weak-lensing approximation, not an
-internal conversion. No unpublished catalogue results are bundled here.
+FEMMI models linear shear on a flat field at one effective source plane.
+Observed reduced shear is not internally converted to shear. Source redshifts
+can be retained and selected, but do not change the lensing efficiency of each
+row. Calibrate input shapes and establish component signs before reconstruction.
 
-## Data selection and noise
+## Likelihood and prior
 
-For active positions, the diagonal noise model is
+For convergence coefficients `k`, the production mapper minimizes
 
-\[
-\operatorname{Var}(n_{a,i})=\sigma_n^2/w_i,\qquad
-J_{\rm data}=\sum_{a=1}^2\sum_{i:w_i>0}w_i(F_a\kappa-d_a)_i^2.
-\]
+$$J(k)=\sum_i w_i[(F_1k-d_1)_i^2+(F_2k-d_2)_i^2]
+       +\lambda k^T(M+\ell^2K)k.$$
 
-- `data_weight` is a finite nonnegative vector, shared by both components.
-  Zero means no observation. Negative/nonfinite weights and empty observations
-  are errors. A full correlated covariance is not supported by this interface.
-- `mask=True` means missing data. The mask is applied before regularization
-  selection and is combined with the weights. Missing shear placeholders may
-  be NaN; active observations must be finite. Input arrays are not modified.
-- `noise_std` is the reference component noise at unit weight. Morozov measures
-  `sqrt(J_data / (2*n_active))`. For heterogeneous weights, automatic MAD and
-  B-mode residual diagnostics use whitened components `sqrt(w)*gamma`.
-  Signal and fitted degrees of freedom can bias these noise estimates; they
-  are diagnostics, not independent noise calibrations.
-- `FEMMapper` uses supplied weights exactly, without normalization. Scale lambda
-  with the weights to preserve the same objective. Its configuration and result
-  retain the actual convention; see [Catalogue mapper](mapper.md).
-- Catalogue guard/boundary nodes carry no observations. The structured pipeline
-  also excludes P3 boundary rows, whose shear predictions are intentionally zero.
-  Low-level array APIs default to all supplied rows: pass explicit weights when
-  some rows are placeholders or unsupported boundary outputs.
+`M` and `K` are the finite-element mass and stiffness matrices. `length=0`
+therefore gives a mass penalty in `FEMMapper`. Weights are shared by the two
+components and used as supplied. If they are relative inverse variances,
+`Var(n_ai)=sigma_n^2/w_i`; the prior strength must use the same normalization.
+Scaling all weights and lambda together leaves the map unchanged. The production
+interface does not model correlated component or inter-source noise.
 
-The MAP loss is `J_data + lam_MAP * phi`. The sampling negative log density is
-`J_data/(2*noise_std**2) + lam_sample * phi`, so matched modes require
-`lam_sample = lam_MAP/(2*noise_std**2)`. This equality presumes the same prior,
-weights and noise model. Positive Wiener length gives `R=M+ell**2*K`; zero
-length retains the historical gradient penalty `R=K` in both element paths.
-This finite-dimensional precision is not automatically a continuum Matérn-1/2
-covariance in two dimensions.
+Only source rows enter the likelihood. Mesh boundary vertices are not additional
+observations. Missing regions contain prior-dependent predictions. In the
+research array interface, `mask=True` removes a row and combines with zero
+weights; active shear values must be finite. The catalogue mapper requires
+explicit selection of finite inputs before constructing its mesh.
 
-## Forward and transpose
+## Forward operator and adjoint
 
-Let `Q` zero prescribed load entries. The discrete forward is
-`F = -2*S*A^{-1}*Q*M`; its Euclidean transpose is
-`F.T = -2*M.T*Q*A^{-T}*S.T`. The projection acts **after** the transpose solve.
-This is shared by reconstruction, the NumPy adjoint, JAX VJP, SVD and sampling.
-The public quadratic Hessian action uses this composition directly; it does
-not require unsupported differentiation through a JAX host callback.
+With prescribed-load projection `Q`, coupled matrix `A`, and observation
+recovery `S`, the discrete operator is
 
-P3 shear uses averaged element Hessians. Argyris selects shared vertex Hessian
-DOFs. HCT is C1, not C2: vertex Hessians are recovered by averaging all incident
-subtriangle traces with physical area weights. This is a defined recovery
-operator, not a unique pointwise Hessian. Its mass, stiffness and load integrals
-use quadrature on each of its three polynomial pieces. See the
-[HCT element definition](https://defelement.org/elements/hsieh-clough-tocher.html).
+$$F=-2SA^{-1}QM,\qquad F^T=-2M^TQA^{-T}S^T.$$
 
-## Priors and posterior sampling
+The transpose projection follows the transpose solve. P3 recovers shear from
+averaged element Hessians. Argyris uses shared vertex Hessian degrees of freedom.
+HCT is C1: its vertex Hessian is an area-weighted recovery from incident
+subtriangle traces, not a uniquely defined second derivative. Assembly integrates
+each of HCT's three polynomial pieces.
 
-Energy-based MAP requires a consistent penalty value and gradient. `ScorePrior`
-requires `neg_logp` for MAP. `NeuralScorePrior` supplies only a score; passing a
-zero surrogate value with that score to L-BFGS was inconsistent and is now
-rejected. Choose a score sampler explicitly instead. Score-only sampling starts
-from zero; its returned `map_kappa` is an initialization, identified by
-`info['map_kind'] == 'initialization'`, not a claimed posterior mode.
+The production solver applies `F` and `F.T` in a quadratic normal equation.
+The research JAX interface supplies a custom adjoint for its host solve. Numba
+accelerates geometry-dependent assembly; it does not replace that adjoint or
+make `FEMMapper` JAX-traceable.
 
-Gaussian RTO uses perturbations with covariance equal to the posterior precision.
-In particular, data perturbations contribute `F.T*W*F/noise_std**2`, not a
-squared-weight covariance. CG nonconvergence raises an error. Its Gaussian
-interpretation requires a positive definite posterior precision; residual
-solver tolerance and the tiny numerical prior factorization jitter limit exactness.
+## Exterior and reference level
 
-Langevin has finite-step bias. Annealed HMC has finite-chain and annealing error;
-a nonzero final sigma still changes the likelihood. Learned scores and the
-grid/mesh interpolation need not form a conservative vector field. A finite
-score line integral is not an exact Metropolis energy difference in general.
-These methods remain experimental approximate samplers, marked in `info`.
-A custom prior with a real energy uses that energy and gradient in HMC.
+BEM represents a harmonic exterior under an isolated-source assumption. A
+nonzero integrated convergence has a logarithmic two-dimensional far field;
+its potential cannot also be assumed to vanish at infinity. The discrete gauge
+fixes the potential reference. Boundary normalization and the prior can restrict
+mass-sheet-like directions; this is a model restriction, not evidence that the
+catalogue alone fixes an absolute mass sheet.
 
-## Boundary assumptions and claims
+A finite-rank calculation does not prove uniqueness in a continuum function
+space. Nodal singular values also depend on coefficient scaling and cannot be
+read as physically normalized information without a noise metric and an FE
+mass metric.
 
-BEM models a harmonic exterior under an isolated-source assumption. For
-nonzero integrated convergence, the two-dimensional potential has a logarithmic
-far-field term, not a zero-at-infinity condition. The implemented normalization
-and node pin specify a discrete boundary model; neither proves shear inverse
-uniqueness. See [Squires & Kaiser (1996)](https://arxiv.org/abs/astro-ph/9512094)
-for finite-field reconstruction and reference-level issues.
+## Interpreting rotated-shear B maps
 
-The nodal SVD is not a noise-weighted, finite-element-mass-normalized information
-spectrum. Legacy `FactorizationIndicator` and `LinearSamplingIndicator` use no
-observed shear and cannot recover unknown mass support. Their names remain for
-compatibility, with corrected descriptions of their geometry-only outputs.
+`mode='B'` fits `(gamma2, -gamma1)` with the same scalar inverse as E. It is
+not an orthogonal E/B projector on a finite, irregular catalogue. Even data
+manufactured by the discrete E operator can produce a B map because
 
-## Verification and benchmark status
+$$F_1^TWF_2-F_2^TWF_1$$
 
-Run the complete suite, including optional scientific dependencies:
+need not vanish. A smaller normal-equation residual does not remove this
+cross-response. Finite-field E/B ambiguity is discussed by
+[Bunn et al. (2003)](https://arxiv.org/abs/astro-ph/0207338); the particular
+numerical response of this estimator must still be measured.
 
-```bash
-pip install -e '.[dev,neural,galsim,io]'
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 FEMMI_REQUIRE_OPTIONAL=1 python -m pytest -q
-```
+`mapper.diagnose_b()` fits rotated E-predicted shear and rotated residual shear
+separately. Their sum should reproduce the raw B fit within solver error.
+The decomposition is conditional on the E fit and prior. Its residual is neither
+a pure-B estimator nor a calibrated detection statistic. Set
+`b_diagnostics=True` in `map_mass`, with B requested, to save both diagnostic maps.
 
-The regression suite includes explicit small-matrix transpose/precision checks,
-JAX parity, missing-data invariance through regularization selection, non-binary
-weights, a dense-reference posterior covariance check, HCT polynomial recovery,
-triangle-order invariance, and quadrature convergence. Older diagnostic scripts
-now expose their checked invariants to pytest instead of only printing failures.
+## Research priors and sampling
 
-Historical benchmark tables predate these corrections. Recalibrate P3, Argyris,
-HCT and KS on held-out catalogues before regenerating numerical comparisons.
-Correctness checks alone do not establish publication-level reconstruction
-quality or a speed advantage. Numba optimization is a separate next step.
+The research `WienerPrior` uses `M+ell^2 K` at positive length and a gradient
+penalty `K` at zero length. This zero-length convention differs from the
+production mapper; use explicit positive lengths when comparing the interfaces.
+Neither precision is automatically a continuum Matérn covariance in two dimensions.
+
+Research MAP minimizes `J_data + lam_MAP * phi`; sampling uses
+`J_data/(2*sigma_n^2) + lam_sample * phi`. Matched modes require
+`lam_sample=lam_MAP/(2*sigma_n^2)` with otherwise identical assumptions.
+See [priors and sampling](priors-and-sampling.md) for energy requirements and
+numerical approximation limits.

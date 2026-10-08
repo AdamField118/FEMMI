@@ -1,99 +1,30 @@
-# Neural non-Gaussian prior for FEMMI
+# Neural score prior
 
-A FEMMI-native, gradient-exploiting implementation of the score-based
-non-Gaussian prior of
+This package provides a noise-conditioned U-Net and denoising score-matching
+training for the research sampler. It follows the score-prior approach of
+[Remy et al. (2020)](https://arxiv.org/abs/2011.08271) with FEMMI's own forward
+operator and grid-to-mesh coupling.
 
-> B. Remy, F. Lanusse, Z. Ramzi, J. Liu, N. Jeffrey, J.-L. Starck,
-> *Probabilistic Mapping of Dark Matter by Neural Score Matching*,
-> Third Workshop on Machine Learning and the Physical Sciences, NeurIPS 2020.
-> arXiv:2011.08271. Code: https://github.com/b-remy/score-estimation-comparison
-> (branch `lensing-recon`).
+Install `.[neural]`, then use `prior.kind=neural` and `inverse.method=sample`.
+A learned score alone does not provide the consistent energy required by MAP.
+The score sampler is approximate; see the
+[sampling guide](../../docs/priors-and-sampling.md) for its limitations.
 
-Their work is **cited, not vendored** — this is an independent implementation on
-FEMMI's own differentiable FEM-BEM forward. `prior='neural'` is the only flag you
-need.
+Default training generates shifted-lognormal synthetic maps. They provide a
+self-contained demonstration, not a calibrated cosmological prior. The trainer
+also accepts external simulation maps. Keep training and evaluation lines of
+sight independent and record the training distribution with each checkpoint.
 
-## What is the training data? (start here)
+| Module | Purpose |
+|---|---|
+| `data.py` | Synthetic training fields |
+| `massivenus.py` | External map loading and patch sampling |
+| `denoiser.py` | Flax noise-conditioned U-Net |
+| `train.py` | Training, validation-loss stopping, and checkpoint management |
+| `prior.py` | Score evaluation and mesh/grid interpolation |
 
-The prior is a small neural network that learns *what a convergence (κ) map
-typically looks like*. To learn that, it needs example κ maps — and the honest
-answer to "where do they come from" is: **FEMMI generates them itself, no
-download.**
-
-- The maps are **synthetic shifted-log-normal random fields** (`data.py`,
-  `lognormal_kappa_maps`). We draw a Gaussian random field with a power-law power
-  spectrum, then exponentiate it. Exponentiating turns a symmetric Gaussian field
-  into a **skewed, peaky** field — bright compact peaks on a near-empty
-  background — which is the standard simple model for weak-lensing convergence
-  (Clerkin et al. 2017; Hilbert et al. 2011). That skew/peakiness is exactly the
-  *non-Gaussian* structure a plain Gaussian (Wiener) prior cannot represent, and
-  therefore exactly what the network is there to learn.
-- They are generated **fresh on every training batch** (an infinite stream), so
-  there is no dataset file to manage and nothing to overfit.
-- This makes the shipped prior a faithful *demonstration of the mechanism*, not a
-  calibrated cosmological prior. **To do science**, retrain on real simulation κ
-  maps (e.g. MassiveNu, as Remy et al. use, or your GalSim NFW fields) — point
-  `train_score_model` at them instead of the synthetic generator. The interface,
-  the reconstructor, and the sampler are all unchanged; only the training maps
-  differ.
-
-## How it is trained (Denoising Score Matching)
-
-We never need the probability `p(κ)` itself — only its **score** `∇log p(κ)`,
-which is all a gradient-based reconstructor or sampler uses. DSM learns it
-cheaply (Remy et al. eq. 3; Vincent 2011):
-
-1. Take a clean map `κ`, add Gaussian noise: `κ' = κ + σ u`, `u ~ N(0, I)`, with
-   `σ` drawn over a range.
-2. Train a noise-conditional U-Net `r_θ(κ', σ)` to minimise
-   `E‖u + σ r_θ(κ', σ)‖²`.
-3. At the optimum, `r_θ(κ', σ) = ∇log p_σ(κ')` — the score we want.
-
-`train.py` runs this loop; `denoiser.py` is the Flax U-Net; a small default model
-trains in a couple of minutes on CPU and is cached under `checkpoints/`. Training
-tracks a **held-out validation DSM loss** and **early-stops with patience**
-(keeping the best-validation params), so a large `steps` budget is an upper bound,
-not wasted compute — it stops once the model has converged.
-
-**Referencing a trained model.** Checkpoints are named
-`score_unet_p{n_pix}_b{base}.msgpack` and the architecture is read back from that
-name, so you point at a run by file and nothing else is needed:
-
-```python
-prior = make_prior('neural', ops, ckpt='path/to/score_unet_p64_b32.msgpack')
-```
-
-## Why FEMMI is a natural fit
-
-- FEMMI's MAP gradient already contains the exact **analytic Gaussian score**:
-  the Wiener/Matérn term `∇φ = 2λRκ` (`femmi/priors.py::WienerPrior`) is precisely
-  the Gaussian `−∇log p_th` of Remy et al.'s eq. 6. So the network only supplies
-  the **non-Gaussian residual** on top — the minimal-reliance split they advocate.
-- FEMMI's forward `κ → γ` is **differentiable** (`forward.py`, JAX `custom_vjp`),
-  so the likelihood score is exact. The same learned score therefore drives both
-  MAP (`MAPReconstructor(prior=...)`) and posterior **sampling**
-  (`femmi.sampling.sample_posterior(method='langevin')`), not just point
-  estimation — the gradient-preserving quality this exploits.
-
-## Usage
-
-```python
-# Score-only neural priors are supported by the experimental sampling pipeline.
-# Configure prior.kind: neural and inverse.method: sample in YAML.
-# Run: femmi run --config configs/default.yaml --set prior.kind=neural --set inverse.method=sample
-
-# or explicitly, with the sampler for uncertainty quantification
-from femmi.priors import make_prior
-from femmi.sampling import sample_posterior
-prior = make_prior('neural', ops)
-ps = sample_posterior(fwd, g1, g2, noise_std=0.05, prior=prior, method='langevin')
-mean, std = ps.mean, ps.std                                  # posterior mean + uncertainty map
-```
-
-## Files
-
-- `denoiser.py` — Flax noise-conditional U-Net (the score network `r_θ`).
-- `data.py` — synthetic non-Gaussian training maps (swap for real sims here).
-- `train.py` — DSM training loop + checkpoint save/load + `get_or_train`.
-- `prior.py` — `NeuralScorePrior`: the mesh↔grid bridge; a `Prior` you can drop
-  into the reconstructor or sampler.
+The default learns the full score. Hybrid mode learns a residual above a Gaussian
+power-spectrum score; keep its `.gauss.npy` sidecar with the checkpoint.
+Architecture parameters are encoded in checkpoint filenames. For commands,
+data settings, and checkpoint examples, see the
+[neural-prior guide](../../docs/neural-prior.md).

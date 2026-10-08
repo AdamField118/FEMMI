@@ -38,6 +38,7 @@ def spatial_metrics(values,truth,points,regions,radius):
     r=np.hypot(*points.T)
     core=valid&(r<radius/4); ann=valid&(r>=radius/2)&(r<3*radius/4)
     out['aperture_contrast_error']=float(delta[core].mean()-delta[ann].mean()) if core.any() and ann.any() else None
+    out['aperture_contrast_abs_error']=abs(out['aperture_contrast_error']) if out['aperture_contrast_error'] is not None else None
     return out
 
 
@@ -54,14 +55,25 @@ def summarize(directory):
     pairs=[]
     for i,a in enumerate(names):
         for b in names[i+1:]:
-            for metric in ('shape_l2','field_shape_l2','seconds'):
+            for metric in ('shape_l2','field_shape_l2','interior_rmse','boundary_rmse','mask_rmse','aperture_contrast_abs_error','seconds'):
                 try:
                     stats=paired_comparison(rows,a,b,key=metric)
                 except ValueError as exc:
                     if 'no valid catalogs shared' not in str(exc):raise
                     stats=[]
                 pairs.append(dict(a=a,b=b,metric=metric,statistics=stats))
-    report=dict(attempted=len(rows),failures=sum('error' in r for r in rows),paired=pairs)
+    aperture_rows=[]
+    for path in sorted(root.glob('*/aperture.json')):aperture_rows.extend(json.loads(path.read_text()))
+    aperture_pairs=[];anames=sorted({r['method'] for r in aperture_rows})
+    for i,a in enumerate(anames):
+        for b in anames[i+1:]:
+            try:st=paired_comparison(aperture_rows,a,b,key='aperture_rmse')
+            except ValueError as exc:
+                if 'no valid catalogs shared' not in str(exc):raise
+                st=[]
+            aperture_pairs.append(dict(a=a,b=b,statistics=st))
+    report=dict(attempted=len(rows),failures=sum('error' in r for r in rows),paired=pairs,
+        aperture=dict(attempted=len(aperture_rows),failures=sum('error' in r for r in aperture_rows),paired=aperture_pairs))
     write_json(root/'summary.json',report)
     lines=['# SMPy comparison results','',
         'Timings are per-run wall times, including FEM setup. These are local measurements, not target-hardware speed claims.',
@@ -71,7 +83,8 @@ def summarize(directory):
         for name in names:
             group=[r for r in rows if r['scenario']==scenario and r['method']==name]
             ok=[r for r in group if 'error' not in r]
-            score=np.mean([r['field_shape_l2'] for r in ok]) if ok else float('nan')
+            scores=[r['field_shape_l2'] for r in ok if r.get('field_shape_l2') is not None]
+            score=np.mean(scores) if scores else float('nan')
             sec=np.mean([r['seconds'] for r in ok]) if ok else float('nan')
             lines.append(f'| {scenario} | {name} | {len(ok)} | {len(group)-len(ok)} | {score:.5g} | {sec:.5g} |')
     (root/'RESULTS.md').write_text('\n'.join(lines)+'\n')

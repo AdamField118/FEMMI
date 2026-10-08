@@ -382,6 +382,9 @@ def map_mass(
     plotting=None,
     snr_plot_title="Signal-to-Noise Map",
     overwrite=False,
+    boundary_padding=1.12,
+    boundary_nodes=None,
+    b_diagnostics=False,
 ):
     """SMPy-style survey workflow returning maps, boundaries, WCS and diagnostics.
 
@@ -417,6 +420,8 @@ def map_mass(
     if pixel_origin not in (0, 1):
         raise ValueError("pixel_origin must be 0 or 1")
     modes = [mode] if isinstance(mode, str) else list(mode)
+    if b_diagnostics and "B" not in modes:
+        raise ValueError("b_diagnostics requires B in mode")
     if not modes or len(set(modes)) != len(modes) or not set(modes) <= {"E", "B"}:
         raise ValueError("mode must contain E and/or B once")
     lam = _positive(lam, "lam")
@@ -519,6 +524,8 @@ def map_mass(
         rtol=rtol,
         residual_tolerance=residual_tolerance,
         maxiter=maxiter,
+        boundary_padding=boundary_padding,
+        boundary_nodes=boundary_nodes,
     )
     t = time.perf_counter()
     mapper = FEMMapper(flat, cfg)
@@ -530,6 +537,11 @@ def map_mass(
         a, b = (flat.g1, flat.g2) if m == "E" else (flat.g2, -flat.g1)
         fits[m] = mapper.reconstruct(a, b)
     timings["reconstruction_s"] = time.perf_counter() - t
+    b_response = None
+    if b_diagnostics:
+        t = time.perf_counter()
+        b_response = mapper.diagnose_b(e_fit=fits.get("E"), b_fit=fits["B"])
+        timings["b_diagnostics_s"] = time.perf_counter() - t
     t = time.perf_counter()
     for m, fit in fits.items():
         maps[m] = _smooth(fit.evaluate(points).reshape(shape), smoothing)
@@ -649,6 +661,15 @@ def map_mass(
         ),
         diagnostics={m: fit.diagnostics for m, fit in fits.items()},
     )
+    if b_response is not None:
+        metadata["b_response"] = b_response["diagnostics"]
+    b_maps = {}
+    if b_response is not None:
+        for key in ("leakage", "residual"):
+            b_maps[key] = _smooth(
+                b_response[key].evaluate(points).reshape(shape), smoothing
+            )
+            b_maps[key][~valid] = np.nan
     metadata["output"].update(
         output_base_name=output_base_name,
         save_fits=save_fits,
@@ -662,6 +683,7 @@ def map_mass(
     )
     result = dict(
         maps=maps,
+        b_diagnostic_maps=b_maps,
         scaled_boundaries=scaled,
         true_boundaries=true,
         wcs=wcs,

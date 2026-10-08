@@ -58,6 +58,11 @@ def _header(result, unit, product):
     header["SRCPLANE"] = "effective"
     header["REDSHIFT"] = (False, "Per-source redshifts used in forward operator")
     header["NSOURCE"] = meta["n_selected"]
+    if product.endswith("_B") or product.startswith("B_"):
+        header["BINTERP"] = "rotated shear"
+        header["HISTORY"] = (
+            "B products are finite-field responses, not an orthogonal E/B decomposition."
+        )
     header["INPSHA"] = meta["input_sha256"]
     header["SMPYREF"] = meta["smpy_reference"]
     header["HISTORY"] = (
@@ -291,6 +296,8 @@ def write_products(
     products = {}
     for m, image in result["maps"].items():
         products[f"{m.lower()}_mode"] = (image, "1", f"KAPPA_{m}")
+    for key, image in result.get("b_diagnostic_maps", {}).items():
+        products[f"b_{key}"] = (image, "1", f"B_{key.upper()}")
     for m, image in result["snr_maps"].items():
         products[f"snr_{m.lower()}_mode"] = (image, "1", f"SNR_{m}")
         products[f"null_variance_{m.lower()}_mode"] = (

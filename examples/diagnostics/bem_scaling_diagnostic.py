@@ -25,7 +25,7 @@ RESOLUTION (now the default)
 The symmetric Steinbach coupling C = -M_b V_sigma^{-1}(0.5 M_b - K_h) restores
 the Galerkin M_b pairing (killing the 1/L scaling) and repairs the n=0 mode via
 sigma-scaling V_sigma = V_h - (ln sigma / 2pi) w w^T, w = M_b 1, sigma = diam(Gamma).
-See MATH.md 6.5. This script now verifies that the shipped default coupling is
+See MATH.md This script now verifies that the shipped default coupling is
 scale-invariant and tracks the Dirichlet reference across two orders of magnitude
 in coordinate scale.
 

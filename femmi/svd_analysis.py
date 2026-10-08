@@ -3,7 +3,7 @@ femmi/svd_analysis.py
 Euclidean SVD of the discrete nodal forward map and legacy geometry indicators.
 The indicators do not consume observations and cannot locate unknown mass.
 
-Reference: MATH.md sections 15-17, C&K chapters 5-6, 10.
+See MATH.md for the distinction between coefficient and physical norms.
 """
 
 import numpy as np

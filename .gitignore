@@ -1,51 +1,32 @@
-# Generated plots
-*.png
-!outputs/
-!outputs/fig_reconstruction.png
-!outputs/fig_masked.png
-!outputs/fig_convergence.png
-!outputs/fig_eb_modes.png
-!outputs/fig_catalog_comparison.png
-!outputs/fig_bc_ablation.png
-!outputs/fig_bem_scaling.png
-
-# Paper
+# Generated data and run products. Recipes belong in configs/ and examples/.
+/results/
+/benchmarks/
+/outputs/
+/runs/
+/data/
+/femmi_outputs/
+/checkpoints/
+/slurm_outfiles/
+femmi/neural_prior/checkpoints/
+*.prof
 *.log
+*.patch
+*.bundle
+*.png
 *.aux
 *.out
-*.tex
-*.cls
-*.bst
-*.bib
 
-# Python build artifacts
+# Environments, builds and caches
+.venv/
 *.egg-info/
+build/
+dist/
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 .pytest_cache/
-
-# Editor / OS
-.vscode/
-.DS_Store
-
-# Data
-data/
-*.txt
-outputs/*.npz
-runs/                     # default output.dir for `femmi run` (kept out of the repo)
-femmi_outputs/            # _resolve_out_dir fallback when output.dir is unwritable
-femmi/neural_prior/checkpoints/
-*.bundle
-*.patch
-
-# Slurm
-slurm_outfiles/
-
-# MkDocs build
+.ruff_cache/
 site/
 
-# Docs build deps (override the *.txt data ignore)
-!docs/requirements.txt
-
-!requirements-benchmark.txt
+# Editor files
+.vscode/
+.DS_Store

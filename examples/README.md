@@ -1,80 +1,33 @@
-# FEMMI examples
+# Examples
 
-Two groups: a short **teaching set** here in `examples/` that walks the public
-API, and `examples/diagnostics/` — the internal validation, benchmark, and
-figure-generation scripts used while developing FEMMI (kept for reproducibility,
-not needed to learn the API).
+Run scripts from the repository root after installing FEMMI. Use `--help` to
+inspect configurable drivers. Save generated files under `results/` or another
+ignored output directory.
 
-All scripts run from the repo root, e.g. `python examples/quickstart.py`.
-
-## Start here (teaching)
-
-| script | what it teaches |
+| Task | Entry point |
 |---|---|
-| `quickstart.py` | ~15 lines: catalog → reconstruction. The minimal end-to-end path. |
-| `uncertainty_demo.py` | Posterior sampling: mean + per-pixel uncertainty map. |
-| `plot_npz.py` | Plot the `.npz` a `femmi run` writes (truth / kappa / std / samples). |
-| `compare_runs.py` | Head-to-head of several runs on one field (Wiener vs neural vs hybrid): L2 table + side-by-side means + appearance-frequency maps. |
-| `paper_artifacts.py` | Flagship: reproduces the Remy et al. 2020 figure structure, config-driven. |
-| `benchmark_grid.py` | Runs the {element} × {prior} × {method} grid on one independent truth and ranks the results — accuracy, DC-removed shape error, DOFs and wall-clock, with KS as the automatic baseline. The "which combination wins" command. |
+| First catalogue reconstruction | `quickstart.py` |
+| Survey FITS mapping | `femmi map --config configs/survey.yaml` |
+| Held-out FEM/SMPy comparisons | `paper/benchmark_smpy.py` |
+| Rebuild comparison summaries | `paper/report_calibration.py` |
+| Adjoint, halo-superposition, and B-response diagnostics | `diagnostics/scientific_checks.py` |
+| NumPy/Numba fresh-process comparison | `diagnostics/run_profiles.py` |
+| Detailed CPU profile | `diagnostics/profile_cpu.py` |
+| FITS ingestion and output timing | `diagnostics/benchmark_survey_io.py` |
+| Posterior-sampling example | `uncertainty_demo.py` |
+| Plot saved research outputs | `plot_npz.py`, `compare_runs.py` |
+| Direct/iterative and dense/compressed solver experiments | `diagnostics/numerical_followup.py` |
 
-The recommended path into the library, though, is the CLI + a config file:
+The remaining `paper/` scripts are focused numerical experiments, including
+manufactured potentials, forward convergence, and Hessian recovery. Manufactured
+shear generated with the same FEM operator tests algebraic consistency; use
+independent truth for reconstruction comparisons. A nonzero response to a finite
+constant sheet does not establish that observations fix an infinite mass sheet.
 
-```bash
-femmi run --config configs/default.yaml
-python examples/plot_npz.py runs/run.npz   # see the result
-```
+`paper_artifacts.py` and the plot-generation scripts are research plotting
+utilities. Their layouts or defaults do not define a publication benchmark.
+Use the frozen protocol and retain raw paired results for method comparisons.
 
-## paper/ (the thesis: FEMMI vs Kaiser–Squires)
-
-The structural results that justify choosing FEMMI over KS in a real pipeline —
-each is a standalone figure backed by `femmi.experiments`.
-
-| script | result |
-|---|---|
-| `paper/independent_truth.py` | **[central]** both claims on truth NEITHER method generated (analytic GalSim NFW, or MassiveNuS + aperiodic shear). FEMMI's boundary advantage survives; its DC-mode advantage does not. Read this before `mass_sheet.py`. |
-| `paper/mass_sheet.py` | the same absolute-normalisation comparison on FEMMI's OWN forward shear. Shows the mechanism cleanly, but it is an inverse crime — quote `independent_truth.py` for the headline number. |
-| `paper/boundary_bias.py` | reconstruction error vs distance-from-edge — FEMMI's exact BEM far-field beats KS's truncation near the boundary (also self-consistent shear; the neutral version is in `independent_truth.py`). |
-| `paper/injectivity.py` | the DC mode at the operator level: FEMMI's forward observes a uniform sheet (`‖F·1‖>0`); the KS/FFT forward annihilates it. Operator-level fact, and it holds — but see the caveat below. |
-| `paper/forward_convergence.py` | the potential ψ converges at the P3 theory rate `O(h⁴)` — the forward operator's validation. |
-| `paper/shear_recovery.py` | shear extraction reaches `O(h²)`; variational recovery beats nodal sampling by ~1.8× in constant; and noise amplified by `h⁻²` makes that rate unreachable catalog-native. |
-| `paper/argyris_vs_p3.py` | Historical structured-mesh experiment; not the current calibrated catalogue comparison. |
-| `paper/element_comparison.py` | **element choice for shear**: P3 nodal / P3 recovered / HCT / Argyris on one plot. Argyris reaches `O(h⁴)` — 42× more accurate at `h=0.156` for `1.04×` the DOFs. |
-| — | **C¹ + BEM far-field** (`femmi.c1_coupling`): on a field whose ψ does not vanish at the boundary, the coupled Argyris solve beats a Dirichlet pin by 5–9×, and on a compact field it holds the full `O(h⁴)` on both square and circular domains. The circular domain wins on constant, not rate: 2× the accuracy for 25% fewer DOFs. |
-
-**Scope of the mass-sheet claim.** `‖F·1‖ > 0` is true and KS's is exactly zero,
-so the DC mode is formally observable to FEMMI and formally invisible to KS. But
-~99.9% of that response sits in the outer collar of the domain and grows under
-refinement rather than converging, so it does not turn into practical DC
-recovery. This is intrinsic, not a geometry artifact: a circular domain shows the
-same concentration and the same growth, because an infinite uniform sheet
-produces zero shear by symmetry — a finite sheet's whole signature is an edge
-effect on any domain: on independent truth FEMMI's mean-κ error is comparable to
-KS's. State the injectivity result as an operator property, not as a solved
-mass-sheet degeneracy.
-
-All plots use the shared paper style (`femmi.plotstyle`, white background,
-colorblind-safe colormaps).
-
-## diagnostics/ (development & validation)
-
-Forward-operator accuracy (`bem_dtn_diagnostic`, `bem_scaling_diagnostic`),
-systematics null tests (`eb_modes_demo`, `bmode_dipole_diagnostic`),
-regularization/ablation studies (`bc_ablation`, `prior_bakeoff`), independent-truth
-benchmarks (`galsim_nfw_benchmark`, `smpy_comparison`), and figure/plot generators
-for the README and talks (`generate_figures`, `generate_presentation_figures`,
-`pme_talk_plots`, `visualize_results`). These are heavier, some need optional extras
-(`galsim`, `astropy`), and they encode research decisions rather than API usage.
-
-`solver_crossovers.py` retains the historical dense/ACA experiment. Performance
-claims should use fresh timings on the selected backend and target machine,
-not its historical speed factors or an extrapolated crossover.
-
-`diagnostics/numerical_followup.py` measures the actual dual BEM spectrum,
-direct/GMRES costs at checked residuals, and warm dense/ACA timings.
-No automatic solver threshold is inferred from assembly profiles.
-
-The maintained catalogue quickstart is `quickstart.py`. Use
-`paper/benchmark_smpy.py` for pinned upstream comparisons and
-`diagnostics/profile_cpu.py` for the production solver. See docs/mapper.md,
-docs/smpy-benchmarks.md and docs/production-performance.md.
+See the [benchmark guide](../docs/smpy-benchmarks.md),
+[profiling guide](../docs/production-performance.md), and
+[sampling guide](../docs/priors-and-sampling.md) for complete workflows.

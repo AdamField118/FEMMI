@@ -44,7 +44,7 @@ def main():
     print(f"truth: {args.source}   nx={args.nx}   noise={args.noise}")
     print(to_table(rows, sort_by=args.sort))
     print("\n'shape L2' is the DC-removed error -- the part of the comparison that")
-    print("survives the mass-sheet limitation documented in MATH.md 6.3a.")
+    print("survives the mass-sheet limitation documented in MATH.md")
 
 
 if __name__ == "__main__":

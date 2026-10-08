@@ -58,9 +58,9 @@ def make_catalogue(n_eff,seed,radius=3.,noise_std=.05,truth='nfw',
     return Catalogue(x,y,a,b,w,kt,float(radius),int(seed),float(n_eff))
 
 
-def catalogue_mapper(catalogue, kind):
+def catalogue_mapper(catalogue, kind, **options):
     from .mapping import FEMMapper, MapperConfig
-    return FEMMapper(catalogue, MapperConfig(kind, 1., 1., catalogue.radius))
+    return FEMMapper(catalogue, MapperConfig(kind, 1., 1., catalogue.radius, **options))
 
 
 def fem_fit(model, lam, length):
@@ -161,7 +161,7 @@ def calibrate_and_evaluate(config,output):
     allowed={'p3','argyris','hct','ks','smpy_ks','smpy_ks_plus'}
     if not methods or len(set(methods))!=len(methods) or not set(methods)<=allowed:
         raise ValueError('supply unique supported convergence methods')
-    if any(m.startswith('smpy_') for m in methods):
+    if config.get('aperture_comparison') or any(m.startswith('smpy_') for m in methods):
         from .smpy import verify_installation
         verify_installation()
     kwargs={k:v for k,v in config.items() if k in ('n_eff','radius','noise_std','truth','truth_kw','catalog_kw','halos')}
@@ -178,26 +178,49 @@ def calibrate_and_evaluate(config,output):
                              for f in find_maps(tk['data_dir'],tk.get('map_glob'))]
         if {r['sha256'] for r in manifest['calibration']}&{r['sha256'] for r in manifest['evaluation']}:
             raise ValueError('MassiveNuS calibration/evaluation map contents overlap')
-    cats=[make_catalogue(seed=s,**cal_kwargs) for s in cal]
-    for c in cats:c.save(output/f'catalogue-cal-{c.seed}.npz')
+    def prepare(seed,stage,kwargs):
+        c=make_catalogue(seed=seed,**kwargs)
+        if config.get('catalogue_transport')=='fits':
+            from .protocol import fits_roundtrip
+            return fits_roundtrip(c,output/f'catalogue-{stage}-{seed}.fits')
+        c.save(output/f'catalogue-{stage}-{seed}.npz')
+        return c
+    mapper_options=config.get('mapper_options',{})
+    if set(mapper_options)-{'boundary_padding','boundary_nodes','rtol','residual_tolerance','maxiter'}:
+        raise ValueError('unsupported mapper_options')
+    cats=[prepare(s,'cal',cal_kwargs) for s in cal]
     report=dict(config=config,calibrations={},data_manifest=manifest,provenance=dict(
         c1_coupled_solve="diagonally equilibrated SuperLU; matched transpose scaling",
-        solver_acceptance="fresh normal-equation relative residual <=1e-6 (internal CG target 1e-8)",
-        base_commit="9f0394aec74e51ee3792fc07eb462dbfffcf919a",
+        solver_acceptance=dict(relative_residual=mapper_options.get("residual_tolerance",1e-6),
+            internal_rtol=mapper_options.get("rtol",1e-8)),
+        catalogue_transport=config.get("catalogue_transport","arrays"),
         python=platform.python_version(),platform=platform.platform(),
         packages={p:importlib.metadata.version(p) for p in ('numpy','scipy','galsim')},
         threads={k:os.environ.get(k) for k in ('OPENBLAS_NUM_THREADS','OMP_NUM_THREADS','FEMMI_BEM_BACKEND')},
         metric="unweighted galaxy-position DC-removed relative L2; truth kappa<1",
         regularizer="lambda * kappa.T @ (M + length**2 K) @ kappa",
         noise="independent component sigma/sqrt(normalized weight)",
-        boundary="ring radius 1.12R; common source list; no measured guard nodes"))
+        boundary=dict(padding=mapper_options.get("boundary_padding",1.12),nodes=mapper_options.get("boundary_nodes"))))
+    if config.get('aperture_comparison',False):
+        from .aperture import quadrature_control
+        from .comparison import evaluation_field
+        controls=[]
+        for seed in cal:
+            _,kt,tg1,tg2,regions=evaluation_field(cal_kwargs,seed,config['evaluation_grid'])
+            controls.append(dict(seed=seed,**quadrature_control(kt,tg1,tg2,regions,config,kwargs.get('radius',3.))))
+        tolerance=config.get('aperture_quadrature_tolerance',.05)
+        report['aperture_quadrature_check']=dict(tolerance=tolerance,rows=controls,
+            accepted=all(c['relative_l2']<=tolerance for c in controls))
+        write_json(output/'calibration.json',report)
+        if not report['aperture_quadrature_check']['accepted'] and not config.get('exploratory',False):
+            raise CalibrationFailure('refine evaluation_grid: aperture quadrature control exceeds tolerance',controls)
     def grid_fit(c,method,a,b):
         if method=='ks': return ks_fit(c,a,b)
         from .smpy import reconstruct
         return reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))[:3]
     for method in methods:
         gridded=method in ('ks','smpy_ks','smpy_ks_plus')
-        models=[] if gridded else [catalogue_mapper(c,method) for c in cats]
+        models=[] if gridded else [catalogue_mapper(c,method,**mapper_options) for c in cats]
         def evaluate(a,b):
             rows=[]
             for j,c in enumerate(cats):
@@ -222,16 +245,29 @@ def calibrate_and_evaluate(config,output):
         models.clear()
     if any(r['boundary_unresolved'] for r in report['calibrations'].values()) and not config.get('allow_unresolved',False):
         raise CalibrationFailure('expand unresolved calibration grids before evaluation', report['calibrations'])
-    rows=[]
+    if 'smpy_ks_plus' in methods and config.get('ks_plus_iteration_check'):
+        from .protocol import iteration_stability
+        stability=iteration_stability(cats,report['calibrations']['smpy_ks_plus']['parameters'],
+            config['ks_plus_iteration_check'],config.get('ks_plus_iterations',100),
+            config.get('ks_plus_stability_tolerance',.05))
+        report['ks_plus_iteration_stability']=stability
+        write_json(output/'calibration.json',report)
+        if not stability['accepted'] and not config.get('allow_unstable_iterations',False):
+            raise CalibrationFailure('KS+ iteration stability failed; investigate iteration/schedule sensitivity and recalibrate',stability['rows'])
+    rows=[];apertures=[];controls=[]
     for seed in ev:
-        c=make_catalogue(seed=seed,**eval_kwargs);c.save(output/f'catalogue-eval-{seed}.npz')
+        c=prepare(seed,'eval',eval_kwargs)
         for method in methods:
             a,b=report['calibrations'][method]['parameters']
             try:
-                if method in ('ks','smpy_ks','smpy_ks_plus'):
+                if method in ('smpy_ks','smpy_ks_plus'):
+                    from .smpy import reconstruct
+                    k,info,sec,grid,bmode=reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))
+                    dofs=int(a)**2;setup=0.
+                elif method=='ks':
                     k,info,sec=grid_fit(c,method,a,b);dofs=int(a)**2;setup=0.
                 else:
-                    model=catalogue_mapper(c,method)
+                    model=catalogue_mapper(c,method,**mapper_options)
                     k,info,sec=fem_fit(model,a,b);dofs=model.dofs;setup=model.setup_seconds
                 row=result_row(c,method,k,info,sec,dofs,setup)
                 arrays=dict(kappa=k)
@@ -239,8 +275,7 @@ def calibrate_and_evaluate(config,output):
                     from .comparison import evaluation_field,spatial_metrics
                     points,kt,_,_,regions=evaluation_field(eval_kwargs,seed,config['evaluation_grid'])
                     if method in ('smpy_ks','smpy_ks_plus'):
-                        from .smpy import reconstruct,sample_grid
-                        _,_,_,grid,bmode=reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))
+                        from .smpy import sample_grid
                         values=sample_grid(grid,points,c.radius)
                         arrays.update(grid=grid,bmode=bmode)
                     elif method=='ks':
@@ -251,6 +286,13 @@ def calibrate_and_evaluate(config,output):
                         # Reuse the accepted solve, never refit for spatial scoring.
                         values=model.evaluate(model.last_result.coefficients,points)
                     row.update(spatial_metrics(values,kt,points,regions,c.radius))
+                    if config.get('aperture_comparison',False):
+                        from .aperture import matched_aperture
+                        try:apertures.append(matched_aperture(c,values,kt,regions,config,method))
+                        except (RuntimeError,ValueError) as exc:
+                            apertures.append(dict(method=method,seed=c.seed,scenario=config.get('name','baseline'),
+                                catalogue_hash=c.fingerprint,n_eff_nominal=c.nominal_density,error=str(exc)))
+                        write_json(output/'aperture.json',apertures)
                     arrays.update(evaluation_points=points,field_kappa=values,field_truth=kt,
                                   field_valid=regions['field'],mask_region=regions['mask'])
                 np.savez_compressed(output/f'map-{method}-{seed}.npz',**arrays)
@@ -260,6 +302,18 @@ def calibrate_and_evaluate(config,output):
             row['scenario']=config.get('name','baseline')
             row['calibration_boundary_unresolved']=report['calibrations'][method]['boundary_unresolved']
             rows.append(row);write_json(output/'evaluation.json',rows)
+        if config.get('aperture_comparison',False):
+            from .aperture import matched_aperture
+            from .comparison import evaluation_field
+            points,kt,tg1,tg2,regions=evaluation_field(eval_kwargs,seed,config['evaluation_grid'])
+            from .aperture import quadrature_control
+            controls.append(dict(seed=seed,**quadrature_control(kt,tg1,tg2,regions,config,c.radius)))
+            write_json(output/'aperture_control.json',controls)
+            try:apertures.append(matched_aperture(c,None,kt,regions,config,'smpy_aperture'))
+            except (RuntimeError,ValueError) as exc:
+                apertures.append(dict(method='smpy_aperture',seed=c.seed,scenario=config.get('name','baseline'),
+                    catalogue_hash=c.fingerprint,n_eff_nominal=c.nominal_density,error=str(exc)))
+            write_json(output/'aperture.json',apertures)
     return report,rows
 
 

@@ -1,31 +1,9 @@
-"""
-femmi/experiments.py
-Reusable pieces for the paper's core experiments -- the ones that decide whether
-to choose FEMMI over Kaiser-Squires in a real weak-lensing pipeline. The example
-scripts in examples/paper/ are thin wrappers that call these and plot the result.
+"""Manufactured and independent-truth experiments for the research operators.
 
-The thesis is structural, not RMSE. Two claims were tested; they did NOT fare
-equally, and the difference is the whole point of this module:
-
-  (i) FEMMI imposes the correct far-field boundary condition, reducing edge bias.
-      HOLDS on independent truth -- ~1.7x lower DC-removed error than KS in the
-      corner region, and the margin grows outward. See independent_truth_recovery.
-
- (ii) FEMMI breaks the DC / mass-sheet degeneracy, recovering the *absolute*
-      normalisation. DOES NOT HOLD in practice. The DC mode is genuinely removed
-      from the forward operator's null space (constant_mode_response > 0 while
-      ks_constant_mode_response == 0 exactly), but ~99.9% of that response sits in
-      the square domain's corners and grows under refinement instead of
-      converging. On truth FEMMI did not generate, its mean-kappa error is 0.047
-      against KS's 0.049. See MATH.md 6.3a.
-
-Experimental-design note. mass_sheet_recovery and boundary_error_profile generate
-their test shear with FEMMI's OWN forward (femmi_forward_shear). That is the
-regime FEMMI's far-field assumption exactly describes, and it shows the mechanism
-cleanly -- but it is an inverse crime, because the DC component of the truth is
-then by construction in the range of F. independent_truth_recovery repeats both
-measurements against femmi.truth (analytic GalSim NFW, or a MassiveNuS map with
-aperiodic shear), which neither method's forward produced. Quote THAT one.
+Manufactured shear exercises the same forward model used by reconstruction.
+Use independent_truth_recovery to assess mismatch with analytic or simulated
+fields. Neither a manufactured reconstruction nor a nonzero constant-mode
+response establishes observational recovery of an infinite mass sheet.
 """
 
 from __future__ import annotations
@@ -47,7 +25,7 @@ def square_ops(nx, half_width=2.5, coupling="steinbach"):
 
 def femmi_forward_shear(ops, kappa):
     """Shear predicted by FEMMI's own forward gamma = F(kappa) (float64), i.e. the
-    isolated-field / far-field-zero regime FEMMI assumes."""
+    isolated exterior model FEMMI assumes."""
     import jax.numpy as jnp
     fwd = DifferentiableForward(ops, lam_reg=1e-2)
     g1, g2 = fwd.gamma_from_kappa(jnp.asarray(kappa))
@@ -366,7 +344,7 @@ def shear_convergence(nxs=(16, 24, 32, 40), half_width=2.5, R=1.5, p=6):
     Error is the true L2 norm (via the mass matrix), not a node sum, so the rate
     is a statement about the field and not about node placement.
 
-    Theory (approximation theory for P3, MATH.md 18.3.1): the second derivative of a
+    Theory (approximation theory for P3, MATH.md): the second derivative of a
     P3 field is O(h^2) in L2. Sampling it at the nodes -- exactly where the
     piecewise-cubic Hessian jumps -- pays a much larger constant and only reaches
     that rate asymptotically.

@@ -71,7 +71,7 @@ def paired_comparison(rows, method_a, method_b, key="shape_l2"):
             if 'error' in a or 'error' in b or key not in a or key not in b:continue
             if a.get('catalogue_hash')!=b.get('catalogue_hash'):
                 raise ValueError(f"different catalogues in paired key {k}")
-            if not np.isfinite(a[key]) or not np.isfinite(b[key]):continue
+            if a[key] is None or b[key] is None or not np.isfinite(a[key]) or not np.isfinite(b[key]):continue
             keys.append(k)
         if not keys:continue
         d=np.array([B[k][key]-A[k][key] for k in keys]);n=len(d)
@@ -89,7 +89,7 @@ def paired_comparison(rows, method_a, method_b, key="shape_l2"):
 
 
 def paired_table(rows, method_a, method_b, key="shape_l2"):
-    """Rendered `paired_comparison`, for dropping straight into MATH.md."""
+    """Render `paired_comparison` as a plain-text run report."""
     stats = paired_comparison(rows, method_a, method_b, key=key)
     hdr = (f"{'n_eff':>7}{'pairs':>7}{'mean diff':>12}{'se':>10}"
            f"{'paired t':>10}{'wins':>8}")

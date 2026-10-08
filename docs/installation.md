@@ -1,43 +1,44 @@
 # Installation
 
-FEMMI requires Python ≥ 3.10.
+FEMMI requires Python 3.10 or later. Create an isolated environment from the
+repository root:
 
 ```bash
-git clone https://github.com/AdamField118/FEMMI.git
-cd FEMMI
-pip install -e .
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[io,speed]'
 ```
 
-This installs the core package and the `femmi` command.
+This installs the `femmi` command, FITS support, and optional CPU acceleration.
+For core array-based reconstruction, `python -m pip install -e .` is sufficient.
 
-## Optional extras
+| Extra | Use |
+|---|---|
+| `io` | FITS catalogues, image products, and simulation maps via Astropy |
+| `speed` | Float64 CPU BEM kernels via Numba |
+| `galsim` | Independent NFW truth for synthetic comparisons |
+| `mesh` | Triangle-based adaptive meshing |
+| `neural` | Learned score priors via Flax and Optax |
+| `dev` | Tests and notebooks |
+| `docs` | MkDocs documentation site |
+| `paper` | Convenience group containing `galsim` and `io` |
 
-Install only what a given run needs:
+Extras compose, for example `python -m pip install -e '.[dev,io,galsim,speed]'`.
+For SMPy comparisons, also install the pinned upstream revision:
 
 ```bash
-pip install -e ".[neural]"   # learned score prior (Flax + optax)
-pip install -e ".[io]"       # FITS shear catalogs / Frontier Fields maps (astropy)
-pip install -e ".[galsim]"   # independent-truth NFW benchmark
-pip install -e ".[paper]"    # exact Remy 2020 reproduction: GalSim + astropy (MassiveNuS maps)
-pip install -e ".[mesh]"     # Triangle-based adaptive meshing
-pip install -e ".[dev]"      # test suite (pytest)
-pip install -e ".[speed]"    # serial float64 CPU BEM kernels (Numba)
-pip install -e ".[docs]"     # build this documentation site (mkdocs-material)
+python -m pip install -r requirements-benchmark.txt
 ```
 
-Extras compose, e.g. `pip install -e ".[neural,io]"`.
+Check the installation with `python examples/quickstart.py`. That example needs
+no external catalogue. Use `femmi --help` to list commands.
 
-The optional speed backend is selected automatically when Numba is installed.
-Use `FEMMI_BEM_BACKEND=numpy` or `FEMMI_BEM_BACKEND=numba` to select it explicitly.
-See [CPU performance](cpu-performance.md) for compilation costs and benchmarks.
+FEM and boundary calculations use float64. Importing FEMMI enables JAX's x64
+mode. Neural networks use float32 internally. The production mapper runs on CPU;
+installing a GPU JAX build does not move its SciPy solves to a GPU.
 
-## Verifying the install
-
-```bash
-femmi run --config configs/default.yaml   # a synthetic MAP reconstruction
-pytest -q -m "not slow"                    # the fast test suite
-```
-
-!!! note "float64"
-    The FEM forward runs in float64 (it needs the precision to converge). The
-    neural score net runs in float32 for speed; both are handled automatically.
+`FEMMI_BEM_BACKEND` accepts `auto` (default), `numpy`, or `numba`. Automatic
+selection uses Numba when available. An explicit Numba request fails if its
+optional dependency is missing. See [profiling](production-performance.md) for
+cache configuration and backend comparisons.

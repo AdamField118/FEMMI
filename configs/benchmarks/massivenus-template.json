@@ -1,0 +1,62 @@
+{
+  "name": "massivenus-external",
+  "n_eff": 10,
+  "radius": 3,
+  "noise_std": 0.26,
+  "truth": "massivenus",
+  "calibration_seeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "evaluation_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "calibration_truth_kw": {
+    "data_dir": "data/massivenus/calibration",
+    "n_pix": 256
+  },
+  "evaluation_truth_kw": {
+    "data_dir": "data/massivenus/evaluation",
+    "n_pix": 256
+  },
+  "methods": [
+    "p3",
+    "argyris",
+    "hct",
+    "smpy_ks",
+    "smpy_ks_plus"
+  ],
+  "evaluation_grid": 64,
+  "ks_plus_iterations": 100,
+  "ks_plus_iteration_check": [
+    50,
+    100,
+    200
+  ],
+  "ks_plus_stability_tolerance": 0.05,
+  "selection_metric": "source_shape_l2",
+  "aperture_comparison": true,
+  "aperture_quadrature_tolerance": 0.05
+}

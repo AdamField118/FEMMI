@@ -1,38 +1,12 @@
-"""
-femmi/truth.py
-INDEPENDENT ground-truth convergence/shear fields -- truth that is generated
-without ever touching FEMMI's forward operator, and without the periodic FFT
-that Kaiser-Squires inverts.
+"""Convergence and shear truth generated independently of the FEM operator.
 
-Why this module exists
-----------------------
-The headline FEMMI claim is that it recovers the absolute convergence
-normalisation (the DC / mass-sheet mode) that KS structurally cannot. If the
-test shear is produced by FEMMI's OWN forward (`experiments.femmi_forward_shear`)
-that claim is an inverse crime: FEMMI is being asked to invert an operator it
-also generated the data with, and a referee will say so immediately. Likewise,
-generating truth with the periodic KS FFT is an inverse crime in KS's favour --
-and worse, that forward annihilates the DC mode outright, so the very quantity
-under test is destroyed before either method sees it.
+GalSim supplies analytic NFW profiles. Lognormal and external MassiveNuS
+fields use aperiodic convolution of their convergence maps. Those gridded
+fields retain discretization and finite-extent error; they do not establish
+an observational determination of the absolute convergence level.
 
-Both generators here are neutral third parties:
-
-  galsim_nfw_truth      exact ANALYTIC convergence and shear of one or more NFW
-                        halos, evaluated in closed form by GalSim. No mesh, no
-                        grid, no FFT -- there is no discretisation in the truth
-                        at all. This is the primary independent truth.
-
-  massivenus_truth      a real MassiveNuS simulated convergence map (Liu et al.
-                        2018), with its shear obtained by APERIODIC real-space
-                        convolution with the continuum lensing kernel
-                        (`aperiodic_shear_from_kappa`) -- not the periodic FFT.
-
-Convention note: FEMMI's shear sign convention is gamma1 = 1/2(psi_xx - psi_yy),
-gamma2 = psi_xy, which for an axisymmetric lens gives (g1, g2) =
--gamma_t (cos 2phi, sin 2phi) -- the standard weak-lensing convention, and the
-same one `catalog.analytic_gaussian_shear` uses. GalSim's `getShear` already
-matches it, so no sign flip is applied anywhere in this module. This is checked
-directly in tests/test_truth.py rather than taken on faith.
+The shear convention is gamma1=(psi_xx-psi_yy)/2, gamma2=psi_xy. GalSim's
+unreduced shear uses this convention directly.
 """
 
 from __future__ import annotations
@@ -55,8 +29,7 @@ def galsim_nfw_truth(nodes, halos=((2.0e14, 4.0, (0.0, 0.0)),), z_l=0.3, z_s=1.0
 
     Returns (kappa, g1, g2) aligned with `nodes`.
 
-    This is the cleanest possible independent truth: closed-form, continuum, and
-    produced by neither method's forward model.
+    This truth does not use the FEM forward operator or a periodic KS inverse.
     """
     import warnings
     import galsim

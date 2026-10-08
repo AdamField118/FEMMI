@@ -31,6 +31,9 @@ methods:
   p3:
     lam: 0.3
     length: 0.6 # arcmin; calibrate jointly with lam
+    boundary_padding: 1.12
+    boundary_nodes: null
+    b_diagnostics: false # requires B in general.mode; two conditional response maps
     smoothing: {type: null, sigma: null}
   argyris: {lam: 0.3, length: 0.6}
   hct: {lam: 0.3, length: 0.6}

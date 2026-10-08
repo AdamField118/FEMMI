@@ -1,68 +1,56 @@
-# Priors & sampling
+# Research priors and sampling
 
-See [the observation model](observation-model.md) for mask/weight conventions,
-MAP-to-sampling normalization, score-only restrictions, and sampler limitations.
-Only Gaussian RTO has the exact Gaussian interpretation (up to numerical solve
-error); finite-step Langevin and annealed score HMC remain approximate.
+The production `FEMMapper` has a quadratic mass-plus-gradient penalty. The
+separate `femmi run` research pipeline exposes other priors and posterior
+samplers. Its configuration is described in [Configuration and CLI](configuration.md).
 
-
-## The prior menu
-
-Set `prior.kind` in the config (or `prior=...` in the API). Every prior exposes
-the same interface — a value and gradient — so they are interchangeable in both
-MAP reconstruction and posterior sampling.
-
-| `kind` | prior | good for |
+| Prior | Penalty or score | Interface |
 |---|---|---|
-| `wiener` | Gaussian / Matérn, $R = M + \ell^2 K$ (default) | smooth fields; exact Gaussian UQ |
-| `tv` | total variation (smoothed) | piecewise-smooth structure, edges |
-| `sparse` | smoothed-$L_1$ on the field or its Laplacian | compact / peaked mass |
-| `maxent` | maximum entropy (Marshall 2002) | positive, high-dynamic-range maps |
-| `neural` | learned score prior (Remy et al. 2020) | realistic non-Gaussian mass maps |
+| `wiener` | Quadratic FE precision | Energy-based MAP and Gaussian sampling |
+| `tv` | Smoothed total variation | Energy-based MAP and approximate sampling |
+| `sparse` | Smoothed L1 on values or a Laplacian | Energy-based MAP and approximate sampling |
+| `maxent` | Positive-field entropy penalty | Energy-based MAP and approximate sampling |
+| `neural` | Learned score | Experimental score sampling |
 
 ```python
 from femmi.priors import make_prior
-prior = make_prior("tv", ops, eps=1e-3)
+prior = make_prior('tv', ops, eps=1e-3)
 ```
 
-## Posterior sampling (UQ)
+A custom energy prior must provide a consistent value and gradient. A `ScorePrior`
+without `neg_logp` cannot be used for energy-based MAP. The neural score does not
+supply a matching energy, so select `inverse.method=sample`.
 
-`sample_posterior` returns the posterior mean, a per-node uncertainty map, and the
-retained samples, exploiting the differentiable forward:
+## Samplers
 
-- **`rto`** (perturb-and-MAP / Randomize-Then-Optimize) — *exact* independent
-  samples for the Gaussian/Wiener posterior, one linear solve per draw. No step
-  tuning.
-- **`annealed_hmc`** — the paper's tempered HMC for non-Gaussian / neural priors:
-  anneal the noise level $\sigma_{\max}\to\sigma_{\min}$, running HMC at each level
-  with a noise-conditional score and a score-integral Metropolis correction.
-- **`langevin`** — single-temperature mass-preconditioned ULA, a lightweight
-  fallback.
+`sample_posterior` returns retained samples, a sample mean, and a per-coefficient
+standard deviation. For score-only priors, `map_kappa` is an initialization,
+identified by `info['map_kind']`, rather than a fitted posterior mode.
 
-`method: auto` picks `rto` for the Gaussian/Wiener prior and `annealed_hmc`
-otherwise.
+- `rto` uses Gaussian perturb-and-solve draws for a Wiener prior. Its Gaussian
+  interpretation requires positive-definite posterior precision; finite solve
+  tolerance and factorization jitter limit exactness.
+- `langevin` uses an unadjusted finite-step diffusion and has step-size bias.
+- `annealed_hmc` uses an annealing schedule and finite chains. For score-only
+  priors, a numerical line integral does not guarantee an exact Metropolis
+  correction when the score is nonconservative. A nonzero final noise level
+  also changes the likelihood. These outputs are approximate.
 
-## Auto-calibrated regularization
+`method=auto` chooses RTO for Wiener and annealed HMC otherwise. Inspect the
+returned `info` and convergence diagnostics. More draws improve estimation of
+posterior spread; they do not by themselves narrow that posterior.
 
-!!! important "Leave `inverse.lam: null`"
-    The sampler's data term carries weight $1/\sigma_n^2$ (often $10^2$–$10^3$), so
-    a small hand-set `lam` lets the likelihood swamp the prior and the posterior
-    collapses to noise (relative $L_2 > 1$, uncertainty ≈ the signal amplitude).
+## Strength and noise normalization
 
-With `lam` unset, FEMMI calibrates it automatically:
+MAP uses `J_data + lam_MAP*phi`, while sampling uses
+`J_data/(2*noise_std**2) + lam_sample*phi`. With the same weights and prior,
+matching modes requires `lam_sample=lam_MAP/(2*noise_std**2)`.
 
-- **Wiener** — runs the same Morozov discrepancy selection the MAP uses to get
-  $\lambda_{\text{MAP}}$, then converts to the sampler's noise-normalised
-  convention, $\lambda = \lambda_{\text{MAP}} / (2\sigma_n^2)$. The RTO posterior
-  then reproduces the MAP reconstruction.
-- **Other priors** — default to coefficient 1.0. This is a convention, not a
-  measured calibration of neural, TV, sparse or entropy priors. Tune and validate
-  those strengths independently for the intended data.
+With lambda unset, the Wiener sampler uses discrepancy-selected MAP strength
+and converts it to the sampling convention. Other priors default to 1.0; this
+is a coefficient convention, not an empirical calibration. Tune them for the
+intended observations and inspect sensitivity to that choice.
 
-You can still pass an explicit `lam` to override.
-
-!!! tip "More chains ≠ smaller std"
-    The posterior std is the genuine width of the posterior, set by the data and
-    prior. Increasing `sampler.n_chains` sharpens the *estimate* of that width, it
-    does not shrink it — to reduce uncertainty you need a stronger/better-matched
-    prior or better data.
+At positive Wiener length, `R=M+ell**2*K`. At zero length, the research prior
+uses `K`; the production mapper uses `M`. Keep this distinction explicit when
+comparing runs. See the [observation model](observation-model.md).

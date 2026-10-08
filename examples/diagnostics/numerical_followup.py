@@ -80,5 +80,5 @@ def append_catalog_aca(report,path):
         write_json(path,report)
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--output',default='benchmarks/calibration/numerics')
+    p=argparse.ArgumentParser();p.add_argument('--output',default='results/calibration/numerics')
     run(p.parse_args().output)

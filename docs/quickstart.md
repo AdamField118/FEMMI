@@ -1,29 +1,35 @@
 # Quickstart
 
-Install FEMMI, then run `python examples/quickstart.py`. It creates an analytic
-shear catalogue, reconstructs it and writes `mass-map.npz`.
+This example creates a noisy analytic shear catalogue and reconstructs it.
+Run it from an installed checkout; it does not need a downloaded data set.
 
 ```python
-from femmi import read_fits_catalog, MapperConfig, FEMMapper
+from pathlib import Path
+import numpy as np
+from femmi import FlatCatalog, MapperConfig, FEMMapper
+from femmi.catalog import analytic_gaussian_catalog
 
-flat = read_fits_catalog('shear.fits').to_tangent_plane(units='arcmin')
-config = MapperConfig('hct', lam=0.3, length=0.6, radius=3.)
-mapper = FEMMapper(flat, config)
+c = analytic_gaussian_catalog(n_gal=80, field_radius=3.,
+    sigma=.7, amp=.1, shape_noise=.01, seed=5)
+flat = FlatCatalog(c['x'], c['y'], c['g1'], c['g2'], np.ones(len(c['x'])))
+mapper = FEMMapper(flat, MapperConfig('p3', lam=.3, length=.6, radius=3.))
 result = mapper.reconstruct()
-result.save('mass-map.npz')
+Path('results').mkdir(exist_ok=True)
+result.save('results/mass-map.npz')
+print(result.diagnostics['relative_residual'])
+
+axis = np.linspace(-2., 2., 40)
+x, y = np.meshgrid(axis, axis)
+kappa = result.evaluate(np.column_stack([x.ravel(), y.ravel()])).reshape(x.shape)
 ```
 
-These prior settings illustrate the API. See [Catalogue mapper](mapper.md) for
-held-out shear selection, units, source-plane assumptions and spatial evaluation.
-The result includes source convergence, full FE coefficients, predicted shear,
-mesh geometry and solver diagnostics. No plot or file is generated unless asked.
+`kappa` is dimensionless; coordinates and `length` are in arcminutes. The prior
+settings illustrate the API and must be chosen for the intended data. The saved
+NPZ can be opened with `numpy.load(..., allow_pickle=False)`.
 
-For survey FITS input and [SMPy-style output](survey-io.md):
+To repeat a reconstruction on the same positions and weights, call
+`mapper.reconstruct(other_g1, other_g2)`. This reuses assembly and factorization.
+Changing positions or weights requires a new mapper.
 
-```bash
-femmi map --catalogue shear.fits --config configs/survey.yaml --output-dir results
-```
-
-The separate [research pipeline](configuration.md) supports nonquadratic priors
-and posterior sampling. Use [SMPy comparisons](smpy-benchmarks.md) for held-out
-benchmarks and [production performance](production-performance.md) for timings.
+For a FITS table, use [map_mass](survey-io.md). It handles column selection,
+coordinate conversion, WCS evaluation, and astronomical output products.

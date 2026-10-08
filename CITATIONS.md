@@ -1,14 +1,10 @@
 # Citing FEMMI
 
-If you use FEMMI in your research, software, or any published work, **please cite
-this repository.** It helps others find the method and supports continued work on it.
-
-Until a dedicated paper is available, please cite the repository directly:
+Cite the repository and the version or commit used for your analysis:
 
 > Adam Field, *FEMMI: Finite Element Mass Map Inversion*, 2026.
 > https://github.com/AdamField118/FEMMI
 
-A machine-readable citation is provided in [`CITATION.cff`](CITATION.cff); on
-GitHub you can use the **"Cite this repository"** button to export BibTeX or APA.
-
-Thank you for citing — it genuinely matters.
+[`CITATION.cff`](CITATION.cff) provides machine-readable citation metadata.
+GitHub's “Cite this repository” menu can export it as BibTeX or APA. Cite external
+methods and data sets separately when they are part of your analysis.

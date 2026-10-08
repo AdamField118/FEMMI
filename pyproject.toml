@@ -38,8 +38,7 @@ io = ["astropy>=5.0"]        # FITS shear catalogs and Frontier Fields model map
 neural = ["flax>=0.8", "optax>=0.2"]   # learned score prior (prior='neural')
 galsim = ["galsim>=2.5"]     # independent-truth NFW benchmark (examples/paper/benchmark_smpy.py)
 docs = ["mkdocs-material>=9.5"]        # documentation site (mkdocs serve / build)
-# Exact Remy et al. 2020 reproduction: GalSim (independent-truth benchmark) and
-# astropy (read MassiveNuS convergence maps for prior.neural.train_data=massivenus).
+# Synthetic-truth and FITS dependencies for research workflows.
 paper = ["galsim>=2.5", "astropy>=5.0"]
 
 [project.scripts]

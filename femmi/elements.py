@@ -1,73 +1,13 @@
-"""
-femmi/elements.py
-C^1-conforming triangular elements: Argyris (P5) and Hsieh-Clough-Tocher (HCT).
+"""C1 triangular spaces: Argyris P5 and Hsieh-Clough-Tocher macroelements.
 
-WHY THIS EXISTS
----------------
-FEMMI's shear is the traceless Hessian of the lensing potential, gamma_1 =
-1/2(psi_xx - psi_yy), gamma_2 = psi_xy -- a SECOND derivative. The P3 Lagrange
-element is only C^0, so its second derivative is discontinuous across element
-boundaries, and every awkward thing in the shear path descends from that one
-fact:
+Shear uses second potential derivatives. C1 continuity gives a continuous
+first derivative and an L2 Hessian, not a globally continuous Hessian.
+Argyris shares vertex second-derivative DOFs; HCT requires a defined recovery
+from incident polynomial pieces. See c1_inverse.shear_operators.
 
-  * element Hessians are sampled exactly at the nodes where they jump
-    (operators._assemble_shear_ops);
-  * boundary rows of S1/S2 had to be zeroed as "unreliable"
-    (operators.py), which then imposes a spurious zero-shear constraint;
-  * operators.RecoveredShear exists purely to work around the jump, and it drops
-    a boundary term it cannot currently evaluate;
-  * noise in psi is amplified by h^-2 (MATH.md 18.4).
-
-A C^1 element fixes this -- but it is worth being precise about HOW, because C^1
-does NOT mean the Hessian is globally continuous. C^1 gives a continuous
-GRADIENT; across an edge interior the tangential-tangential second derivative is
-then continuous too, while the normal-normal one is free to jump (and does --
-tests/test_elements.py measures it). What actually changes for FEMMI:
-
-  1. psi_h lies in H^2, so grad^2 psi_h is a genuine L^2 field. For P3, psi_h is
-     not in H^2 at all and the Hessian only exists elementwise.
-  2. For ARGYRIS the second derivatives at each vertex are themselves DOFs, so
-     the Hessian AT THE NODES is single-valued and shared between all adjacent
-     elements. That is exactly where FEMMI samples shear -- so nodal extraction
-     becomes well posed: no averaging over adjacent elements, no jump at the
-     sampling point, no reason to special-case the boundary ring.
-  3. Approximation order improves: the Hessian of a degree-k element converges at
-     O(h^(k-1)), so Argyris gives O(h^4) shear against P3's O(h^2).
-
-HCT shares (1) but not (2): its vertex DOFs stop at the gradient, so its Hessian
-is still multivalued at vertices, and being cubic it is O(h^2) in shear like P3.
-Its appeal is cost -- 12 DOF against 21 -- and C^1 continuity for the solve.
-
-  Argyris  P5, 21 DOF/triangle: at each vertex {u, u_x, u_y, u_xx, u_xy, u_yy}
-           (18) plus the normal derivative at each edge midpoint (3). C^1, and
-           contains P5 exactly.
-  HCT      macro-element, 12 DOF/triangle: the triangle is split at its centroid
-           into three sub-triangles carrying separate cubics glued C^1; DOFs are
-           {u, u_x, u_y} at each vertex (9) plus the edge-midpoint normal
-           derivatives (3). C^1, contains P3, and much cheaper than Argyris.
-
-CONSTRUCTION
-------------
-Both are built numerically, directly in PHYSICAL coordinates, by imposing the DOF
-functionals (and, for HCT, the C^1 matching conditions) on a monomial basis and
-solving for the nodal basis. Two consequences worth knowing:
-
-  * Derivative DOFs are expressed in global Cartesian components, so vertex DOFs
-    are shared between adjacent elements with no transformation -- which is
-    exactly what makes global C^1 assembly straightforward. (This is why the
-    usual reference-element pullback is avoided: Argyris is NOT affine
-    equivalent, and mapping its derivative DOFs correctly is the classic
-    implementation trap.)
-  * Monomials up to degree 5 in raw physical coordinates would be badly
-    conditioned, so each element is built in a local frame translated to its
-    centroid and scaled by its diameter; the h-powers are folded into the DOF
-    functionals so the resulting basis still corresponds to PHYSICAL derivative
-    DOFs.
-
-Edge normal orientation must agree between the two elements sharing an edge or
-C^1 matching silently fails; `_edge_normal` fixes it from the GLOBAL vertex
-indices (always lower index -> higher index), which is why element constructors
-take `gverts`.
+The space owns element geometry, local-to-global DOF maps, interpolation,
+and field evaluation. Cached element objects share coefficient calculations
+across assembly and reconstruction on fixed geometry.
 """
 
 from __future__ import annotations
@@ -116,38 +56,12 @@ def _edge_normal(pa, pb, ga, gb):
 
 
 def equilibrated_inverse(V, n_iter=3):
-    """Invert a DOF-functional Vandermonde after two-sided equilibration.
+    """Return the inverse and raw/equilibrated condition estimates.
 
-    WHY. Building a C^1 basis in physical coordinates means inverting a matrix
-    whose rows are DOF functionals of mixed order -- values are O(1), gradients
-    O(1/h), Hessians O(1/h^2) -- and whose columns are monomials of mixed degree.
-    A single scalar `h` cannot balance both, and on a catalog mesh the sliver
-    triangles push the worst element's condition number to 1e11-1e14: three
-    surviving digits or fewer (MATH.md 18.3.10).
-
-    The fix costs nothing and loses nothing. Row scaling D_r and column scaling
-    D_c give
-
-        V^{-1} = D_c (D_r V D_c)^{-1} D_r,
-
-    which is an ALGEBRAIC IDENTITY, not an approximation -- the returned inverse
-    is the inverse of the original V. What changes is that the matrix actually
-    handed to the LU is equilibrated, so the rounding error committed during the
-    inversion is governed by cond(D_r V D_c) instead of cond(V). Scaling cannot
-    move a genuinely singular element, only stop a well-posed one from being
-    destroyed by units.
-
-    MEASURED, AND IT IS A NULL RESULT (MATH.md 18.3.14). Conditioning improves
-    7-20x on the median and 20-30x on the worst element, and the ill-conditioned
-    count at n_eff = 30 drops from 6/1752 to 1/1752. Accuracy changes by
-    -0.15% +/- 0.34%, i.e. not at all: double precision carries ~16 digits, so
-    losing three to a 1e13 condition number still leaves ten, orders of magnitude
-    below the shape-noise floor that actually limits the reconstruction.
-    Conditioning was never the binding constraint. Kept because it is free and
-    strictly safer; it is NOT an accuracy improvement and must not be quoted as
-    one.
-
-    Returns (Vinv, cond_raw, cond_equilibrated).
+    Row and column scaling satisfy V^-1 = Dc (Dr V Dc)^-1 Dr. The returned
+    inverse therefore retains the original coefficient units. Equilibration
+    reduces unit imbalance during factorization; it does not repair singular
+    geometry or guarantee lower reconstruction error.
     """
     V = np.asarray(V, float)
     n = V.shape[0]
@@ -528,13 +442,6 @@ class C1Space:
 def circular_triangulation(n_boundary, radius=2.5, n_rings=None, center=(0.0, 0.0)):
     """Vertices + triangles of a DISK, with every boundary vertex exactly on the
     circle and the boundary loop in order.
-
-    Why this matters more than it looks: on the square, once the exterior BEM
-    coupling is active the reentrant corner singularity caps convergence at
-    O(h^{5/3}) no matter how good the element is (MATH.md 18.5, and measured in
-    18.3.7 -- coupled Argyris fell from O(h^4) to ~O(h^1.2)). A polygon
-    approximating a circle has interior angles tending to pi, so there is no
-    reentrant corner and no such cap.
 
     Concentric rings plus a Delaunay triangulation, mirroring
     mesh.generate_p3_circular_mesh but returning the P1 vertex/triangle level,

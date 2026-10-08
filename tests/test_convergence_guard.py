@@ -5,7 +5,7 @@ The floor guard (femmi.convergence).
 This exists because the project reported a floored curve as a convergence order
 TWICE -- once for the forward shear against infinite-domain analytic Gaussian
 shear, and once for the coupled C^1 solve, which was written up as the square's
-corner singularity capping the rate before being retracted (MATH.md 18.3.7).
+corner singularity capping the rate before being retracted (MATH.md).
 
 The regression tests below use the ACTUAL historical numbers from both mistakes.
 If a future change makes the guard permissive enough to let those through again,

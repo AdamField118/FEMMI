@@ -1,42 +1,78 @@
-# Production mapper performance
+# Profiling and backend comparisons
 
-Use `examples/diagnostics/profile_cpu.py` to measure the same `FEMMapper` used
-by catalogue mapping and calibration. Geometry is fixed while each repeated fit
-receives a deterministic new noise realization. Every fit starts from zero.
-Settings and actual observations are stored with results. This replaces the
-older L-BFGS-only timing driver; historical CPU results remain historical data.
+Use the production mapper profiler to measure setup and repeated reconstructions
+on a fixed mesh. Each fit receives a deterministic new shear realization and
+starts from zero. Settings and observations are saved with the timings.
 
 ```bash
-export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 NUMBA_NUM_THREADS=1
-export NUMBA_CACHE_DIR=/tmp/femmi-fresh-cache
-FEMMI_BEM_BACKEND=numba python examples/diagnostics/profile_cpu.py \
-  --kind hct --sources 200 --repeats 3 --warm-numba --output cold.json
-FEMMI_BEM_BACKEND=numba python examples/diagnostics/profile_cpu.py \
-  --kind hct --sources 200 --repeats 3 --warm-numba --output warm.json
-FEMMI_BEM_BACKEND=numpy python examples/diagnostics/profile_cpu.py \
-  --kind hct --sources 200 --repeats 3 --output numpy.json
-python examples/diagnostics/compare_cpu.py numpy.json warm.json --output parity.json
+python -m pip install -e '.[speed]'
+python examples/diagnostics/run_profiles.py \
+  --sources 200 1000 --processes 3 --repeats 3 --output results/cpu-profile
 ```
 
-Create a genuinely new cache directory for the cold run. Repeat for P3 and
-Argyris, multiple catalogue sizes and at least three fresh processes per case.
-Run serially on an otherwise idle node. `--profile` writes a cProfile file;
-profiled runs are rejected by the speedup comparison utility.
+The runner executes cases serially in fresh processes with one BLAS and Numba
+thread. Each element/source-count case gets an empty Numba cache for its first
+run; later processes reuse it. A NumPy run supplies the matched baseline.
+The output directory must be empty. Start with small source counts before
+allocating a larger job.
 
-Reported phases: Numba import, compilation/cache loading, first kernel execution,
-catalogue generation, full setup, single/double-layer assembly, C1 volume assembly,
-coupled sparse factorization, prior factorization and repeated reconstruction.
-The factorization/assembly subtimers are contained in setup or reconstruction;
-never add them again to the total. Setup also contains meshing, dense boundary
-solves and, for P3, JAX reference-basis work. RSS is the process high-water mark,
-including imports, rather than an allocation count for FEM matrices alone.
+On Turing or another Slurm cluster, submit from the checkout root:
 
-`total_s` is catalogue generation + setup + repeated fits.
-`total_including_jit_s` additionally includes explicitly separated Numba startup.
-It excludes Python/module startup, output writing and cProfile overhead. These
-labels should accompany any reported speed ratio.
+```bash
+export PYTHON_BIN="$PWD/.venv/bin/python"
+sbatch --time=02:00:00 --mem=16G scripts/profile_cpu.sbatch \
+  --sources 200 1000 --processes 3 --repeats 3 --output results/cpu-profile
+```
 
-Comparison requires identical workload/configuration, accepted fresh residuals,
-matching objectives and FE coefficients/predicted shear. Tolerances are numerical
-parity thresholds, not speed assertions. CUDA and automatic solver switching
-remain outside this measured CPU task.
+Adjust time, memory, account, and partition to the cluster and workload. The
+script does not load site-specific modules or require a GPU. The time and memory
+above are submission examples, not measured resource requirements.
+
+## Recorded phases
+
+| Field | Meaning |
+|---|---|
+| `numba_import_s` | Numba kernel import and initialization |
+| `jit_compile_or_cache_load_s` | Compilation into a new cache or loading an existing one |
+| `jit_first_execution_s` | First call after explicit compilation/loading |
+| `catalogue_s` | Synthetic catalogue generation |
+| `setup_s` | Meshing, assembly, and coupled factorization |
+| `single_layer_s`, `double_layer_s` | BEM assembly subtimers |
+| `volume_assembly_s`, `trace_s` | C1 setup subtimers |
+| `coupled_factorization_s` | Sparse coupled LU |
+| `prior_factorization_s` | Prior factorization during reconstruction |
+| `reconstruction_s` | Sum of repeated reconstruction calls |
+| `total_s` | Catalogue + setup + reconstruction |
+| `total_including_jit_s` | Total plus explicitly separated Numba startup |
+| `peak_rss_mib` | Process high-water memory, including imports |
+
+Subtimers are nested: do not add factorization or assembly a second time.
+Totals exclude process/module startup, output writing, and profiler overhead.
+`plan.json` records the workload and source provenance; individual JSON files
+record environment, dependency versions, thread settings, and solve diagnostics.
+
+`comparisons.json` is written only after matching the workload, accepted
+residuals, objectives, coefficients, and predicted shear. A failed parity check
+stops the runner. Small test cases validate the workflow; use representative
+catalogue sizes on the intended machine to establish performance claims.
+
+## Locate remaining cost
+
+Use a separate profiled run, since profiling overhead invalidates speed ratios:
+
+```bash
+python examples/diagnostics/profile_cpu.py --kind hct --sources 200 \
+  --repeats 3 --warm-numba --profile --output results/profile/hct.json
+python -m pstats results/profile/hct.prof
+```
+
+The CPU kernels preserve float64 and singular quadrature. NumPy/SciPy remain
+responsible for vectorized assembly and sparse linear algebra. Numba operates
+on geometry-dependent assembly, so the research custom adjoint remains intact.
+Do not infer GPU gains or iterative-solver crossover from a boundary-kernel
+speedup; measure the complete workload before changing those components.
+
+For FITS ingestion and product-writing cost, use
+`examples/diagnostics/benchmark_survey_io.py --help`. Write its JSON to
+`results/`; the outputs include timings and process memory. Keep numerical
+performance records in run archives rather than copying them into this guide.

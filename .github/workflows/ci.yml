@@ -50,11 +50,7 @@ jobs:
   # neural-prior and large-sampling paths are still exercised on every push
   # without slowing the per-version signal above.
   #
-  # This job also installs the OPTIONAL extras and sets FEMMI_REQUIRE_OPTIONAL,
-  # which turns a missing extra into a hard failure instead of a silent skip.
-  # Without that, five GalSim-gated modules -- including test_truth and
-  # test_density, which guard the results in MATH.md 18.3.10 -- skipped on every
-  # push and the suite still reported green. See tests/conftest.py.
+  # Require optional scientific dependencies so their tests cannot skip silently.
   test-full:
     name: full tests incl. slow + optional extras (py3.11)
     runs-on: ubuntu-latest
@@ -73,7 +69,7 @@ jobs:
       - name: Install package (with dev + all optional extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,neural,galsim,io]"
+          pip install -e ".[dev,neural,galsim,io,speed]"
           pip install "SMPy @ git+https://github.com/GeorgeVassilakis/SMPy.git@26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe"
 
       - name: Run full test suite (optional extras required, not skippable)
@@ -83,3 +79,14 @@ jobs:
         run: |
           python -c "import smpy"
           pytest -q
+
+  docs:
+    name: documentation build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -r docs/requirements.txt
+      - run: mkdocs build --strict

@@ -4,7 +4,7 @@ The historical constants are retained for API reproducibility. Current fair
 comparisons use independent held-out joint calibration of lambda and physical
 length for every FEM kind (femmi.calibration). Earlier selector win counts were
 measured before the shared-noise and convergence fixes and are not current
-performance claims. See MATH.md 18.3.11 and 18.3.17.
+performance claims. Use femmi.calibration for current paired comparisons.
 """
 from __future__ import annotations
 import numpy as np
@@ -134,13 +134,8 @@ def cv_lambda(rec, g1_obs, g2_obs, lam_grid=None, n_folds=5, seed=0,
               warm_start=True, maxiter=None, verbose=False):
     """K-fold cross-validated lambda: predictive error on HELD-OUT galaxies.
 
-    WHY THIS AND NOT MOROZOV. The discrepancy principle fails on this problem for
-    a measurable reason (MATH.md 18.3.11): the fitting residual is nearly flat in
-    lambda near the optimum, so d log lambda / d log resid ~ 7 and any error in
-    the target maps to a factor ~2 in lambda. Cross-validation does not go
-    through that curve at all -- it measures how well the reconstruction predicts
-    shear it never saw, which is directly the quantity being optimised and is
-    steep in lambda on both sides of the optimum.
+    Select the strength by predicting shear excluded from the training
+    likelihood. The geometry is held fixed across folds.
 
     The fold structure is the natural one here: a fold is a subset of the
     DATA-CARRYING vertices, dropped from the data weight rather than from the

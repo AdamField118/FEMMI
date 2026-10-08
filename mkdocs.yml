@@ -33,7 +33,6 @@ markdown_extensions:
       permalink: true
 
 extra_javascript:
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 nav:
@@ -41,12 +40,13 @@ nav:
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Catalogue mapper: mapper.md
+  - API reference: api.md
   - Survey FITS workflow: survey-io.md
   - SMPy benchmarks: smpy-benchmarks.md
   - Production performance: production-performance.md
   - Configuration & CLI: configuration.md
   - Observation model: observation-model.md
   - Calibrated comparisons: calibration.md
-  - CPU performance: cpu-performance.md
   - Priors & sampling: priors-and-sampling.md
   - Neural prior: neural-prior.md
+  - Development: development.md

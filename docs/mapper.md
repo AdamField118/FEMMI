@@ -2,7 +2,7 @@
 
 `FEMMapper` is the production quadratic estimator for P3, Argyris and HCT.
 `MapperConfig` requires the element, regularization strength, physical correlation
-length and field radius. There are no density-dependent historical defaults.
+length and field radius. All four choices are explicit.
 
 ```python
 import numpy as np
@@ -20,8 +20,9 @@ second = mapper.reconstruct(other_gamma1, other_gamma2)
 
 The numbers above illustrate syntax, not a calibration for an unknown cluster.
 `evaluate` uses the element's actual polynomial basis, including HCT subcells,
-and returns NaN outside the computational mesh. The ring radius is 1.12 times
-the configured field radius. Ring vertices have no observations. Values inside
+and returns NaN outside the computational mesh. The ring radius is `boundary_padding` times
+the configured field radius (default 1.12). `boundary_nodes` optionally fixes
+the ring resolution. Ring vertices have no observations. Values inside
 holes are prior-dependent predictions, not measured pixels.
 
 ## Observation and noise contract
@@ -71,8 +72,7 @@ across splits. Independent synthetic calibration remains available separately.
 The solver uses prior-preconditioned CG with an internal relative target of
 1e-8 and independently recomputed normal-equation residual acceptance of 1e-6.
 Both are configurable. A failed solve raises; there is no silent unconverged map.
-This contract is inherited from FEMMI's verified solver, not copied from an
-unrelated iteration count. These tolerances describe numerical error, not the
+These tolerances describe numerical error, not the
 observational chi-square acceptance region.
 
 `MassMap` contains FE coefficients, source-position convergence, predicted shear,
@@ -90,28 +90,22 @@ femmi map --catalogue shear.fits --config configs/survey.yaml --output-dir resul
 ```
 
 `map_catalogue(flat, config)` is the one-call low-level estimator. Its `MassMap.save`
-method remains the portable NPZ export for numerical work. The production `map`
-command now uses FITS input and FITS/PNG output; there is no legacy NPZ CLI alias.
-`femmi run` remains the separate experimental prior/posterior workflow, including
+method remains the portable NPZ export for numerical work. `femmi run` remains the separate experimental prior/posterior workflow, including
 nonquadratic penalties and sampling. Those research capabilities and their JAX
 adjoints are retained; the production mapper is a NumPy/SciPy interface and
 is not itself a JAX-traceable function.
 
-## API design references
+## Conditional B diagnostic
 
-- [SMPy, commit 26d231f](https://github.com/GeorgeVassilakis/SMPy/tree/26d231f5b4b22b41e76cb3bd3143d799c2e7ebfe):
-  `api.map_mass`, `Config`, and mapper `create_maps` separate caller-facing input,
-  explicit method settings and numerical mapping. FEMMI follows that separation,
-  while keeping catalogues unbinned and requiring prior parameters.
-- [jax-fem, commit 9a79b4b](https://github.com/deepmodeling/jax-fem/tree/9a79b4bb47460a90a6fafe26f1fbd58d2d3fed08):
-  problem objects and solver options separate assembly from solve control.
-  FEMMI keeps reusable geometry and explicit residual checks; Newton tolerances
-  are not substituted for FEMMI's linear MAP residual definition.
-- [Clawpack/PyClaw Controller](https://github.com/clawpack/pyclaw/blob/master/src/pyclaw/controller.py):
-  separate solver, state and output responsibilities. FEMMI keeps persistence
-  out of the solve and uses a distinct result object.
+```python
+response = mapper.diagnose_b(e_fit=result)
+print(response['diagnostics']['closure_relative'])
+```
 
-The obsolete `reconstruct_catalog`, density runners/interpolated KS anchors and
-one-off comparison scripts were removed. Use `map_mass`/`FEMMapper` for data and
-`calibrated_comparison.py`/`benchmark_smpy.py` for experiments. There are no aliases
-preserving the obsolete defaults.
+The returned `e`, `raw`, `leakage`, and `residual` entries are `MassMap` objects.
+`raw` fits rotated observations; `leakage` fits the rotated E prediction;
+`residual` fits the rotated shear residual. Their interpretation and finite-field
+limitations are described in the [observation model](observation-model.md).
+The diagnostic requires two extra solves when matching E and B fits are supplied.
+
+See the [API reference](api.md) for every configuration field and result attribute.

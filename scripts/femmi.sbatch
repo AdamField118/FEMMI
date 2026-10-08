@@ -36,12 +36,10 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export XLA_PYTHON_CLIENT_ALLOCATOR=platform
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-10}"
 
-# Activate your environment:
-source /cm/shared/spack/opt/spack/linux-ubuntu20.04-x86_64/gcc-13.2.0/miniconda3-25.1.1-24g7bpuxyyxo5pfd4zn5sldbomvz736a/bin/activate
-conda activate femmi
+: "${PYTHON_BIN:?Set PYTHON_BIN to your environment Python}"
 
 echo "host=$(hostname)  config=$CONFIG  overrides=${*:-none}"
-python -c "import jax; print('JAX devices:', jax.devices())"
+"$PYTHON_BIN" -c "import jax; print('JAX devices:', jax.devices())"
 
 # -u = unbuffered so progress streams into the .log live.
-srun python -u -m femmi.cli run --config "$CONFIG" "${SETS[@]}"
+srun "$PYTHON_BIN" -u -m femmi.cli run --config "$CONFIG" "${SETS[@]}"

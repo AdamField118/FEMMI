@@ -22,7 +22,7 @@ this module fixes the comparison protocol:
     looks expensive per element (21 DOF) and is not (about 1.04x P3 globally).
 
 Metrics per run: relative L2 error, DC-removed relative L2 error (shape only,
-which is what survives the mass-sheet limitation of MATH.md 6.3a), mean-kappa
+which is what survives the mass-sheet limitation of MATH.md), mean-kappa
 error, DOFs, and seconds.
 
     from femmi.benchmark import sweep, DEFAULT_GRID

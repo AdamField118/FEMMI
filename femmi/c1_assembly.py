@@ -11,7 +11,7 @@ What is here, and what is not
 -----------------------------
 Here: K, M, load, Dirichlet constraints, a Poisson solve, and shear extraction
 that reads the Hessian straight off the Argyris vertex DOFs (no averaging, no
-recovery, no boundary special-casing -- see MATH.md 18.3.2).
+recovery, no boundary special-casing -- see MATH.md).
 
 The coupled exterior solve is implemented separately in c1_coupling.py.
 The Dirichlet manufactured-solution helpers in this module pin the boundary

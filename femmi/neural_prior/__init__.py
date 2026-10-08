@@ -15,20 +15,8 @@ is differentiable, the same learned score drives posterior sampling
 are rejected by MAP because they do not supply a consistent energy.
 Requires flax + optax (`pip install femmi[neural]`).
 
-WHY THE IMPORTS ARE LAZY
-------------------------
-`data.lognormal_kappa_maps` is pure numpy and has no JAX dependency, but it lives
-in this package -- and importing anything from a package runs its __init__. When
-that __init__ eagerly imported `prior` and `train` (which need flax/optax), a
-`from .neural_prior.data import lognormal_kappa_maps` in `femmi.truth` raised
-ModuleNotFoundError for anyone without the optional `neural` extra.
-
-That is not a neural-prior problem, it is a TRUTH problem: `truth.lognormal_truth`
-generates the non-Gaussian field that MATH.md 18.3.12 uses to bound the scope of
-the density claim, and it was unusable without an unrelated extra installed. The
-module-level `__getattr__` below defers the heavy imports until a name that
-actually needs them is requested, so the numpy-only path stays importable while
-`from femmi.neural_prior import NeuralScorePrior` behaves exactly as before.
+Imports are lazy so NumPy-only truth generation remains available without
+Flax or Optax. Accessing a neural model or trainer loads its optional dependencies.
 """
 
 _LAZY = {

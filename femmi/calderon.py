@@ -136,10 +136,8 @@ def calderon_conditioning(n_bs=(48, 96, 192, 384), degree=3, radius=1.0,
                           sigma_scale=1.0, verbose=True):
     """Measure conditioning growth: raw V, same-mesh pairing, and BC pairing.
 
-    Returns a list of dicts. This is a MEASUREMENT, not a claim -- the point of
-    the module is to find out whether the dual basis removes the O(N) growth that
-    MATH.md 18.3.9 reports for the same-mesh pairing, and the answer belongs in
-    the table it produces rather than in a docstring.
+    Returns a list of dictionaries containing condition estimates for each
+    boundary resolution. Use the measured trend to assess the chosen pairing.
     """
     from .bem_hp import (build_circular_boundary_mesh, assemble_single_layer_hp,
                          assemble_hypersingular_hp, assemble_boundary_mass_hp)

@@ -589,3 +589,19 @@ def test_unsupported_plot_option_fails_before_outputs(tmp_path):
             )
         )
     assert not (tmp_path / "p3").exists()
+
+
+def test_conditional_b_products(tmp_path):
+    path = tmp_path / 'catalog.fits'
+    catalogue(path)
+    out = map_mass(**options(path, mode=['E','B'], b_diagnostics=True,
+        save_fits=True,output_dir=tmp_path,smoothing=.5))
+    assert out['metadata']['b_response']['closure_relative'] < 2e-5
+    np.testing.assert_allclose(out['maps']['B'],
+        out['b_diagnostic_maps']['leakage']+out['b_diagnostic_maps']['residual'],
+        atol=1e-8,equal_nan=True)
+    for name in ('b_leakage','b_residual'):
+        with fits.open(tmp_path/'p3'/f'femmi_output_p3_{name}.fits',checksum=True) as hdul:
+            assert hdul[0].verify_checksum()==1
+    with pytest.raises(ValueError,match='requires B'):
+        map_mass(**options(path,mode='E',b_diagnostics=True))

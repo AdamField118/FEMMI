@@ -1,33 +1,9 @@
-"""
-examples/paper/injectivity.py   [P1.6]
-The mass-sheet degeneracy at the operator level: how strongly does the forward
-respond to a UNIFORM mass sheet (the DC mode)?
+"""Measure the discrete forward response to a constant convergence vector.
 
-  Kaiser-Squires / FFT forward:  F.1 = 0  exactly  -> the mean is unrecoverable.
-  FEMMI (BEM far-field):         ||F.1||/sqrt(N) > 0 -> the DC mode is OBSERVABLE,
-                                 i.e. not in the forward operator's null space.
-
-Both of those are true as stated. What does NOT follow -- and is not true -- is
-that FEMMI therefore recovers the absolute level in practice:
-
-  * ~99.5-99.9% of ||F.1||^2 is carried by the outer collar of the square domain
-    and concentrates in the CORNERS; in the deep interior a uniform sheet produces
-    almost no shear, as the infinite-sheet symmetry argument requires.
-  * ||F.1||/sqrt(N) GROWS under refinement (1.66 -> 3.04 from nx=12 to nx=24)
-    rather than converging -- the reentrant corner singularity (MATH.md 18.5),
-    not a resolved physical signal.
-  * on truth that FEMMI did not generate, its mean-kappa error is 0.047 vs KS's
-    0.049 (examples/paper/independent_truth.py).
-
-So state this as an operator property -- FEMMI removes the DC mode from the null
-space -- and NOT as having broken the mass-sheet degeneracy. (The multiplicative
-degeneracy kappa -> lam*kappa + (1-lam) is untouched by any pure shear inverter.)
-
-Note FEMMI does NOT make shear->kappa well-posed in general (it's a compact
-operator with a decaying singular spectrum, like KS -- that's what regularisation
-handles); the difference is specifically at the DC mode.
-
-    python examples/paper/injectivity.py
+The finite isolated-domain model and periodic KS operator have different
+constant-mode behavior. This experiment measures that difference and its
+spatial distribution; it does not prove continuum uniqueness or recovery of
+an infinite mass sheet. Use independent truth for reconstruction comparisons.
 """
 
 import argparse

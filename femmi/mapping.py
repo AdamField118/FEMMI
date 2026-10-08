@@ -25,6 +25,8 @@ class MapperConfig:
     maxiter: int = 2000
     observable: str = 'shear'
     source_plane: str = 'effective'
+    boundary_padding: float = 1.12
+    boundary_nodes: int | None = None
 
     def __post_init__(self):
         if self.method not in ('p3', 'argyris', 'hct'):
@@ -41,6 +43,10 @@ class MapperConfig:
         object.__setattr__(self, 'center', tuple(self.center))
         if not isinstance(self.maxiter, int) or isinstance(self.maxiter, bool) or self.maxiter < 1:
             raise ValueError('maxiter must be a positive integer')
+        if not np.isfinite(self.boundary_padding) or self.boundary_padding <= 1:
+            raise ValueError('boundary_padding must exceed one')
+        if self.boundary_nodes is not None and (not isinstance(self.boundary_nodes,int) or isinstance(self.boundary_nodes,bool) or self.boundary_nodes<12):
+            raise ValueError('boundary_nodes must be an integer >=12')
         if self.observable != 'shear' or self.source_plane != 'effective':
             raise ValueError('only shear at one effective source plane is supported')
 
@@ -119,8 +125,8 @@ class FEMMapper:
         if np.any(np.linalg.norm(xy-np.asarray(config.center), axis=1) > config.radius):
             raise ValueError('catalogue extends beyond the configured field radius')
         start = time.perf_counter()
-        nb = max(18, 3*int(np.ceil(2*np.sqrt(len(c.x))/3)))
-        radius = 1.12*config.radius
+        nb = config.boundary_nodes or max(18, 3*int(np.ceil(2*np.sqrt(len(c.x))/3)))
+        radius = config.boundary_padding*config.radius
         if self.kind == 'p3':
             from .operators import build_operators_catalog
             ops, cm = build_operators_catalog(c.x,c.y,center=config.center,radius=radius,
@@ -174,6 +180,16 @@ class FEMMapper:
                     weighted_shear_residual=float(np.dot(c.weight,(p-a)**2+(q-b)**2)))
         from dataclasses import replace
         return MassMap(k[self.value_indices],k,np.array(a,copy=True),np.array(b,copy=True),p,q,info,replace(cfg,lam=lam,length=length),self)
+
+    def diagnose_b(self, g1=None, g2=None, *, e_fit=None, b_fit=None):
+        """Split the rotated-shear fit into predicted E leakage and residual.
+
+        This is conditional on the fitted E model. Neither the residual map nor
+        its norm is a pure-B estimator or a calibrated significance statistic.
+        Supplied fits must use this mapper, the same observations and prior.
+        """
+        from .diagnostics import b_response
+        return b_response(self,g1,g2,e_fit=e_fit,b_fit=b_fit)
 
     def evaluate(self, coefficients, points):
         coefficients = np.asarray(coefficients, dtype=float)
