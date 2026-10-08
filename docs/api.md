@@ -39,6 +39,7 @@ describe that geometry. Internal solver objects are implementation details.
 | `reconstruct(g1=None, g2=None, *, lam=None, length=None)` | Fit stored shear or two replacement component arrays; optionally override the prior; return `MassMap` |
 | `evaluate(coefficients, points)` | Evaluate a finite coefficient vector at finite `(n,2)` points; return an `(n,)` array with NaN outside the mesh |
 | `select_regularization(lambdas, lengths, *, folds=3, seed=0)` | Return `best`, all `candidates`, `boundary_unresolved`, and split metadata using held-out shear MSE |
+| `reconstruct_eb(g1=None, g2=None, *, lam_e=None, lam_b=None, length_e=None, length_b=None)` | Return `JointMassMap`; see [joint E/B mapping](eb-mapping.md) |
 | `diagnose_b(g1=None, g2=None, *, e_fit=None, b_fit=None)` | Return E, raw B, predicted leakage, residual fits, and L2/closure diagnostics |
 
 Both replacement shear components must be supplied together. Reuse requires the
@@ -87,6 +88,7 @@ file formats.
 | Reference grid | `reference_image=None`, `reference_hdu=0`, `max_pixels=4_000_000` |
 | Mesh ring | `boundary_padding=1.12`, `boundary_nodes=None` |
 | Map modes | `mode='E'` or a list containing E and/or B; `b_diagnostics=False` |
+| Joint E/B | `joint_eb=False` adds separate joint products; `joint_b_lam=None`, `joint_b_length=None` default to the E prior; no joint SNR |
 | Noise maps | `create_snr=False`, `num_shuffles=100`, `shuffle_type='spatial'`, `seed=0`, `snr_smoothing=2.0` pixels |
 | Display | `smoothing=None`, `create_counts_map=False`, `overlay_counts_map=False`, `plotting=None`, `snr_plot_title='Signal-to-Noise Map'` |
 | Overlays | `xray_image=None`, `xray_levels=None`, `xray_contours=None` |

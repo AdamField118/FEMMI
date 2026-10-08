@@ -15,7 +15,8 @@ def config():
         evaluation_grid=40,
         radius=3,
         ks_plus_iterations=100,
-        ks_plus_iteration_check=[50, 100, 200],
+        ks_plus_iteration_check=[50, 100, 200, 400],
+        ks_plus_threshold_tau=25.,
     )
 
 
@@ -49,13 +50,13 @@ def test_iteration_gate(monkeypatch):
     pytest.importorskip("galsim")
     c = make_catalogue(3, 21, radius=2.0, truth="nfw")
 
-    def reconstruct(c, m, a, b, iterations):
+    def reconstruct(c, m, a, b, iterations, **kwargs):
         grid = np.arange(64).reshape(8, 8) * (1 + 1 / iterations)
-        return None, None, None, grid, None
+        return None, None, None, grid, grid*0
 
     monkeypatch.setattr(smpy, "reconstruct", reconstruct)
-    assert iteration_stability([c], (8, 0), [50, 100, 200], 100)["accepted"]
-    assert not iteration_stability([c], (8, 0), [50, 100, 200], 100, tolerance=0.001)[
+    assert iteration_stability([c], (8, 0), [50, 100, 200, 400], 100, threshold_tau=25.)["accepted"]
+    assert not iteration_stability([c], (8, 0), [50, 100, 200, 400], 100, tolerance=0.001, threshold_tau=25.)[
         "accepted"
     ]
 
@@ -95,3 +96,29 @@ def test_aperture_gate_precedes_calibration(tmp_path):
     assert report["calibrations"] == {}
     assert not report["aperture_quadrature_check"]["accepted"]
     assert not (tmp_path / "evaluation.json").exists()
+
+
+def test_budget_policy_explicit_and_does_not_relax_stable_guard():
+    c=config()
+    for kw in (dict(ks_plus_threshold_tau=None),dict(ks_plus_threshold_tau=-1),
+               dict(ks_plus_iteration_policy='ignore'),dict(ks_plus_iteration_check=[100,200])):
+        with pytest.raises(ValueError):validate_config(c|kw)
+    c.update(ks_plus_iteration_policy='calibrated_budget',
+             ks_plus_iteration_candidates=[50,100])
+    validate_config(c)
+    with pytest.raises(ValueError):validate_config(c|dict(ks_plus_iteration_candidates=[100]))
+
+
+def test_plateau_check_catches_b_changes_and_accidental_e_crossing(monkeypatch):
+    from femmi import smpy
+    from types import SimpleNamespace
+    c=SimpleNamespace(seed=0)
+    def reconstruct(c,m,a,b,iterations,threshold_tau,ks_plus_forward):
+        assert b == 0 and threshold_tau == 25.
+        grid=np.arange(64).reshape(8,8).astype(float)
+        # Selected and terminal match, but intermediate has a large B excursion.
+        return None,None,None,grid,grid*(iterations==200)
+    monkeypatch.setattr(smpy,'reconstruct',reconstruct)
+    out=iteration_stability([c],(8,2.),[100,200,400],100,threshold_tau=25.)
+    assert not out['accepted']
+    assert out['rows'][1]['b_change_over_eb_scale']>0.9

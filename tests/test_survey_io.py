@@ -605,3 +605,20 @@ def test_conditional_b_products(tmp_path):
             assert hdul[0].verify_checksum()==1
     with pytest.raises(ValueError,match='requires B'):
         map_mass(**options(path,mode='E',b_diagnostics=True))
+
+
+def test_joint_fits_are_separate_and_prior_metadata_is_preserved(tmp_path):
+    path=tmp_path/'cat.fits';catalogue(path)
+    out=map_mass(**options(path,mode=['E','B'],joint_eb=True,joint_b_lam=.7,
+        joint_b_length=.2,save_fits=True,output_dir=tmp_path))
+    assert set(out['joint_maps'])=={'E','B'}
+    prefix=tmp_path/'p3'/'femmi_output_p3'
+    h=fits.getheader(str(prefix)+'_joint_b_mode.fits')
+    assert h['PRODUCT']=='JOINT_B' and h['EBMETHOD']=='joint MAP'
+    assert h['E_LAMBDA']==.3 and h['B_LAMBDA']==.7
+    assert h['REG_LAM']==.7 and h['REG_LEN']==.2
+    assert 'BINTERP' not in h
+    np.testing.assert_allclose(fits.getdata(str(prefix)+'_joint_b_mode.fits'),out['joint_maps']['B'])
+    sources=Table.read(str(prefix)+'_sources.fits',hdu='SOURCES')
+    np.testing.assert_allclose(sources['JOINT_PRED_G1'],out['joint_reconstruction'].predicted_g1)
+    assert out['metadata']['joint_eb']['uncertainty'].startswith('not computed')

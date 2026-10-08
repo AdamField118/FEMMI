@@ -58,7 +58,18 @@ def _header(result, unit, product):
     header["SRCPLANE"] = "effective"
     header["REDSHIFT"] = (False, "Per-source redshifts used in forward operator")
     header["NSOURCE"] = meta["n_selected"]
-    if product.endswith("_B") or product.startswith("B_"):
+    if product.startswith("JOINT_"):
+        joint = meta["joint_eb"]
+        header["EBMETHOD"] = "joint MAP"
+        header["REG_LAM"] = joint["lam_e"] if product == "JOINT_E" else joint["lam_b"]
+        header["REG_LEN"] = joint["length_e"] if product == "JOINT_E" else joint["length_b"]
+        header["E_LAMBDA"] = joint["lam_e"]
+        header["B_LAMBDA"] = joint["lam_b"]
+        header["E_LENGTH"] = joint["length_e"]
+        header["B_LENGTH"] = joint["length_b"]
+        header["HISTORY"] = "Joint posterior mode, conditional on both priors; not pure E/B."
+        header["HISTORY"] = "No uncertainty for joint products; rotated-fit SNR is a different estimator."
+    elif product.endswith("_B") or product.startswith("B_"):
         header["BINTERP"] = "rotated shear"
         header["HISTORY"] = (
             "B products are finite-field responses, not an orthogonal E/B decomposition."
@@ -102,6 +113,14 @@ def _source_table(result):
     else:
         tab["X_IMAGE"], tab["Y_IMAGE"] = original.x[index], original.y[index]
         tab["X_IMAGE"].unit = tab["Y_IMAGE"].unit = "pix"
+    joint = result.get("joint_reconstruction")
+    if joint is not None:
+        tab["JOINT_E"] = joint.kappa_e
+        tab["JOINT_B"] = joint.kappa_b
+        tab["JOINT_PRED_G1"] = joint.predicted_g1
+        tab["JOINT_PRED_G2"] = joint.predicted_g2
+        tab["JOINT_RES_G1"] = c.g1-joint.predicted_g1
+        tab["JOINT_RES_G2"] = c.g2-joint.predicted_g2
     if c.object_id is not None:
         tab["OBJECT_ID"] = c.object_id
     if c.z is not None:
@@ -296,6 +315,8 @@ def write_products(
     products = {}
     for m, image in result["maps"].items():
         products[f"{m.lower()}_mode"] = (image, "1", f"KAPPA_{m}")
+    for m, image in result.get("joint_maps", {}).items():
+        products[f"joint_{m.lower()}_mode"] = (image, "1", f"JOINT_{m}")
     for key, image in result.get("b_diagnostic_maps", {}).items():
         products[f"b_{key}"] = (image, "1", f"B_{key.upper()}")
     for m, image in result["snr_maps"].items():

@@ -41,6 +41,7 @@ nav:
   - Quickstart: quickstart.md
   - Catalogue mapper: mapper.md
   - API reference: api.md
+  - Joint E/B mapping: eb-mapping.md
   - Survey FITS workflow: survey-io.md
   - SMPy benchmarks: smpy-benchmarks.md
   - Production performance: production-performance.md

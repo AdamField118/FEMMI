@@ -181,6 +181,17 @@ class FEMMapper:
         from dataclasses import replace
         return MassMap(k[self.value_indices],k,np.array(a,copy=True),np.array(b,copy=True),p,q,info,replace(cfg,lam=lam,length=length),self)
 
+    def reconstruct_eb(self, g1=None, g2=None, *, lam_e=None, lam_b=None,
+                       length_e=None, length_b=None):
+        """Joint E/B MAP; rotation enters every coupled solve step.
+
+        Both priors must be positive. The result remains prior-dependent on a
+        finite, sampled field; see docs/eb-mapping.md before interpreting B.
+        """
+        from .eb import joint_map
+        return joint_map(self, g1, g2, lam_e=lam_e, lam_b=lam_b,
+                         length_e=length_e, length_b=length_b)
+
     def diagnose_b(self, g1=None, g2=None, *, e_fit=None, b_fit=None):
         """Split the rotated-shear fit into predicted E leakage and residual.
 

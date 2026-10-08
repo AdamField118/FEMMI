@@ -43,12 +43,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "density-10",
@@ -94,12 +98,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "density-20",
@@ -145,12 +153,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "density-30",
@@ -196,12 +208,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "noise-0.1",
@@ -248,12 +264,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "noise-0.2",
@@ -300,12 +320,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "noise-0.3",
@@ -352,12 +376,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "off-centre",
@@ -413,12 +441,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "two-halos",
@@ -482,12 +514,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "mass-concentration",
@@ -543,12 +579,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "radius-1.5",
@@ -595,12 +635,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "radius-6.0",
@@ -647,12 +691,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "weights",
@@ -701,12 +749,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "masked",
@@ -766,12 +818,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "clustered",
@@ -820,12 +876,16 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   },
   {
     "name": "lognormal",
@@ -872,11 +932,15 @@
     "ks_plus_iteration_check": [
       50,
       100,
-      200
+      200,
+      400
     ],
     "ks_plus_stability_tolerance": 0.05,
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
-    "aperture_quadrature_tolerance": 0.05
+    "aperture_quadrature_tolerance": 0.05,
+    "ks_plus_threshold_tau": 25.0,
+    "ks_plus_forward": "corrected",
+    "ks_plus_iteration_policy": "stable"
   }
 ]

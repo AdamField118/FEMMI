@@ -196,3 +196,10 @@ field (default 1.12). `boundary_nodes` optionally fixes its resolution. Vary the
 independently when assessing exterior sensitivity; changing padding is not a
 substitute for testing uncertain exterior mass. These options can be placed in
 the selected `methods` section of the YAML file.
+
+## Joint E/B products
+
+For a simultaneous fit with separate priors, set `joint_eb=True`. See
+[joint E/B mapping](eb-mapping.md) for products, configuration, and interpretation.
+These are additional posterior-mode maps; the ordinary rotated-fit SNR does
+not apply to them.

@@ -385,6 +385,9 @@ def map_mass(
     boundary_padding=1.12,
     boundary_nodes=None,
     b_diagnostics=False,
+    joint_eb=False,
+    joint_b_lam=None,
+    joint_b_length=None,
 ):
     """SMPy-style survey workflow returning maps, boundaries, WCS and diagnostics.
 
@@ -420,6 +423,14 @@ def map_mass(
     if pixel_origin not in (0, 1):
         raise ValueError("pixel_origin must be 0 or 1")
     modes = [mode] if isinstance(mode, str) else list(mode)
+    if not isinstance(joint_eb, (bool, np.bool_)):
+        raise ValueError("joint_eb must be boolean")
+    if not joint_eb and (joint_b_lam is not None or joint_b_length is not None):
+        raise ValueError("joint B prior options require joint_eb=True")
+    if joint_b_lam is not None and (not np.isfinite(joint_b_lam) or joint_b_lam <= 0):
+        raise ValueError("joint_b_lam must be positive")
+    if joint_b_length is not None and (not np.isfinite(joint_b_length) or joint_b_length < 0):
+        raise ValueError("joint_b_length must be nonnegative")
     if b_diagnostics and "B" not in modes:
         raise ValueError("b_diagnostics requires B in mode")
     if not modes or len(set(modes)) != len(modes) or not set(modes) <= {"E", "B"}:
@@ -537,6 +548,11 @@ def map_mass(
         a, b = (flat.g1, flat.g2) if m == "E" else (flat.g2, -flat.g1)
         fits[m] = mapper.reconstruct(a, b)
     timings["reconstruction_s"] = time.perf_counter() - t
+    joint = None
+    if joint_eb:
+        t = time.perf_counter()
+        joint = mapper.reconstruct_eb(lam_b=joint_b_lam, length_b=joint_b_length)
+        timings["joint_reconstruction_s"] = time.perf_counter() - t
     b_response = None
     if b_diagnostics:
         t = time.perf_counter()
@@ -545,11 +561,15 @@ def map_mass(
     t = time.perf_counter()
     for m, fit in fits.items():
         maps[m] = _smooth(fit.evaluate(points).reshape(shape), smoothing)
+    joint_maps = {}
+    if joint is not None:
+        joint_maps = {m: _smooth(v.reshape(shape), smoothing)
+                      for m, v in zip(("E", "B"), joint.evaluate(points))}
     timings["evaluation_s"] = time.perf_counter() - t
     valid = np.isfinite(next(iter(maps.values())))
     outside = np.hypot(*points.T).reshape(shape) > field_radius
     valid &= ~outside
-    for image in maps.values():
+    for image in list(maps.values()) + list(joint_maps.values()):
         image[~valid] = np.nan
     mask_region = np.zeros(shape, bool)
     for cx, cy, r in holes:
@@ -661,6 +681,9 @@ def map_mass(
         ),
         diagnostics={m: fit.diagnostics for m, fit in fits.items()},
     )
+    if joint is not None:
+        metadata["joint_eb"] = dict(joint.diagnostics,
+            uncertainty="not computed; raw rotated-fit SNR does not apply to joint products")
     if b_response is not None:
         metadata["b_response"] = b_response["diagnostics"]
     b_maps = {}
@@ -683,6 +706,8 @@ def map_mass(
     )
     result = dict(
         maps=maps,
+        joint_maps=joint_maps,
+        joint_reconstruction=joint,
         b_diagnostic_maps=b_maps,
         scaled_boundaries=scaled,
         true_boundaries=true,

@@ -29,6 +29,10 @@ def validate_config(config):
         "fem_axes",
         "refine",
         "ks_plus_iterations",
+        "ks_plus_threshold_tau",
+        "ks_plus_forward",
+        "ks_plus_iteration_policy",
+        "ks_plus_iteration_candidates",
         "ks_plus_iteration_check",
         "ks_plus_stability_tolerance",
         "selection_metric",
@@ -84,19 +88,27 @@ def validate_config(config):
             "publication protocol requires >=5 calibration and >=20 evaluation seeds"
         )
     if "smpy_ks_plus" in methods:
-        check = config.get("ks_plus_iteration_check")
-        chosen = config.get("ks_plus_iterations", 100)
-        if (
-            not check
-            or any(
-                not isinstance(n, int) or isinstance(n, bool) or n < 1 for n in check
-            )
-            or chosen not in check
-            or max(check) <= chosen
-        ):
-            raise ValueError(
-                "KS+ iteration check must include the selected count and a larger reference"
-            )
+        policy = config.get("ks_plus_iteration_policy", "stable")
+        if policy not in ("stable", "calibrated_budget"):
+            raise ValueError("KS+ iteration policy must be stable or calibrated_budget")
+        if config.get("ks_plus_forward", "corrected") not in ("corrected", "upstream"):
+            raise ValueError("KS+ forward must be corrected or upstream")
+        tau = config.get("ks_plus_threshold_tau")
+        if tau is None or not np.isfinite(tau) or tau <= 0:
+            raise ValueError("set a positive ks_plus_threshold_tau independent of iteration budget")
+        check = config.get("ks_plus_iteration_check", [])
+        def valid_counts(values):
+            return (isinstance(values, list) and len(values) == len(set(values))
+                    and all(isinstance(n, int) and not isinstance(n, bool) and n > 0 for n in values))
+        if not valid_counts(check):
+            raise ValueError("KS+ checks require distinct positive integer counts")
+        candidates = (config.get("ks_plus_iteration_candidates", []) if policy == "calibrated_budget"
+                      else [config.get("ks_plus_iterations", 100)])
+        if (not valid_counts(candidates) or not candidates
+                or (policy == "calibrated_budget" and len(candidates) < 2)
+                or not set(candidates) <= set(check)
+                or len([n for n in check if n > max(candidates)]) < 2):
+            raise ValueError("KS+ checks must include every candidate and two larger reference budgets")
     if (
         config.get("aperture_radius_arcmin", config.get("radius", 3.0) / 4)
         / (2 * config.get("radius", 3.0) / grid)
@@ -165,49 +177,51 @@ def fits_roundtrip(c, path):
     )
 
 
-def iteration_stability(catalogues, parameters, counts, selected, tolerance=0.05):
-    """Compare KS+ iteration counts on calibration data at fixed chosen grid/prior."""
-    from .smpy import reconstruct
+def iteration_stability(catalogues, parameters, counts, selected, tolerance=0.05,
+                        *, threshold_tau, ks_plus_forward="corrected"):
+    """Fixed-schedule, unsmoothed E AND B stability on calibration catalogues.
 
+    Require the selected map and every longer checkpoint to agree with the
+    longest run. Two longer runs avoid declaring a single accidental crossing
+    a plateau. This is an empirical finite-budget check, not a convergence proof.
+    """
+    from .smpy import reconstruct
     if not np.isfinite(tolerance) or not 0 < tolerance < 1:
         raise ValueError("iteration tolerance must be in (0,1)")
+    if not np.isfinite(threshold_tau) or threshold_tau <= 0:
+        raise ValueError("threshold_tau must be positive")
+    if selected not in counts or len(set(n for n in counts if n > selected)) < 2:
+        raise ValueError("include the selected count and two larger references")
     rows = []
     for c in catalogues:
         grids = {}
         for count in sorted(set(counts)):
-            *_, grid, _ = reconstruct(c, "smpy_ks_plus", *parameters, iterations=count)
-            grids[count] = grid
+            *_, e, b = reconstruct(c, "smpy_ks_plus", parameters[0], 0.,
+                iterations=count, threshold_tau=threshold_tau, ks_plus_forward=ks_plus_forward)
+            grids[count] = (e, b)
         reference = grids[max(counts)]
-        axis = (np.arange(reference.shape[0]) + 0.5) * 2 / reference.shape[0] - 1
+        axis = (np.arange(reference[0].shape[0]) + 0.5) * 2 / reference[0].shape[0] - 1
         x, y = np.meshgrid(axis, axis)
-        field = x * x + y * y < 1
-        ref = reference[field] - reference[field].mean()
-        den = max(np.linalg.norm(ref), 1e-300)
-        for count, grid in grids.items():
-            current = grid[field] - grid[field].mean()
-            rows.append(
-                dict(
-                    seed=c.seed,
-                    iterations=count,
-                    relative_change=float(np.linalg.norm(current - ref) / den),
-                    field_mean_change=float(
-                        grid[field].mean() - reference[field].mean()
-                    ),
-                    full_grid_relative_change=float(
-                        np.linalg.norm(grid - reference)
-                        / max(np.linalg.norm(reference), 1e-300)
-                    ),
-                )
-            )
-    chosen = [r["relative_change"] for r in rows if r["iterations"] == selected]
-    return dict(
-        reference_iterations=max(counts),
-        selected_iterations=selected,
-        tolerance=tolerance,
-        accepted=bool(max(chosen) <= tolerance),
-        rows=rows,
-        interpretation="DC-removed physical-field map stability under iteration budget changes; upstream threshold schedule also changes; not a solver residual",
-    )
+        field = x*x+y*y < 1
+        ref = [v[field]-v[field].mean() for v in reference]
+        # Common E+B scale remains meaningful for a near-zero B component.
+        den = max(np.linalg.norm(np.concatenate(ref)), np.finfo(float).tiny)
+        for count, pair in grids.items():
+            change = [float(np.linalg.norm(v[field]-v[field].mean()-r)/den)
+                      for v, r in zip(pair, ref)]
+            rows.append(dict(seed=c.seed, iterations=count,
+                relative_change=float(np.hypot(*change)),
+                e_change_over_eb_scale=change[0], b_change_over_eb_scale=change[1],
+                field_mean_change=[float(v[field].mean()-r[field].mean())
+                                   for v,r in zip(pair,reference)],
+                full_grid_relative_change=float(np.linalg.norm(np.stack(pair)-np.stack(reference)) /
+                    max(np.linalg.norm(np.stack(reference)), np.finfo(float).tiny))))
+    checked = [r["relative_change"] for r in rows if selected <= r["iterations"] < max(counts)]
+    return dict(reference_iterations=max(counts), selected_iterations=selected,
+        threshold_tau=threshold_tau, forward_transform=ks_plus_forward,
+        smoothing_for_check=0., tolerance=tolerance,
+        accepted=bool(checked and max(checked) <= tolerance), rows=rows,
+        interpretation="fixed-threshold-schedule unsmoothed E+B field plateau; not a solver residual or accuracy guarantee")
 
 
 def run_suite(configs, output):

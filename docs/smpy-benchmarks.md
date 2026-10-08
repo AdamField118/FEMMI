@@ -1,8 +1,8 @@
 # Benchmark protocol
 
 Run comparisons through `examples/paper/benchmark_smpy.py`. It uses the production
-FEM estimator and the pinned upstream SMPy implementations of Kaiser–Squires
-(KS) and KS+. The upstream aperture mapper is evaluated against an aperture
+FEM estimator, pinned upstream SMPy Kaiser–Squires (KS), and an explicitly
+labeled correction to the pinned SMPy KS+ forward transform. The upstream aperture mapper is evaluated against an aperture
 statistic, not against an unfiltered convergence map.
 
 ## Install and run
@@ -61,17 +61,66 @@ seeds, with no overlap. These are minimum protocol budgets, not a power analysis
 Choose the sample size needed for the intended precision before inspecting the
 evaluation results. Parameters are frozen before generating evaluation catalogues.
 
-KS+ uses one outer reduced-shear pass because the input is linear shear. Its
-inpainting count is fixed in the recipe. After tuning grid and smoothing,
-`ks_plus_iteration_check` compares that count with a longer calibration-only run.
-The largest DC-removed relative map change over the physical circular field
-at the selected count must be below
-`ks_plus_stability_tolerance` (default 0.05). If it fails, investigate iteration-budget and schedule sensitivity before
-recalibrating in a new run. Upstream's threshold decay depends on the total
-iteration count, so this changes the path as well as its length. More iterations
-are not guaranteed to resolve instability. The report retains full-grid and
-mean-level changes separately. This is a budget-sensitivity check, not a CG
-residual or scientific accuracy test.
+KS+ uses one outer reduced-shear pass because the input is linear shear.
+Always set `ks_plus_threshold_tau` explicitly. Upstream defaults to one quarter
+of the total iteration budget, which changes the threshold trajectory whenever
+the budget changes. A fixed positive tau gives the same trajectory at every
+checkpoint. Tau is part of the estimator configuration, not a residual tolerance.
+
+`ks_plus_forward="corrected"` is the adapter default. The pinned upstream
+`_kappa_to_gamma` discards the B contribution when taking real parts. The
+correction implements `gamma1=D1 E-D2 B`, `gamma2=D2 E+D1 B`. Thresholding,
+wavelet constraints, inverse transforms, padding, and masks remain upstream.
+The real-valued even-grid Nyquist convention also remains upstream; the
+round-trip contract applies to resolved modes away from DC/Nyquist. Use
+`ks_plus_forward="upstream"` only to reproduce or diagnose that pinned behavior.
+Every fit records the variant. Do not describe corrected results as unmodified
+upstream SMPy. This correction changes the estimator, so recalibrate it.
+
+Choose the stopping policy **before** evaluation:
+
+- `ks_plus_iteration_policy="stable"` (default) keeps the stability gate.
+  Set `ks_plus_iterations` and include it plus at least two larger budgets in
+  `ks_plus_iteration_check`. After grid/smoothing calibration, the check compares
+  unsmoothed E and B maps on the physical field, with a common E+B norm after
+  removing each component's field mean. The selected and all later checkpoints
+  must agree with the longest run within `ks_plus_stability_tolerance`.
+  A B excursion can fail the gate even when E appears steady. Means and full-grid
+  changes are retained separately. Failure stops publication evaluation.
+- `ks_plus_iteration_policy="calibrated_budget"` treats iteration count as a
+  hyperparameter of a finite-budget estimator. Supply at least two counts in
+  `ks_plus_iteration_candidates`. Grid and smoothing are recalibrated for every
+  count, then the lowest calibration error selects the complete configuration.
+  `ks_plus_iteration_check` must include all candidates and at least two budgets
+  above the largest one. The same plateau diagnostic is saved, even if it fails.
+  Evaluation is allowed, with an explicit **finite-budget, no convergence claim**
+  label. A winner at the largest allowed count is marked `iteration_budget_limited`.
+  Report the declared cost cap; this is not an unconstrained optimal KS+ claim.
+  A winner at the smallest count stops evaluation if that count exceeds one;
+  include one or extend the lower search range before acceptance.
+
+The finite-budget policy does not make an unstable iteration converge. It asks
+a different, well-defined benchmark question: how well does an independently
+tuned, computationally bounded estimator predict held-out catalogues? Keep
+failed candidates and unresolved spatial tuning boundaries under either policy.
+Never change the budget set or tau after examining evaluation outcomes.
+
+`configs/benchmarks/ks-plus-budget-smoke.json` demonstrates that policy with
+small exploratory splits. Publication splits still require at least five
+calibration and twenty evaluation seeds. The existing publication recipe remains
+in strict `stable` mode; it has not been relabeled to bypass a failed gate.
+
+To inspect schedules independently of a full calibration:
+
+```bash
+python examples/diagnostics/ks_plus_iterations.py --iterations 100 400 1600 \
+  --tau 25 --output results/ks-plus-iterations.json
+```
+
+It compares native and corrected forward transforms under native and fixed-tau
+schedules. This is an empirical budget check, not a fixed-point residual or an
+accuracy guarantee. Hard thresholding and gap-power rescaling do not provide a
+monotone quadratic objective, so more iterations need not improve the map.
 
 ## Spatial and aperture scoring
 

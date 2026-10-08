@@ -214,10 +214,14 @@ def calibrate_and_evaluate(config,output):
         write_json(output/'calibration.json',report)
         if not report['aperture_quadrature_check']['accepted'] and not config.get('exploratory',False):
             raise CalibrationFailure('refine evaluation_grid: aperture quadrature control exceeds tolerance',controls)
+    selected_iterations = config.get('ks_plus_iterations',100)
+    iteration_policy = config.get('ks_plus_iteration_policy','stable')
+    ks_options = dict(threshold_tau=config.get('ks_plus_threshold_tau'),
+                      ks_plus_forward=config.get('ks_plus_forward','corrected'))
     def grid_fit(c,method,a,b):
         if method=='ks': return ks_fit(c,a,b)
         from .smpy import reconstruct
-        return reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))[:3]
+        return reconstruct(c,method,a,b,iterations=selected_iterations,**ks_options)[:3]
     for method in methods:
         gridded=method in ('ks','smpy_ks','smpy_ks_plus')
         models=[] if gridded else [catalogue_mapper(c,method,**mapper_options) for c in cats]
@@ -233,9 +237,32 @@ def calibrate_and_evaluate(config,output):
         axes=(config.get('ks_axes',[[6,12,24,48],[0,.5,1.,2.]]) if gridded
               else config.get('fem_axes',[[.03,.3,3.,30.],[.2,.6,1.8,5.4]]))
         try:
-            report['calibrations'][method]=adaptive_grid(evaluate,axes,config.get('max_expansions',6),gridded,config.get('refine',True))
+            if method == 'smpy_ks_plus' and iteration_policy == 'calibrated_budget':
+                # Iteration count is an estimator hyperparameter, selected ONLY
+                # on calibration truths with grid and smoothing retuned for each.
+                budgets=[]
+                for count in sorted(config['ks_plus_iteration_candidates']):
+                    selected_iterations=count
+                    candidate=adaptive_grid(evaluate,axes,config.get('max_expansions',6),True,config.get('refine',True))
+                    budgets.append(dict(iterations=count,calibration=candidate))
+                    report['calibrations'][method]=dict(iteration_candidates=budgets,search_in_progress=True)
+                    write_json(output/'calibration.json',report)
+                winner=min(budgets,key=lambda r:r['calibration']['score'])
+                selected_iterations=winner['iterations']
+                report['calibrations'][method]=dict(winner['calibration'],
+                    selected_iterations=selected_iterations,iteration_policy=iteration_policy,
+                    iteration_candidates=budgets,
+                    iteration_budget_limited=selected_iterations == max(config['ks_plus_iteration_candidates']),
+                    iteration_lower_boundary=selected_iterations == min(config['ks_plus_iteration_candidates']) and selected_iterations > 1)
+                # Do not hide unresolved searches at nonwinning budgets.
+                if (report['calibrations'][method]['iteration_lower_boundary']
+                        or any(r['calibration']['boundary_unresolved'] for r in budgets)):
+                    report['calibrations'][method]['boundary_unresolved']=True
+            else:
+                report['calibrations'][method]=adaptive_grid(evaluate,axes,config.get('max_expansions',6),gridded,config.get('refine',True))
         except CalibrationFailure as exc:
             report['calibrations'][method]=dict(error=str(exc),candidates=exc.candidates,
+                completed_iteration_candidates=report['calibrations'].get(method,{}).get('iteration_candidates',[]),
                 boundary_unresolved=True)
             write_json(output/'calibration.json',report)
             raise
@@ -248,11 +275,15 @@ def calibrate_and_evaluate(config,output):
     if 'smpy_ks_plus' in methods and config.get('ks_plus_iteration_check'):
         from .protocol import iteration_stability
         stability=iteration_stability(cats,report['calibrations']['smpy_ks_plus']['parameters'],
-            config['ks_plus_iteration_check'],config.get('ks_plus_iterations',100),
-            config.get('ks_plus_stability_tolerance',.05))
+            config['ks_plus_iteration_check'],selected_iterations,
+            config.get('ks_plus_stability_tolerance',.05),**ks_options)
         report['ks_plus_iteration_stability']=stability
         write_json(output/'calibration.json',report)
-        if not stability['accepted'] and not config.get('allow_unstable_iterations',False):
+        report['ks_plus_iteration_policy']=iteration_policy
+        report['ks_plus_inference_scope']=('finite-budget estimator selected on calibration data; no convergence claim'
+            if iteration_policy == 'calibrated_budget' else 'empirical fixed-schedule plateau required')
+        write_json(output/'calibration.json',report)
+        if not stability['accepted'] and iteration_policy == 'stable' and not config.get('allow_unstable_iterations',False):
             raise CalibrationFailure('KS+ iteration stability failed; investigate iteration/schedule sensitivity and recalibrate',stability['rows'])
     rows=[];apertures=[];controls=[]
     for seed in ev:
@@ -262,7 +293,7 @@ def calibrate_and_evaluate(config,output):
             try:
                 if method in ('smpy_ks','smpy_ks_plus'):
                     from .smpy import reconstruct
-                    k,info,sec,grid,bmode=reconstruct(c,method,a,b,iterations=config.get('ks_plus_iterations',100))
+                    k,info,sec,grid,bmode=reconstruct(c,method,a,b,iterations=selected_iterations,**ks_options)
                     dofs=int(a)**2;setup=0.
                 elif method=='ks':
                     k,info,sec=grid_fit(c,method,a,b);dofs=int(a)**2;setup=0.

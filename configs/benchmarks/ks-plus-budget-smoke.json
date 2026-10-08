@@ -1,9 +1,6 @@
 [
   {
     "methods": [
-      "p3",
-      "argyris",
-      "hct",
       "smpy_ks",
       "smpy_ks_plus"
     ],
@@ -45,30 +42,33 @@
         1.8
       ]
     ],
-    "ks_plus_iterations": 100,
-    "name": "nfw-integration",
+    "name": "nfw-integration-budget",
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
     "ks_plus_iteration_check": [
-      50,
+      1,
+      25,
       100,
-      200,
-      400
+      400,
+      800,
+      1600
     ],
     "ks_plus_stability_tolerance": 0.05,
     "exploratory": true,
     "allow_unresolved": true,
-    "allow_unstable_iterations": true,
     "refine": false,
     "ks_plus_threshold_tau": 25.0,
     "ks_plus_forward": "corrected",
-    "ks_plus_iteration_policy": "stable"
+    "ks_plus_iteration_policy": "calibrated_budget",
+    "ks_plus_iteration_candidates": [
+      1,
+      25,
+      100,
+      400
+    ]
   },
   {
     "methods": [
-      "p3",
-      "argyris",
-      "hct",
       "smpy_ks",
       "smpy_ks_plus"
     ],
@@ -110,8 +110,7 @@
         1.8
       ]
     ],
-    "ks_plus_iterations": 100,
-    "name": "masked-integration",
+    "name": "masked-integration-budget",
     "catalog_kw": {
       "masks": [
         [
@@ -124,18 +123,25 @@
     "selection_metric": "source_shape_l2",
     "aperture_comparison": true,
     "ks_plus_iteration_check": [
-      50,
+      1,
+      25,
       100,
-      200,
-      400
+      400,
+      800,
+      1600
     ],
     "ks_plus_stability_tolerance": 0.05,
     "exploratory": true,
     "allow_unresolved": true,
-    "allow_unstable_iterations": true,
     "refine": false,
     "ks_plus_threshold_tau": 25.0,
     "ks_plus_forward": "corrected",
-    "ks_plus_iteration_policy": "stable"
+    "ks_plus_iteration_policy": "calibrated_budget",
+    "ks_plus_iteration_candidates": [
+      1,
+      25,
+      100,
+      400
+    ]
   }
 ]

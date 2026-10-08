@@ -53,10 +53,14 @@
   "ks_plus_iteration_check": [
     50,
     100,
-    200
+    200,
+    400
   ],
   "ks_plus_stability_tolerance": 0.05,
   "selection_metric": "source_shape_l2",
   "aperture_comparison": true,
-  "aperture_quadrature_tolerance": 0.05
+  "aperture_quadrature_tolerance": 0.05,
+  "ks_plus_threshold_tau": 25.0,
+  "ks_plus_forward": "corrected",
+  "ks_plus_iteration_policy": "stable"
 }

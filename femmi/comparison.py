@@ -72,7 +72,19 @@ def summarize(directory):
                 if 'no valid catalogs shared' not in str(exc):raise
                 st=[]
             aperture_pairs.append(dict(a=a,b=b,statistics=st))
-    report=dict(attempted=len(rows),failures=sum('error' in r for r in rows),paired=pairs,
+    ks_policies=[]
+    for path in sorted(root.glob('*/calibration.json')):
+        cal=json.loads(path.read_text());cfg=cal.get('config',{})
+        if 'smpy_ks_plus' in cal.get('calibrations',{}):
+            chosen=cal['calibrations']['smpy_ks_plus']
+            ks_policies.append(dict(scenario=cfg.get('name',path.parent.name),
+                forward_transform=cfg.get('ks_plus_forward','upstream'),
+                iteration_policy=cfg.get('ks_plus_iteration_policy','historical'),
+                selected_iterations=chosen.get('selected_iterations',cfg.get('ks_plus_iterations',100)),
+                threshold_tau=cfg.get('ks_plus_threshold_tau'),
+                budget_limited=chosen.get('iteration_budget_limited',False),
+                plateau_accepted=cal.get('ks_plus_iteration_stability',{}).get('accepted')))
+    report=dict(ks_plus_policies=ks_policies,attempted=len(rows),failures=sum('error' in r for r in rows),paired=pairs,
         aperture=dict(attempted=len(aperture_rows),failures=sum('error' in r for r in aperture_rows),paired=aperture_pairs))
     write_json(root/'summary.json',report)
     lines=['# SMPy comparison results','',
@@ -87,5 +99,14 @@ def summarize(directory):
             score=np.mean(scores) if scores else float('nan')
             sec=np.mean([r['seconds'] for r in ok]) if ok else float('nan')
             lines.append(f'| {scenario} | {name} | {len(ok)} | {len(group)-len(ok)} | {score:.5g} | {sec:.5g} |')
+    if ks_policies:
+        lines += ['', '## KS+ method identity and stopping policy', '']
+        for policy in ks_policies:
+            lines.append(f"- {policy['scenario']}: forward={policy['forward_transform']}; "
+                         f"policy={policy['iteration_policy']}; iterations={policy['selected_iterations']}; "
+                         f"tau={policy['threshold_tau']}; plateau passed={policy['plateau_accepted']}; "
+                         f"at largest candidate budget={policy['budget_limited']}.")
+        lines += ['', 'Corrected KS+ includes a FEMMI adapter fix to the pinned SMPy forward transform. '
+                  'A calibrated-budget result is a finite-budget estimator comparison, not a convergence claim.']
     (root/'RESULTS.md').write_text('\n'.join(lines)+'\n')
     return report
